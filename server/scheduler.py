@@ -239,6 +239,33 @@ def create_scheduler() -> AsyncIOScheduler:
         id="subscription_health",
         replace_existing=True,
     )
+    
+    # ── Marketing Engine Jobs ─────────────────────────────────────────────────
+    from .marketing import generate_seo_post, run_drip_campaigns, scan_reddit_opportunities
 
-    logger.info("Background scheduler configured with 4 automated tasks")
+    # Publish a new SEO blog post every Monday, Wednesday, Friday at 14:00 UTC
+    scheduler.add_job(
+        generate_seo_post,
+        CronTrigger(day_of_week="mon,wed,fri", hour=14, minute=0),
+        id="seo_blog_engine",
+        replace_existing=True,
+    )
+
+    # Run email drip campaigns every day at 10:00 UTC
+    scheduler.add_job(
+        run_drip_campaigns,
+        CronTrigger(hour=10, minute=0),
+        id="email_drip_bot",
+        replace_existing=True,
+    )
+
+    # Scan for opportunities (leads) every 4 hours
+    scheduler.add_job(
+        scan_reddit_opportunities,
+        CronTrigger(hour="*/4", minute=15),
+        id="opportunity_scout",
+        replace_existing=True,
+    )
+
+    logger.info("Background scheduler configured with 7 automated tasks (including marketing)")
     return scheduler

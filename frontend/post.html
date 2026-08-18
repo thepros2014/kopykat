@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{title}} — SnapCopy AI</title>
+  <meta name="description" content="{{meta_desc}}"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/styles.css"/>
+  <style>
+    .post-header { padding: 80px 20px 40px; }
+    .post-header h1 { font-size: 42px; font-weight: 800; margin-bottom: 16px; line-height: 1.2; }
+    .post-header .meta { color: var(--muted); font-size: 14px; }
+    .post-content { font-size: 18px; line-height: 1.7; color: #e2e8f0; padding-bottom: 80px; }
+    .post-content h2 { margin-top: 48px; margin-bottom: 16px; font-size: 28px; color: #fff; }
+    .post-content h3 { margin-top: 32px; margin-bottom: 12px; font-size: 22px; color: #fff; }
+    .post-content p { margin-bottom: 24px; }
+    .post-content ul, .post-content ol { margin-bottom: 24px; padding-left: 24px; }
+    .post-content li { margin-bottom: 8px; }
+    .post-content a { color: var(--accent); text-decoration: none; }
+    .post-content a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="logo" href="/">⚡ SnapCopy AI</a>
+    <div class="nav-links">
+      <a href="/blog">Blog</a>
+      <a href="/#pricing" class="btn btn-primary">Get Started Free</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container" style="max-width: 760px; min-height: 70vh;">
+  <div class="post-header">
+    <div class="meta">Published on {{date}}</div>
+    <h1>{{title}}</h1>
+  </div>
+  
+  <div class="post-content">
+    {{content}}
+    
+    <div class="card" style="margin-top: 60px; text-align: center; border: 1px solid var(--accent);">
+      <h3 style="margin-top: 0; color: #fff;">Want to write copy like this instantly?</h3>
+      <p style="font-size: 16px; margin-bottom: 24px;">SnapCopy AI writes product descriptions, ads, and emails in 2 seconds.</p>
+      <a href="/#pricing" class="btn btn-primary">Get 5,000 Free Tokens</a>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <span>⚡ SnapCopy AI — &copy; 2026</span>
+    <div class="footer-links">
+      <a href="/">Home</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

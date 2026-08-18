@@ -121,6 +121,57 @@ async def dashboard_page():
     return HTMLResponse("<h1>Dashboard — Loading...</h1>")
 
 
+from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
+
+# ...
+
+@app.get("/blog", response_class=HTMLResponse, include_in_schema=False)
+async def blog_index(db: Session = Depends(get_db)):
+    """Serve the SEO blog index."""
+    posts = db.query(BlogPost).filter(BlogPost.published == True).order_by(BlogPost.created_at.desc()).all()
+    template_path = frontend_dir / "blog.html"
+    if not template_path.exists():
+        return HTMLResponse("<h1>Blog setup pending...</h1>")
+        
+    template = template_path.read_text(encoding="utf-8")
+    
+    items_html = ""
+    for p in posts:
+        date_str = p.created_at.strftime("%B %d, %Y")
+        items_html += f'''
+        <div class="card" style="margin-bottom: 24px;">
+            <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">{date_str}</div>
+            <h2 style="margin-bottom:12px; font-size: 22px;"><a href="/blog/{p.slug}">{p.title}</a></h2>
+            <p style="color:var(--muted); font-size:15px;">{p.meta_desc}</p>
+        </div>
+        '''
+    if not items_html:
+        items_html = "<p style='color:var(--muted);'>No posts yet. The AI is writing the first one!</p>"
+        
+    return HTMLResponse(template.replace("<!-- POSTS -->", items_html))
+
+
+@app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
+async def blog_post(slug: str, db: Session = Depends(get_db)):
+    """Serve an individual SEO blog post."""
+    post = db.query(BlogPost).filter(BlogPost.slug == slug, BlogPost.published == True).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+        
+    template_path = frontend_dir / "post.html"
+    if not template_path.exists():
+        return HTMLResponse("<h1>Post layout pending...</h1>")
+        
+    template = template_path.read_text(encoding="utf-8")
+    date_str = post.created_at.strftime("%B %d, %Y")
+    
+    html = template.replace("{{title}}", post.title)\
+                   .replace("{{content}}", post.content)\
+                   .replace("{{meta_desc}}", post.meta_desc or "")\
+                   .replace("{{date}}", date_str)
+                   
+    return HTMLResponse(html)
+
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     return HealthResponse(status="ok", version=APP_VERSION, timestamp=datetime.utcnow())
