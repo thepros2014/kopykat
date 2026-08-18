@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — SnapCopy AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/styles.css"/>
+</head>
+<body>
+
+<div class="dash-layout">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">⚡ SnapCopy AI</div>
+    <button class="sidebar-link active" onclick="showSection('overview')">📊 Overview</button>
+    <button class="sidebar-link" onclick="showSection('apikeys')">🔑 API Keys</button>
+    <button class="sidebar-link" onclick="showSection('usage')">📈 Usage</button>
+    <button class="sidebar-link" onclick="showSection('billing')">💳 Billing</button>
+    <button class="sidebar-link" onclick="showSection('docs')">📖 API Docs</button>
+    <div style="flex:1;"></div>
+    <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">🚪 Log Out</button>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- SUCCESS BANNER (after Stripe checkout) -->
+    <div id="success-banner" class="card" style="background:rgba(34,197,94,0.08);border-color:#22c55e;display:none;margin-bottom:24px;">
+      <strong style="color:#22c55e;">🎉 Payment successful!</strong>
+      Your plan and credits have been updated. Thank you!
+    </div>
+
+    <!-- ── OVERVIEW ──────────────────────────────────────────────────────── -->
+    <section id="section-overview" class="dash-section">
+      <div class="page-title">Good to see you, <span id="user-name">—</span></div>
+      <div class="page-sub">Here's your account at a glance.</div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card-label">Current Plan</div>
+          <div class="stat-card-value" id="stat-plan">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Credits Remaining</div>
+          <div class="stat-card-value purple" id="stat-credits">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Monthly Limit</div>
+          <div class="stat-card-value" id="stat-limit">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Total Requests</div>
+          <div class="stat-card-value green" id="stat-requests">—</div>
+        </div>
+      </div>
+
+      <!-- Credit usage bar -->
+      <div class="card">
+        <h3>Token Usage This Period</h3>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);">
+          <span id="usage-label">Loading...</span>
+          <span id="usage-pct">—</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="usage-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Quick start guide -->
+      <div class="card">
+        <h3>🚀 Quick Start</h3>
+        <p style="color:var(--muted);margin-bottom:20px;font-size:14px;">
+          Make your first API call in 30 seconds.
+        </p>
+        <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:20px;overflow-x:auto;font-size:13px;line-height:1.8;">
+<code><span style="color:#6a7383;"># 1. Get your API key from the API Keys tab
+# 2. Make a request:</span>
+
+curl -X POST https://YOUR_APP_URL/api/generate \
+  -H "Authorization: Bearer sc_YOUR_KEY_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "product_description",
+    "context": "Describe your product here",
+    "tone": "professional",
+    "variations": 1
+  }'</code></pre>
+        <div style="margin-top:16px;font-size:13px;color:var(--muted);">
+          Copy types: <code style="color:var(--purple);">product_description</code> · 
+          <code style="color:var(--purple);">email_subject</code> · 
+          <code style="color:var(--purple);">social_post</code> · 
+          <code style="color:var(--purple);">ad_headline</code> · 
+          <code style="color:var(--purple);">landing_page_hero</code> · 
+          <a href="/api/docs" target="_blank" style="color:var(--purple);">+5 more →</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── API KEYS ──────────────────────────────────────────────────────── -->
+    <section id="section-apikeys" class="dash-section hidden">
+      <div class="page-title">API Keys</div>
+      <div class="page-sub">Use these keys to authenticate API requests. Keys are shown once — save them securely.</div>
+
+      <!-- New key display -->
+      <div id="new-key-box" class="new-key-box">
+        <div class="new-key-warning">⚠️ Copy this key now — it won't be shown again!</div>
+        <div class="new-key-value" id="new-key-value"></div>
+        <button class="copy-btn" onclick="copyKey()">📋 Copy Key</button>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h3 style="margin:0;">Your Keys</h3>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <input type="text" id="key-name-input" placeholder="Key name" class="input" style="width:180px;"/>
+            <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ New Key</button>
+          </div>
+        </div>
+        <div id="keys-list">
+          <div style="color:var(--muted);font-size:14px;padding:20px 0;">Loading keys...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── USAGE ─────────────────────────────────────────────────────────── -->
+    <section id="section-usage" class="dash-section hidden">
+      <div class="page-title">Usage Analytics</div>
+      <div class="page-sub">Your API usage for the current billing period.</div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card-label">Total API Calls</div>
+          <div class="stat-card-value purple" id="u-requests">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Total Tokens Used</div>
+          <div class="stat-card-value" id="u-tokens">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Credits Left</div>
+          <div class="stat-card-value green" id="u-credits">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Monthly Limit</div>
+          <div class="stat-card-value" id="u-limit">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Billing Period</h3>
+        <p style="color:var(--muted);font-size:14px;" id="u-period">Loading...</p>
+      </div>
+
+      <div class="card">
+        <h3>Need more credits?</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
+          Buy a one-time credit pack or upgrade your plan.
+        </p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="buyPack('starter')">Starter — 25K tokens — $5</button>
+          <button class="btn btn-primary btn-sm" onclick="buyPack('growth')">Growth — 100K tokens — $15</button>
+          <button class="btn btn-outline btn-sm" onclick="buyPack('scale')">Scale — 300K tokens — $40</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── BILLING ───────────────────────────────────────────────────────── -->
+    <section id="section-billing" class="dash-section hidden">
+      <div class="page-title">Billing & Plan</div>
+      <div class="page-sub">Manage your subscription and add credits.</div>
+
+      <div class="card">
+        <h3>Current Plan</h3>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+          <span class="plan-chip" id="billing-plan-chip">Free</span>
+          <span style="color:var(--muted);font-size:14px;" id="billing-plan-detail">5,000 tokens total</span>
+        </div>
+        <p style="color:var(--muted);font-size:13px;" id="billing-period-end"></p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:24px;">
+        <div class="pricing-card">
+          <div class="plan-badge">Starter</div>
+          <div class="plan-name">Basic</div>
+          <div class="plan-price">$9<span>/mo</span></div>
+          <ul class="plan-features">
+            <li>✓ 50,000 tokens/month</li>
+            <li>✓ All copy types</li>
+            <li>✓ 1 API key</li>
+          </ul>
+          <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('basic')">Upgrade to Basic</button>
+        </div>
+        <div class="pricing-card featured">
+          <div class="plan-badge popular">Most Popular</div>
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">$29<span>/mo</span></div>
+          <ul class="plan-features">
+            <li>✓ 250,000 tokens/month</li>
+            <li>✓ All copy types</li>
+            <li>✓ 3 API keys</li>
+          </ul>
+          <button class="btn btn-primary btn-full btn-sm" onclick="startCheckout('pro')">Upgrade to Pro</button>
+        </div>
+        <div class="pricing-card">
+          <div class="plan-badge">Power</div>
+          <div class="plan-name">Business</div>
+          <div class="plan-price">$79<span>/mo</span></div>
+          <ul class="plan-features">
+            <li>✓ 1M tokens/month</li>
+            <li>✓ All copy types</li>
+            <li>✓ 5 API keys</li>
+          </ul>
+          <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('business')">Upgrade to Business</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>One-Time Credit Packs</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
+          Don't need a subscription? Buy credits that never expire.
+        </p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="buyPack('starter')">Starter — 25K tokens — $5</button>
+          <button class="btn btn-primary" onclick="buyPack('growth')">Growth — 100K tokens — $15</button>
+          <button class="btn btn-outline" onclick="buyPack('scale')">Scale — 300K tokens — $40</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── DOCS ──────────────────────────────────────────────────────────── -->
+    <section id="section-docs" class="dash-section hidden">
+      <div class="page-title">API Documentation</div>
+      <div class="page-sub">Everything you need to integrate SnapCopy AI into your application.</div>
+
+      <div class="card">
+        <h3>Base URL</h3>
+        <code style="color:var(--purple);font-size:15px;" id="base-url-display">https://your-app.onrender.com</code>
+      </div>
+
+      <div class="card">
+        <h3>Authentication</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
+          Pass your API key in the <code>Authorization</code> header as a Bearer token.
+        </p>
+        <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;">Authorization: Bearer sc_your_api_key_here</pre>
+      </div>
+
+      <div class="card">
+        <h3>POST /api/generate</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">Generate marketing copy.</p>
+        <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto;">
+<code>{
+  "type": "product_description",   <span style="color:#6a7383;">// required</span>
+  "context": "Your product info",  <span style="color:#6a7383;">// required (5-2000 chars)</span>
+  "tone": "professional",          <span style="color:#6a7383;">// optional: professional|casual|urgent|friendly|bold</span>
+  "variations": 1,                 <span style="color:#6a7383;">// optional: 1-5</span>
+  "max_tokens": 300                <span style="color:#6a7383;">// optional: 50-1000</span>
+}</code></pre>
+        <p style="color:var(--muted);font-size:13px;margin-top:16px;">
+          <strong>Copy types:</strong> product_description · email_subject · email_body · 
+          social_post · ad_headline · ad_body · landing_page_hero · call_to_action · 
+          seo_meta_description · blog_intro
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Interactive Docs</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
+          Test every endpoint directly in your browser.
+        </p>
+        <a href="/api/docs" target="_blank" class="btn btn-primary">Open Swagger UI →</a>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+const API = '';
+function getToken() { return localStorage.getItem('sc_token'); }
+
+// ── Redirect to home if not logged in ─────────────────────────────────────
+if (!getToken()) window.location.href = '/';
+
+// ── Nav ───────────────────────────────────────────────────────────────────
+function showSection(id) {
+  document.querySelectorAll('.dash-section').forEach(s => s.classList.add('hidden'));
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+  document.getElementById(`section-${id}`).classList.remove('hidden');
+  event.target.classList.add('active');
+}
+
+function logout() {
+  localStorage.removeItem('sc_token');
+  window.location.href = '/';
+}
+
+// ── Load profile ──────────────────────────────────────────────────────────
+async function loadProfile() {
+  try {
+    const [profile, usage] = await Promise.all([
+      fetch(`${API}/auth/me`, {headers:{'Authorization':`Bearer ${getToken()}`}}).then(r=>r.json()),
+      fetch(`${API}/api/usage`, {headers:{'Authorization':`Bearer ${getToken()}`}}).then(r=>r.json()),
+    ]);
+
+    document.getElementById('user-name').textContent = profile.full_name || profile.email.split('@')[0];
+
+    // Stats
+    const planLabel = profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1);
+    document.getElementById('stat-plan').innerHTML = `<span class="plan-chip ${profile.plan}">${planLabel}</span>`;
+    document.getElementById('stat-credits').textContent = profile.credits.toLocaleString();
+    document.getElementById('stat-limit').textContent = profile.monthly_limit.toLocaleString();
+    document.getElementById('stat-requests').textContent = usage.total_requests.toLocaleString();
+
+    // Progress bar
+    const used = profile.monthly_limit - profile.credits;
+    const pct  = profile.monthly_limit > 0 ? Math.min(100, (used / profile.monthly_limit) * 100) : 0;
+    document.getElementById('usage-bar').style.width = pct + '%';
+    document.getElementById('usage-label').textContent = `${used.toLocaleString()} / ${profile.monthly_limit.toLocaleString()} tokens used`;
+    document.getElementById('usage-pct').textContent = pct.toFixed(1) + '%';
+
+    // Usage section
+    document.getElementById('u-requests').textContent = usage.total_requests.toLocaleString();
+    document.getElementById('u-tokens').textContent   = (usage.total_tokens || 0).toLocaleString();
+    document.getElementById('u-credits').textContent  = usage.credits_remaining.toLocaleString();
+    document.getElementById('u-limit').textContent    = usage.monthly_limit.toLocaleString();
+    if (usage.period_start && usage.period_end) {
+      document.getElementById('u-period').textContent =
+        `Billing period: ${new Date(usage.period_start).toLocaleDateString()} – ${new Date(usage.period_end).toLocaleDateString()}`;
+    }
+
+    // Billing section
+    const chip = document.getElementById('billing-plan-chip');
+    chip.textContent = planLabel;
+    chip.className = `plan-chip ${profile.plan}`;
+
+    // Base URL
+    document.getElementById('base-url-display').textContent = window.location.origin;
+
+  } catch(e) {
+    console.error('Failed to load profile', e);
+  }
+}
+
+// ── API Keys ──────────────────────────────────────────────────────────────
+async function loadKeys() {
+  const list = document.getElementById('keys-list');
+  try {
+    const res  = await fetch(`${API}/api/keys`, {headers:{'Authorization':`Bearer ${getToken()}`}});
+    const keys = await res.json();
+
+    if (!keys.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px 0;">No API keys yet. Create one above.</div>';
+      return;
+    }
+
+    list.innerHTML = keys.map(k => `
+      <div class="key-row">
+        <div>
+          <div class="key-name">${k.name}</div>
+          <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} · ${k.requests_today} requests today</div>
+        </div>
+        <code class="key-prefix">${k.key_prefix}•••••••••••••••••••••••••••</code>
+        <button class="key-delete" onclick="deleteKey('${k.id}')" title="Revoke key">🗑</button>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="color:#ff6b6b;font-size:14px;">Failed to load keys.</div>';
+  }
+}
+
+async function createApiKey() {
+  const name = document.getElementById('key-name-input').value.trim() || 'My Key';
+  try {
+    const res  = await fetch(`${API}/api/keys`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
+      body: JSON.stringify({name}),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to create key'); return; }
+
+    // Show new key once
+    const box = document.getElementById('new-key-box');
+    document.getElementById('new-key-value').textContent = data.raw_key;
+    box.classList.add('visible');
+    box.scrollIntoView({behavior:'smooth'});
+    loadKeys();
+  } catch(e) {
+    alert('Error creating key. Please try again.');
+  }
+}
+
+async function deleteKey(id) {
+  if (!confirm('Revoke this API key? This cannot be undone.')) return;
+  await fetch(`${API}/api/keys/${id}`, {
+    method:'DELETE',
+    headers:{'Authorization':`Bearer ${getToken()}`}
+  });
+  loadKeys();
+}
+
+function copyKey() {
+  const val = document.getElementById('new-key-value').textContent;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy Key', 2000);
+  });
+}
+
+// ── Billing ───────────────────────────────────────────────────────────────
+async function startCheckout(plan) {
+  const res  = await fetch(`${API}/billing/subscribe`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
+    body: JSON.stringify({
+      plan,
+      success_url: window.location.origin + '/dashboard?success=1',
+      cancel_url:  window.location.origin + '/dashboard#billing',
+    }),
+  });
+  const data = await res.json();
+  if (data.checkout_url) window.location.href = data.checkout_url;
+  else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
+}
+
+async function buyPack(pack) {
+  const res  = await fetch(`${API}/billing/credits`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
+    body: JSON.stringify({
+      pack,
+      success_url: window.location.origin + '/dashboard?success=1',
+      cancel_url:  window.location.origin + '/dashboard#billing',
+    }),
+  });
+  const data = await res.json();
+  if (data.checkout_url) window.location.href = data.checkout_url;
+  else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadProfile();
+loadKeys();
+
+// Show success banner from Stripe redirect
+if (new URLSearchParams(window.location.search).get('success')) {
+  document.getElementById('success-banner').style.display = 'block';
+  window.history.replaceState({}, '', '/dashboard');
+}
+</script>
+
+</body>
+</html>

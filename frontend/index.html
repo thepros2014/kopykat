@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SnapCopy AI — Instant Marketing Copy, Powered by AI</title>
+  <meta name="description" content="Generate high-converting marketing copy in seconds. Product descriptions, emails, ads, social posts — all powered by AI."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/styles.css"/>
+</head>
+<body>
+
+<!-- ── NAV ─────────────────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="logo" href="/">⚡ SnapCopy AI</a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="/api/docs" target="_blank">API Docs</a>
+      <a href="/dashboard" class="btn btn-outline">Dashboard</a>
+      <a href="#pricing" class="btn btn-primary">Get Started Free</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── HERO ────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="badge">🚀 AI-Powered Copywriting API</div>
+  <h1>Write copy that <span class="gradient-text">converts</span>.<br/>In seconds. Automatically.</h1>
+  <p class="hero-sub">
+    SnapCopy AI generates high-performing product descriptions, email sequences, 
+    ad copy, and social posts — via simple API call or web dashboard. 
+    Start free. Scale instantly.
+  </p>
+  <div class="hero-cta">
+    <a href="#signup" class="btn btn-primary btn-lg">Start for Free →</a>
+    <a href="/api/docs" class="btn btn-outline btn-lg" target="_blank">View API Docs</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat"><span class="stat-num">10</span><span class="stat-label">Copy Types</span></div>
+    <div class="stat"><span class="stat-num">~2s</span><span class="stat-label">Generation Time</span></div>
+    <div class="stat"><span class="stat-num">99.9%</span><span class="stat-label">Uptime</span></div>
+  </div>
+
+  <!-- Live demo preview -->
+  <div class="demo-card">
+    <div class="demo-header">
+      <span class="demo-dot red"></span>
+      <span class="demo-dot yellow"></span>
+      <span class="demo-dot green"></span>
+      <span class="demo-label">Live API Example</span>
+    </div>
+    <pre class="demo-code"><code><span class="c-comment"># Generate a product description</span>
+curl -X POST https://snapcopy.onrender.com/api/generate \
+  -H <span class="c-str">"Authorization: Bearer sc_your_key_here"</span> \
+  -d <span class="c-str">'{"type":"product_description",
+     "context":"Wireless earbuds, 40h battery, ANC",
+     "tone":"bold","variations":2}'</span>
+
+<span class="c-comment"># Response:</span>
+{
+  <span class="c-key">"variations"</span>: [
+    <span class="c-str">"Lose the wire. Keep the music. 40 hours of pure, 
+     active noise-cancelled sound in earbuds so light 
+     you'll forget you're wearing them."</span>,
+    <span class="c-str">"Your soundtrack. Zero interruptions. 40 hours of 
+     premium audio with ANC that drowns out the world 
+     so you can focus on what matters."</span>
+  ],
+  <span class="c-key">"tokens_used"</span>: 187,
+  <span class="c-key">"credits_remaining"</span>: 4813,
+  <span class="c-key">"generation_time_ms"</span>: 1240
+}</code></pre>
+  </div>
+</section>
+
+<!-- ── FEATURES ─────────────────────────────────────────────────────────── -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-header">
+      <h2>Everything you need to write copy that sells</h2>
+      <p>10 battle-tested copy formats. One simple API.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3>Product Descriptions</h3>
+        <p>Benefit-first descriptions that convert browsers into buyers. Works for any product.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📧</div>
+        <h3>Email Sequences</h3>
+        <p>Subject lines that get opened. Body copy that gets clicked. Full campaigns on demand.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <h3>Social Media Posts</h3>
+        <p>Scroll-stopping posts with hooks, emojis, and CTAs optimized for every platform.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <h3>Ad Copy</h3>
+        <p>Headlines and body copy that pass ad review and drive clicks. Google & Meta ready.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Landing Pages</h3>
+        <p>Hero sections, subheadlines, and CTAs that convert visitors into leads.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>SEO Meta Descriptions</h3>
+        <p>Click-worthy meta descriptions under 160 characters that rank and convert.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ─────────────────────────────────────────────────────── -->
+<section class="section section-dark" id="how">
+  <div class="container">
+    <div class="section-header">
+      <h2>Up and running in 3 steps</h2>
+      <p>No setup complexity. No prompt engineering needed.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Create free account</h3>
+        <p>Sign up below — no credit card required. Get 5,000 free tokens instantly.</p>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Get your API key</h3>
+        <p>Generate an API key from your dashboard. Copy it. You're ready.</p>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Make your first call</h3>
+        <p>One POST request. Get back polished, professional copy ready to use.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRICING ──────────────────────────────────────────────────────────── -->
+<section class="section" id="pricing">
+  <div class="container">
+    <div class="section-header">
+      <h2>Simple, transparent pricing</h2>
+      <p>Start free. Upgrade when you need more. Cancel any time.</p>
+    </div>
+    <div class="pricing-grid" id="pricing-cards">
+      <!-- Injected by JS from /api/plans -->
+      <div class="pricing-card">
+        <div class="plan-badge">Free Forever</div>
+        <div class="plan-name">Free</div>
+        <div class="plan-price">$0<span>/mo</span></div>
+        <ul class="plan-features">
+          <li>✓ 5,000 tokens</li>
+          <li>✓ All 10 copy types</li>
+          <li>✓ 1 API key</li>
+          <li>✓ Community support</li>
+        </ul>
+        <a href="#signup" class="btn btn-outline btn-full">Get Started Free</a>
+      </div>
+
+      <div class="pricing-card featured">
+        <div class="plan-badge popular">Most Popular</div>
+        <div class="plan-name">Basic</div>
+        <div class="plan-price">$9<span>/mo</span></div>
+        <ul class="plan-features">
+          <li>✓ 50,000 tokens/month</li>
+          <li>✓ All 10 copy types</li>
+          <li>✓ 1 API key</li>
+          <li>✓ Email support</li>
+        </ul>
+        <button class="btn btn-primary btn-full" onclick="startCheckout('basic')">Get Basic →</button>
+      </div>
+
+      <div class="pricing-card">
+        <div class="plan-badge">Scale Up</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$29<span>/mo</span></div>
+        <ul class="plan-features">
+          <li>✓ 250,000 tokens/month</li>
+          <li>✓ All 10 copy types</li>
+          <li>✓ 3 API keys</li>
+          <li>✓ Priority support</li>
+        </ul>
+        <button class="btn btn-outline btn-full" onclick="startCheckout('pro')">Get Pro →</button>
+      </div>
+
+      <div class="pricing-card">
+        <div class="plan-badge">Power Users</div>
+        <div class="plan-name">Business</div>
+        <div class="plan-price">$79<span>/mo</span></div>
+        <ul class="plan-features">
+          <li>✓ 1M tokens/month</li>
+          <li>✓ All 10 copy types</li>
+          <li>✓ 5 API keys</li>
+          <li>✓ Custom prompts</li>
+          <li>✓ Priority support</li>
+        </ul>
+        <button class="btn btn-outline btn-full" onclick="startCheckout('business')">Get Business →</button>
+      </div>
+    </div>
+
+    <!-- Credit packs -->
+    <div class="packs-section">
+      <h3>Or buy credits, no subscription needed</h3>
+      <div class="packs-grid">
+        <div class="pack-card">
+          <div class="pack-name">Starter Pack</div>
+          <div class="pack-tokens">25,000 tokens</div>
+          <div class="pack-price">$5 one-time</div>
+          <button onclick="buyPack('starter')" class="btn btn-sm btn-outline">Buy →</button>
+        </div>
+        <div class="pack-card popular-pack">
+          <div class="pack-name">Growth Pack</div>
+          <div class="pack-tokens">100,000 tokens</div>
+          <div class="pack-price">$15 one-time</div>
+          <button onclick="buyPack('growth')" class="btn btn-sm btn-primary">Buy →</button>
+        </div>
+        <div class="pack-card">
+          <div class="pack-name">Scale Pack</div>
+          <div class="pack-tokens">300,000 tokens</div>
+          <div class="pack-price">$40 one-time</div>
+          <button onclick="buyPack('scale')" class="btn btn-sm btn-outline">Buy →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SIGNUP ───────────────────────────────────────────────────────────── -->
+<section class="section section-dark" id="signup">
+  <div class="container">
+    <div class="auth-box">
+      <h2>Create your free account</h2>
+      <p>5,000 free tokens. No credit card required.</p>
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchTab('register')">Sign Up</button>
+        <button class="auth-tab" onclick="switchTab('login')">Log In</button>
+      </div>
+
+      <form id="register-form" class="auth-form" onsubmit="handleRegister(event)">
+        <input type="text"  id="reg-name"  placeholder="Full name (optional)" class="input"/>
+        <input type="email" id="reg-email" placeholder="Email address" class="input" required/>
+        <input type="password" id="reg-password" placeholder="Password (min 8 chars)" class="input" required minlength="8"/>
+        <button type="submit" class="btn btn-primary btn-full">Create Free Account →</button>
+        <div id="reg-error" class="form-error"></div>
+      </form>
+
+      <form id="login-form" class="auth-form hidden" onsubmit="handleLogin(event)">
+        <input type="email"    id="login-email"    placeholder="Email address" class="input" required/>
+        <input type="password" id="login-password" placeholder="Password" class="input" required/>
+        <button type="submit" class="btn btn-primary btn-full">Log In →</button>
+        <div id="login-error" class="form-error"></div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ───────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="footer-inner">
+    <span>⚡ SnapCopy AI — &copy; 2026</span>
+    <div class="footer-links">
+      <a href="/api/docs" target="_blank">API Docs</a>
+      <a href="mailto:support@snapcopy.ai">Support</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const API = '';  // same origin
+
+function getToken() {
+  return localStorage.getItem('sc_token');
+}
+function setToken(t) {
+  localStorage.setItem('sc_token', t);
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function handleRegister(e) {
+  e.preventDefault();
+  const err = document.getElementById('reg-error');
+  err.textContent = '';
+  try {
+    const res = await fetch(`${API}/auth/register`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        full_name: document.getElementById('reg-name').value || null,
+        email:     document.getElementById('reg-email').value,
+        password:  document.getElementById('reg-password').value,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.detail || 'Registration failed'; return; }
+    setToken(data.access_token);
+    window.location.href = '/dashboard';
+  } catch(ex) {
+    err.textContent = 'Network error. Please try again.';
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const err = document.getElementById('login-error');
+  err.textContent = '';
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        email:    document.getElementById('login-email').value,
+        password: document.getElementById('login-password').value,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.detail || 'Login failed'; return; }
+    setToken(data.access_token);
+    window.location.href = '/dashboard';
+  } catch(ex) {
+    err.textContent = 'Network error. Please try again.';
+  }
+}
+
+function switchTab(tab) {
+  document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
+  document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+  document.querySelectorAll('.auth-tab').forEach((t, i) => {
+    t.classList.toggle('active', (i===0 && tab==='register') || (i===1 && tab==='login'));
+  });
+}
+
+// ── Billing ───────────────────────────────────────────────────────────────────
+async function startCheckout(plan) {
+  const token = getToken();
+  if (!token) { document.getElementById('signup').scrollIntoView({behavior:'smooth'}); return; }
+  try {
+    const res = await fetch(`${API}/billing/subscribe`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${token}`},
+      body: JSON.stringify({
+        plan,
+        success_url: window.location.origin + '/dashboard?success=1',
+        cancel_url:  window.location.origin + '/#pricing',
+      })
+    });
+    const data = await res.json();
+    if (data.checkout_url) window.location.href = data.checkout_url;
+  } catch(ex) {
+    alert('Could not start checkout. Please try again.');
+  }
+}
+
+async function buyPack(pack) {
+  const token = getToken();
+  if (!token) { document.getElementById('signup').scrollIntoView({behavior:'smooth'}); return; }
+  try {
+    const res = await fetch(`${API}/billing/credits`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${token}`},
+      body: JSON.stringify({
+        pack,
+        success_url: window.location.origin + '/dashboard?success=1',
+        cancel_url:  window.location.origin + '/#pricing',
+      })
+    });
+    const data = await res.json();
+    if (data.checkout_url) window.location.href = data.checkout_url;
+  } catch(ex) {
+    alert('Could not start checkout. Please try again.');
+  }
+}
+
+// Redirect to dashboard if already logged in
+if (getToken()) {
+  const alreadyLoggedIn = document.createElement('div');
+}
+</script>
+</body>
+</html>

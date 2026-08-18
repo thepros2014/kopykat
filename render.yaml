@@ -1,0 +1,14 @@
+# Render.com deployment config
+# This file tells Render how to run your app for FREE
+
+services:
+  - type: web
+    name: snapcopy-ai
+    env: python
+    plan: free              # FREE tier on Render!
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      # All other env vars are set in Render dashboard → Environment
