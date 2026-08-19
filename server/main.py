@@ -125,6 +125,17 @@ from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
 
 # ...
 
+from .marketing import generate_seo_post
+from fastapi import BackgroundTasks
+
+@app.get("/admin/trigger-seo", include_in_schema=False)
+async def trigger_seo(background_tasks: BackgroundTasks, secret: str = None):
+    """Manually kickstart the SEO engine."""
+    if secret != os.getenv("ADMIN_SECRET"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    background_tasks.add_task(generate_seo_post)
+    return {"status": "ok", "message": "SEO blog generation started in background. Check /blog in 30 seconds."}
+
 @app.get("/blog", response_class=HTMLResponse, include_in_schema=False)
 async def blog_index(db: Session = Depends(get_db)):
     """Serve the SEO blog index."""
