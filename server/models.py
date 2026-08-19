@@ -104,14 +104,10 @@ class GenerateResponse(BaseModel):
 
 class CheckoutRequest(BaseModel):
     plan: Literal["basic", "pro", "business"]
-    success_url: str
-    cancel_url: str
 
 
 class CreditPackRequest(BaseModel):
     pack: Literal["starter", "growth", "scale"]
-    success_url: str
-    cancel_url: str
 
 
 class CheckoutResponse(BaseModel):

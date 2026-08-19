@@ -14,7 +14,7 @@ import stripe
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from .database import User, Subscription, RevenueRecord
+from .database import User, Subscription, RevenueRecord, StripeEvent
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +107,6 @@ def get_or_create_stripe_customer(user: User, db: Session) -> str:
 def create_subscription_checkout(
     plan: str,
     user: User,
-    success_url: str,
-    cancel_url: str,
     db: Session,
 ) -> dict:
     if plan not in PLANS:
@@ -118,12 +116,16 @@ def create_subscription_checkout(
     price_id     = _get_price_id(plan_info["price_id_env"])
     customer_id  = get_or_create_stripe_customer(user, db)
 
+    # Build redirect URLs server-side — never trust the client to supply these
+    success_url = APP_BASE_URL + "/dashboard?payment=success"
+    cancel_url  = APP_BASE_URL + "/dashboard?payment=cancelled"
+
     session = stripe.checkout.Session.create(
         customer=customer_id,
         payment_method_types=["card"],
         mode="subscription",
         line_items=[{"price": price_id, "quantity": 1}],
-        success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
+        success_url=success_url + "&session_id={CHECKOUT_SESSION_ID}",
         cancel_url=cancel_url,
         metadata={"user_id": user.id, "plan": plan},
         subscription_data={"metadata": {"user_id": user.id, "plan": plan}},
@@ -135,8 +137,6 @@ def create_subscription_checkout(
 def create_credit_pack_checkout(
     pack: str,
     user: User,
-    success_url: str,
-    cancel_url: str,
     db: Session,
 ) -> dict:
     if pack not in CREDIT_PACKS:
@@ -146,12 +146,16 @@ def create_credit_pack_checkout(
     price_id     = _get_price_id(pack_info["price_id_env"])
     customer_id  = get_or_create_stripe_customer(user, db)
 
+    # Build redirect URLs server-side — never trust the client to supply these
+    success_url = APP_BASE_URL + "/dashboard?payment=success"
+    cancel_url  = APP_BASE_URL + "/dashboard?payment=cancelled"
+
     session = stripe.checkout.Session.create(
         customer=customer_id,
         payment_method_types=["card"],
         mode="payment",
         line_items=[{"price": price_id, "quantity": 1}],
-        success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
+        success_url=success_url + "&session_id={CHECKOUT_SESSION_ID}",
         cancel_url=cancel_url,
         metadata={"user_id": user.id, "pack": pack, "tokens": str(pack_info["tokens"])},
     )
@@ -174,8 +178,24 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
     except stripe.error.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
+    event_id   = event["id"]
     event_type = event["type"]
     data_obj   = event["data"]["object"]
+
+    # ── Idempotency check — Stripe can retry deliveries ───────────────────────
+    # If we've already processed this event_id, return early without re-applying
+    # credits or mutations. This prevents double-credit on Stripe retries.
+    already_processed = db.query(StripeEvent).filter(
+        StripeEvent.event_id == event_id
+    ).first()
+    if already_processed:
+        logger.info(f"Stripe webhook duplicate (skipped): {event_type} id={event_id}")
+        return {"status": "already_processed", "event": event_type}
+
+    # Record the event before processing so concurrent retries are also blocked
+    db.add(StripeEvent(event_id=event_id, event_type=event_type))
+    db.flush()  # write within the current transaction without committing yet
+
     logger.info(f"Stripe webhook: {event_type}")
 
     # ── New subscription activated ────────────────────────────────────────────
@@ -200,6 +220,7 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
     elif event_type == "invoice.payment_failed":
         _handle_payment_failed(data_obj, db)
 
+    db.commit()  # commit idempotency record + all mutations together
     return {"status": "processed", "event": event_type}
 
 
@@ -225,7 +246,7 @@ def _handle_subscription_created(subscription: dict, db: Session):
         subscription.get("current_period_end", 0), tz=timezone.utc
     )
 
-    # Update user plan
+    # Update user plan — ALL plans (including Business) get a monthly token cap
     user.plan          = plan
     user.credits       = plan_info["monthly_tokens"]
     user.monthly_limit = plan_info["monthly_tokens"]
@@ -240,12 +261,12 @@ def _handle_subscription_created(subscription: dict, db: Session):
         current_period_end=period_end,
     )
     db.add(sub)
-    db.commit()
+    # Parent commits — do not call db.commit() here
     logger.info(f"Subscription created: user={user.email} plan={plan}")
 
 
 def _handle_invoice_paid(invoice: dict, db: Session):
-    """Called every billing cycle — reset the user's token credits."""
+    """Called every billing cycle — reset the user's token credits for all plans."""
     subscription_id = invoice.get("subscription")
     amount_paid     = invoice.get("amount_paid", 0)
     currency        = invoice.get("currency", "usd")
@@ -258,7 +279,7 @@ def _handle_invoice_paid(invoice: dict, db: Session):
         user = db.query(User).filter(User.id == sub.user_id).first()
         if user:
             plan_info      = PLANS.get(sub.plan, PLANS["basic"])
-            user.credits   = plan_info["monthly_tokens"]  # reset credits
+            user.credits   = plan_info["monthly_tokens"]  # reset credits (all plans)
             sub.status     = "active"
 
             # Record revenue
@@ -273,7 +294,7 @@ def _handle_invoice_paid(invoice: dict, db: Session):
                 status="succeeded",
             )
             db.add(revenue)
-            db.commit()
+            # Parent commits — do not call db.commit() here
             logger.info(f"Invoice paid: user={user.email} amount=${amount_paid/100:.2f}")
 
 
@@ -292,7 +313,7 @@ def _handle_subscription_changed(subscription: dict, db: Session):
             if user:
                 user.plan    = "free"
                 user.credits = 0
-        db.commit()
+        # Parent commits — do not call db.commit() here
         logger.info(f"Subscription {sub_id} status → {status}")
 
 
@@ -321,7 +342,8 @@ def _handle_credit_pack_purchased(session: dict, db: Session):
         status="succeeded",
     )
     db.add(revenue)
-    db.commit()
+    # Parent commits — do not call db.commit() here
+
     logger.info(f"Credit pack: user={user.email} +{tokens} tokens")
 
 

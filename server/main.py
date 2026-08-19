@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import bleach
 from fastapi import (
     FastAPI, Depends, HTTPException, Request, Header,
     BackgroundTasks, status
@@ -17,9 +18,13 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from .database import get_db, init_db, User, APIKey, UsageRecord
+from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
 from .models import (
     UserRegister, UserLogin, TokenResponse, UserProfile,
     APIKeyCreate, APIKeyResponse, APIKeyCreated,
@@ -37,6 +42,7 @@ from .billing import (
     create_subscription_checkout, create_credit_pack_checkout,
     handle_stripe_webhook, get_total_revenue, PLANS, CREDIT_PACKS,
 )
+from .marketing import generate_seo_post
 from .scheduler import create_scheduler
 
 # ── Logging ────────────────────────────────────────────────────────────────────
@@ -49,8 +55,14 @@ logger = logging.getLogger(__name__)
 
 # ── App setup ──────────────────────────────────────────────────────────────────
 
-APP_VERSION = "1.0.0"
-BASE_DIR    = Path(__file__).parent.parent
+APP_VERSION  = "1.0.0"
+BASE_DIR     = Path(__file__).parent.parent
+ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
+
+# ── Rate limiter ───────────────────────────────────────────────────────────────
+# Uses client IP for unauthenticated routes; stricter limits on auth/generate.
+
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="SnapCopy AI",
@@ -60,13 +72,43 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── CORS — restrict to explicit allow-list ─────────────────────────────────────
+# Set ALLOWED_ORIGINS in your .env as a comma-separated list of allowed origins.
+# Example: ALLOWED_ORIGINS=https://snapcopy-ai.onrender.com,https://www.snapcopy.ai
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "https://snapcopy-ai.onrender.com")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,      # explicit list — never "*"
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Admin-Secret"],
 )
+
+# ── HTML sanitization allow-list ───────────────────────────────────────────────
+# Used for AI-generated blog post content before it is inserted into the page.
+
+_ALLOWED_TAGS = [
+    "p", "h2", "h3", "h4", "ul", "ol", "li",
+    "strong", "em", "b", "i", "a", "br", "blockquote",
+]
+_ALLOWED_ATTRS = {"a": ["href", "title", "rel"]}
+
+
+def sanitize_html(raw: str) -> str:
+    """Strip dangerous tags/attributes from AI-generated HTML before rendering."""
+    return bleach.clean(
+        raw,
+        tags=_ALLOWED_TAGS,
+        attributes=_ALLOWED_ATTRS,
+        strip=True,       # remove disallowed tags entirely (not just escape)
+        strip_comments=True,
+    )
+
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
@@ -121,20 +163,21 @@ async def dashboard_page():
     return HTMLResponse("<h1>Dashboard — Loading...</h1>")
 
 
-from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-
-# ...
-
-from .marketing import generate_seo_post
-from fastapi import BackgroundTasks
-
 @app.get("/admin/trigger-seo", include_in_schema=False)
-async def trigger_seo(background_tasks: BackgroundTasks, secret: str = None):
-    """Manually kickstart the SEO engine."""
-    if secret != os.getenv("ADMIN_SECRET"):
+async def trigger_seo(
+    background_tasks: BackgroundTasks,
+    x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"),
+):
+    """
+    Manually kickstart the SEO engine.
+    Pass your ADMIN_SECRET in the X-Admin-Secret request header (not query param).
+    The query-param pattern was removed because it leaks the secret into logs/history.
+    """
+    if not ADMIN_SECRET or x_admin_secret != ADMIN_SECRET:
         raise HTTPException(status_code=401, detail="Unauthorized")
     background_tasks.add_task(generate_seo_post)
     return {"status": "ok", "message": "SEO blog generation started in background. Check /blog in 30 seconds."}
+
 
 @app.get("/blog", response_class=HTMLResponse, include_in_schema=False)
 async def blog_index(db: Session = Depends(get_db)):
@@ -143,9 +186,9 @@ async def blog_index(db: Session = Depends(get_db)):
     template_path = frontend_dir / "blog.html"
     if not template_path.exists():
         return HTMLResponse("<h1>Blog setup pending...</h1>")
-        
+
     template = template_path.read_text(encoding="utf-8")
-    
+
     items_html = ""
     for p in posts:
         date_str = p.created_at.strftime("%B %d, %Y")
@@ -158,7 +201,7 @@ async def blog_index(db: Session = Depends(get_db)):
         '''
     if not items_html:
         items_html = "<p style='color:var(--muted);'>No posts yet. The AI is writing the first one!</p>"
-        
+
     return HTMLResponse(template.replace("<!-- POSTS -->", items_html))
 
 
@@ -168,20 +211,24 @@ async def blog_post(slug: str, db: Session = Depends(get_db)):
     post = db.query(BlogPost).filter(BlogPost.slug == slug, BlogPost.published == True).first()
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
-        
+
     template_path = frontend_dir / "post.html"
     if not template_path.exists():
         return HTMLResponse("<h1>Post layout pending...</h1>")
-        
+
     template = template_path.read_text(encoding="utf-8")
     date_str = post.created_at.strftime("%B %d, %Y")
-    
+
+    # Sanitize AI-generated HTML before inserting into the page
+    safe_content = sanitize_html(post.content)
+
     html = template.replace("{{title}}", post.title)\
-                   .replace("{{content}}", post.content)\
+                   .replace("{{content}}", safe_content)\
                    .replace("{{meta_desc}}", post.meta_desc or "")\
                    .replace("{{date}}", date_str)
-                   
+
     return HTMLResponse(html)
+
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
@@ -194,10 +241,10 @@ async def list_plans():
     return {
         "subscriptions": {
             k: {
-                "name":          v["name"],
-                "price_usd":     v["price_usd"],
+                "name":           v["name"],
+                "price_usd":      v["price_usd"],
                 "monthly_tokens": v["monthly_tokens"],
-                "features":      v["features"],
+                "features":       v["features"],
             }
             for k, v in PLANS.items()
         },
@@ -217,7 +264,8 @@ async def list_plans():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/auth/register", response_model=TokenResponse, tags=["Auth"])
-async def register(body: UserRegister, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def register(request: Request, body: UserRegister, db: Session = Depends(get_db)):
     """Create a new account and return a JWT token."""
     user  = register_user(body.email, body.password, body.full_name, db)
     token = create_access_token(user.id, user.email)
@@ -229,7 +277,8 @@ async def register(body: UserRegister, db: Session = Depends(get_db)):
 
 
 @app.post("/auth/login", response_model=TokenResponse, tags=["Auth"])
-async def login(body: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(request: Request, body: UserLogin, db: Session = Depends(get_db)):
     """Log in with email + password, returns a JWT token."""
     user = authenticate_user(body.email, body.password, db)
     if not user:
@@ -301,7 +350,9 @@ async def delete_api_key(
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/api/generate", response_model=GenerateResponse, tags=["Generate"])
+@limiter.limit("60/minute")
 async def generate(
+    request: Request,
     body: GenerateRequest,
     auth: tuple = Depends(get_current_user_apikey),
     db: Session = Depends(get_db),
@@ -317,28 +368,59 @@ async def generate(
     """
     user, api_key = auth
 
-    # Check credit balance
-    if user.credits <= 0 and user.plan != "business":
+    # ── Atomic credit deduction — eliminates the concurrency race condition ────
+    # We reserve an estimated cost BEFORE calling the AI. If credits are
+    # insufficient, we reject immediately. The actual token count is reconciled
+    # afterward. Business plan users are now subject to the same 1M monthly cap.
+    estimated_cost = body.max_tokens * body.variations  # conservative upper bound
+
+    rows_updated = db.execute(
+        text(
+            "UPDATE users SET credits = credits - :cost "
+            "WHERE id = :uid AND credits >= :cost"
+        ),
+        {"cost": estimated_cost, "uid": user.id},
+    ).rowcount
+    db.commit()
+
+    if rows_updated == 0:
         raise HTTPException(
             status_code=402,
             detail="No credits remaining. Upgrade your plan or buy a credit pack at /dashboard",
         )
 
     # Run generation
-    result = await generate_copy(
-        copy_type=body.type,
-        context=body.context,
-        tone=body.tone or "professional",
-        variations=body.variations,
-        max_tokens=body.max_tokens,
-        user_id=user.id,
-        db=db,
-    )
-
-    # Deduct credits (not for business/unlimited plan)
-    if user.plan != "business":
-        user.credits = max(0, user.credits - result["tokens_used"])
+    try:
+        result = await generate_copy(
+            copy_type=body.type,
+            context=body.context,
+            tone=body.tone or "professional",
+            variations=body.variations,
+            max_tokens=body.max_tokens,
+            user_id=user.id,
+            db=db,
+        )
+    except Exception:
+        # Refund the reservation if AI call fails entirely
+        db.execute(
+            text("UPDATE users SET credits = credits + :cost WHERE id = :uid"),
+            {"cost": estimated_cost, "uid": user.id},
+        )
         db.commit()
+        raise
+
+    # Reconcile: refund over-reservation (we reserved max_tokens, used actual)
+    actual_cost    = result["tokens_used"]
+    over_reserved  = max(0, estimated_cost - actual_cost)
+    if over_reserved > 0:
+        db.execute(
+            text("UPDATE users SET credits = credits + :refund WHERE id = :uid"),
+            {"refund": over_reserved, "uid": user.id},
+        )
+        db.commit()
+
+    # Re-fetch fresh credit balance for the response
+    db.refresh(user)
 
     return GenerateResponse(
         type=body.type,
@@ -363,8 +445,6 @@ async def subscribe(
     result = create_subscription_checkout(
         plan=body.plan,
         user=current_user,
-        success_url=body.success_url,
-        cancel_url=body.cancel_url,
         db=db,
     )
     return CheckoutResponse(**result)
@@ -380,8 +460,6 @@ async def buy_credits(
     result = create_credit_pack_checkout(
         pack=body.pack,
         user=current_user,
-        success_url=body.success_url,
-        cancel_url=body.cancel_url,
         db=db,
     )
     return CheckoutResponse(**result)
@@ -464,14 +542,12 @@ async def get_usage(
 # OWNER-ONLY ADMIN ROUTE
 # ══════════════════════════════════════════════════════════════════════════════
 
-ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
-
 @app.get("/admin/revenue", tags=["Admin"])
 async def admin_revenue(
     x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"),
     db: Session = Depends(get_db),
 ):
-    """Owner-only: total revenue stats. Pass your ADMIN_SECRET in the header."""
+    """Owner-only: total revenue stats. Pass your ADMIN_SECRET in the X-Admin-Secret header."""
     if not ADMIN_SECRET or x_admin_secret != ADMIN_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
     return get_total_revenue(db)
