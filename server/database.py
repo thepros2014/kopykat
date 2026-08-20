@@ -6,7 +6,7 @@ All customer, subscription, API key, and usage data is stored here.
 import os
 from datetime import datetime
 from sqlalchemy import (
-    create_engine, Column, String, Integer, Float,
+    create_engine, Column, String, Integer, Float, UniqueConstraint,
     Boolean, DateTime, Text, ForeignKey
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
