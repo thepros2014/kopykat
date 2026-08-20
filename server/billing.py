@@ -29,50 +29,66 @@ APP_BASE_URL            = os.getenv("APP_BASE_URL", "http://localhost:8000")
 # then paste the price IDs into your .env file.
 
 PLANS = {
+    "free": {
+        "name":                "Free",
+        "monthly_generations": 50,
+        "monthly_tokens":      50,  # alias for backwards compatibility
+        "price_usd":           0,
+        "features":            ["50 monthly generations", "All 10 copy types", "1 API key", "Community support"],
+    },
     "basic": {
-        "name":          "Basic",
-        "price_id_env":  "STRIPE_PRICE_BASIC",        # $9/month
-        "monthly_tokens": 50_000,
-        "price_usd":     9,
-        "features":      ["50,000 monthly usage (~500 gens)", "All 10 copy types", "1 API key", "Email support"],
+        "name":                "Basic",
+        "price_id_env":        "STRIPE_PRICE_BASIC",        # $9/month
+        "monthly_generations": 500,
+        "monthly_tokens":      500,  # alias for backwards compatibility
+        "price_usd":           9,
+        "features":            ["500 monthly generations", "All 10 copy types", "1 API key", "Email support"],
     },
     "pro": {
-        "name":          "Pro",
-        "price_id_env":  "STRIPE_PRICE_PRO",           # $29/month
-        "monthly_tokens": 250_000,
-        "price_usd":     29,
-        "features":      ["250,000 monthly usage (~2,500 gens)", "All 10 copy types", "3 API keys", "Priority support"],
+        "name":                "Pro",
+        "price_id_env":        "STRIPE_PRICE_PRO",           # $29/month
+        "monthly_generations": 2500,
+        "monthly_tokens":      2500,  # alias for backwards compatibility
+        "price_usd":           29,
+        "features":            ["2,500 monthly generations", "All 10 copy types", "3 API keys", "Priority support"],
     },
     "business": {
-        "name":          "Business",
-        "price_id_env":  "STRIPE_PRICE_BUSINESS",      # $79/month
-        "monthly_tokens": 1_000_000,
-        "price_usd":     79,
-        "features":      ["1,000,000 monthly usage (~10,000 gens)", "All 10 copy types", "5 API keys", "Priority support", "Custom prompts"],
+        "name":                "Business",
+        "price_id_env":        "STRIPE_PRICE_BUSINESS",      # $79/month
+        "monthly_generations": 10000,
+        "monthly_tokens":      10000,  # alias for backwards compatibility
+        "price_usd":           79,
+        "features":            ["10,000 monthly generations", "All 10 copy types", "5 API keys", "Priority support", "Custom prompts"],
     },
 }
 
-# One-time usage packs (no subscription required)
-CREDIT_PACKS = {
+# One-time generation packs (no subscription required)
+GENERATION_PACKS = {
     "starter": {
-        "name":         "Starter Pack (~250 gens / 25K usage)",
+        "name":         "Starter Pack (250 generations)",
         "price_id_env": "STRIPE_PRICE_PACK_STARTER",  # $5 one-time
-        "tokens":       25_000,
+        "generations":  250,
+        "tokens":       250,  # alias for backwards compatibility
         "price_usd":    5,
     },
     "growth": {
-        "name":         "Growth Pack (~1,000 gens / 100K usage)",
+        "name":         "Growth Pack (1,000 generations)",
         "price_id_env": "STRIPE_PRICE_PACK_GROWTH",   # $15 one-time
-        "tokens":       100_000,
+        "generations":  1000,
+        "tokens":       1000,  # alias for backwards compatibility
         "price_usd":    15,
     },
     "scale": {
-        "name":         "Scale Pack (~3,000 gens / 300K usage)",
+        "name":         "Scale Pack (3,000 generations)",
         "price_id_env": "STRIPE_PRICE_PACK_SCALE",    # $40 one-time
-        "tokens":       300_000,
+        "generations":  3000,
+        "tokens":       3000,  # alias for backwards compatibility
         "price_usd":    40,
     },
 }
+
+# Backward compatibility alias
+CREDIT_PACKS = GENERATION_PACKS
 
 
 
@@ -136,15 +152,15 @@ def create_subscription_checkout(
     return {"checkout_url": session.url, "session_id": session.id}
 
 
-def create_credit_pack_checkout(
+def create_generation_pack_checkout(
     pack: str,
     user: User,
     db: Session,
 ) -> dict:
-    if pack not in CREDIT_PACKS:
+    if pack not in GENERATION_PACKS:
         raise HTTPException(status_code=400, detail=f"Invalid pack: {pack}")
 
-    pack_info    = CREDIT_PACKS[pack]
+    pack_info    = GENERATION_PACKS[pack]
     price_id     = _get_price_id(pack_info["price_id_env"])
     customer_id  = get_or_create_stripe_customer(user, db)
 
@@ -159,9 +175,13 @@ def create_credit_pack_checkout(
         line_items=[{"price": price_id, "quantity": 1}],
         success_url=success_url + "&session_id={CHECKOUT_SESSION_ID}",
         cancel_url=cancel_url,
-        metadata={"user_id": user.id, "pack": pack, "tokens": str(pack_info["tokens"])},
+        metadata={"user_id": user.id, "pack": pack, "generations": str(pack_info["generations"])},
     )
     return {"checkout_url": session.url, "session_id": session.id}
+
+
+# Backward compatibility alias
+create_credit_pack_checkout = create_generation_pack_checkout
 
 
 # ── Stripe webhook handler ────────────────────────────────────────────────────
@@ -170,9 +190,9 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
     """
     Processes Stripe events. This is how the server learns about:
     - New subscriptions (grant access)
-    - Renewals (reset credits)
+    - Renewals (reset generations)
     - Cancellations (downgrade to free)
-    - One-time payments (add credits)
+    - One-time payments (add generations)
     - Failed payments (suspend access after grace period)
     """
     try:
@@ -186,7 +206,7 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
 
     # ── Idempotency check — Stripe can retry deliveries ───────────────────────
     # If we've already processed this event_id, return early without re-applying
-    # credits or mutations. This prevents double-credit on Stripe retries.
+    # generations or mutations. This prevents double-credit on Stripe retries.
     already_processed = db.query(StripeEvent).filter(
         StripeEvent.event_id == event_id
     ).first()
@@ -212,11 +232,11 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
     elif event_type in ("customer.subscription.deleted", "customer.subscription.updated"):
         _handle_subscription_changed(data_obj, db)
 
-    # ── One-time credit pack purchased ───────────────────────────────────────
+    # ── One-time generation pack purchased ────────────────────────────────────
     elif event_type == "checkout.session.completed":
         session = data_obj
         if session.get("mode") == "payment":
-            _handle_credit_pack_purchased(session, db)
+            _handle_generation_pack_purchased(session, db)
 
     # ── Payment failed ────────────────────────────────────────────────────────
     elif event_type == "invoice.payment_failed":
@@ -248,10 +268,10 @@ def _handle_subscription_created(subscription: dict, db: Session):
         subscription.get("current_period_end", 0), tz=timezone.utc
     )
 
-    # Update user plan — ALL plans (including Business) get a monthly token cap
-    user.plan          = plan
-    user.credits       = plan_info["monthly_tokens"]
-    user.monthly_limit = plan_info["monthly_tokens"]
+    # Update user plan — ALL plans get transparent monthly generation limits
+    user.plan                  = plan
+    user.generations_remaining = plan_info["monthly_generations"]
+    user.monthly_limit         = plan_info["monthly_generations"]
 
     # Create subscription record
     sub = Subscription(
@@ -268,7 +288,7 @@ def _handle_subscription_created(subscription: dict, db: Session):
 
 
 def _handle_invoice_paid(invoice: dict, db: Session):
-    """Called every billing cycle — reset the user's token credits for all plans."""
+    """Called every billing cycle — reset the user's generation balance for their plan."""
     subscription_id = invoice.get("subscription")
     amount_paid     = invoice.get("amount_paid", 0)
     currency        = invoice.get("currency", "usd")
@@ -280,9 +300,10 @@ def _handle_invoice_paid(invoice: dict, db: Session):
     if sub:
         user = db.query(User).filter(User.id == sub.user_id).first()
         if user:
-            plan_info      = PLANS.get(sub.plan, PLANS["basic"])
-            user.credits   = plan_info["monthly_tokens"]  # reset credits (all plans)
-            sub.status     = "active"
+            plan_info                  = PLANS.get(sub.plan, PLANS["basic"])
+            user.generations_remaining = plan_info["monthly_generations"]  # reset generations
+            user.monthly_limit         = plan_info["monthly_generations"]
+            sub.status                 = "active"
 
             # Record revenue
             revenue = RevenueRecord(
@@ -313,25 +334,25 @@ def _handle_subscription_changed(subscription: dict, db: Session):
             sub.canceled_at = datetime.utcnow()
             user = db.query(User).filter(User.id == sub.user_id).first()
             if user:
-                user.plan    = "free"
-                user.credits = 0
+                user.plan                  = "free"
+                user.generations_remaining = 0
         # Parent commits — do not call db.commit() here
         logger.info(f"Subscription {sub_id} status → {status}")
 
 
-def _handle_credit_pack_purchased(session: dict, db: Session):
-    user_id = session.get("metadata", {}).get("user_id")
-    tokens  = int(session.get("metadata", {}).get("tokens", 0))
-    pack    = session.get("metadata", {}).get("pack", "")
+def _handle_generation_pack_purchased(session: dict, db: Session):
+    user_id     = session.get("metadata", {}).get("user_id")
+    generations = int(session.get("metadata", {}).get("generations", session.get("metadata", {}).get("tokens", 0)))
+    pack        = session.get("metadata", {}).get("pack", "")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         user = _find_user_by_stripe_customer(session.get("customer"), db)
     if not user:
-        logger.warning(f"Credit pack purchased but user not found: {user_id}")
+        logger.warning(f"Generation pack purchased but user not found: {user_id}")
         return
 
-    user.credits += tokens
+    user.generations_remaining += generations
 
     revenue = RevenueRecord(
         id=str(uuid.uuid4()),
@@ -340,13 +361,17 @@ def _handle_credit_pack_purchased(session: dict, db: Session):
         amount_cents=session.get("amount_total", 0),
         currency=session.get("currency", "usd"),
         plan=f"pack_{pack}",
-        type="credit_pack",
+        type="generation_pack",
         status="succeeded",
     )
     db.add(revenue)
     # Parent commits — do not call db.commit() here
 
-    logger.info(f"Credit pack: user={user.email} +{tokens} tokens")
+    logger.info(f"Generation pack: user={user.email} +{generations} generations")
+
+
+# Backward compatibility alias
+_handle_credit_pack_purchased = _handle_generation_pack_purchased
 
 
 def _handle_payment_failed(invoice: dict, db: Session):

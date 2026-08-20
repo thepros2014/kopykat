@@ -1,0 +1,93 @@
+Yes. Let's isolate that rather than guessing.
+
+Since I have the current backend, I can trace the signup path end-to-end:
+
+Frontend → /auth/register → Pydantic validation → password hashing → database insert → initial credits → response → login/session.
+
+I already see a few areas worth checking, but I don't want to call the wrong one without seeing the actual failure.
+
+Send me one of these:
+
+• The exact error message you're getting when you sign up, or
+
+• A screenshot of the signup failure, or
+
+• If the page just does nothing, tell me what happens after you click Sign Up.
+
+If you want, I can also inspect the current frontend signup JavaScript and trace it against the backend endpoint directly. That would be the better approach if the error isn't obvious.
+
+I found the homepage signup code, and the frontend payload matches the backend:
+
+full_name email password 
+
+So the earlier suspected name vs full_name mismatch is not the problem.
+
+I see something more interesting
+
+The homepage uses:
+
+const API = ''; // same origin 
+
+and calls:
+
+POST /auth/register 
+
+That's correct if the homepage and API are being served by the same FastAPI/Render instance, which your current architecture indicates they are.
+
+The signup handler also correctly:
+
+• prevents the normal form submission
+
+• sends JSON
+
+• reads the response
+
+• stores access_token
+
+• redirects to /dashboard
+
+So the client-side signup implementation itself looks fundamentally sound.
+
+The next thing I'd check
+
+The likely failure is now server-side registration behavior or production database state, rather than the form.
+
+I specifically want to verify:
+
+• whether /auth/register is returning 400, 429, 422, or 500
+
+• whether the user is actually being inserted into PostgreSQL
+
+• whether the initial 5,000 credits are being assigned
+
+• whether bcrypt/password hashing is succeeding
+
+• whether the JWT is being generated
+
+• whether the dashboard accepts the returned token
+
+• whether an existing email is triggering the duplicate-account response
+
+• whether Render's production environment has all required variables
+
+One thing you can do immediately
+
+Open the live site, try the free signup once, and tell me exactly what message appears underneath the button.
+
+If it simply says:
+
+Network error. Please try again.
+
+that's especially useful—it would indicate the browser isn't receiving the expected API response.
+
+If it says:
+
+Registration failed
+
+or something like:
+
+Email already registered
+
+then we know the request is reaching FastAPI and we can narrow it down immediately.
+
+Don't send me your password, API key, Stripe secret, or any other credentials. Just give me the exact error text (or screenshot), and I'll trace that specific path.

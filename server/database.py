@@ -37,22 +37,31 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
 
-    id             = Column(String(36), primary_key=True)          # UUID
-    email          = Column(String(255), unique=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    full_name      = Column(String(255), nullable=True)
+    id                 = Column(String(36), primary_key=True)          # UUID
+    email              = Column(String(255), unique=True, nullable=False)
+    hashed_password    = Column(String(255), nullable=False)
+    full_name          = Column(String(255), nullable=True)
     stripe_customer_id = Column(String(50), nullable=True)
-    plan           = Column(String(20), default="free")            # free / basic / pro / business
-    credits        = Column(Integer, default=5000)                 # remaining token credits
-    monthly_limit  = Column(Integer, default=5000)                 # tokens per billing cycle
-    is_active      = Column(Boolean, default=True)
-    is_verified    = Column(Boolean, default=False)
-    created_at     = Column(DateTime, default=datetime.utcnow)
-    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    plan               = Column(String(20), default="free")            # free / basic / pro / business
+    generations_remaining = Column(Integer, default=50)                # remaining generations balance
+    monthly_limit      = Column(Integer, default=50)                   # generations per billing cycle
+    is_active          = Column(Boolean, default=True)
+    is_verified        = Column(Boolean, default=False)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+    updated_at         = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     api_keys       = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
     subscriptions  = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     usage_records  = relationship("UsageRecord", back_populates="user", cascade="all, delete-orphan")
+
+    # Backward compatibility alias
+    @property
+    def credits(self) -> int:
+        return self.generations_remaining
+
+    @credits.setter
+    def credits(self, value: int):
+        self.generations_remaining = value
 
 
 class APIKey(Base):
@@ -91,14 +100,15 @@ class Subscription(Base):
 class UsageRecord(Base):
     __tablename__ = "usage_records"
 
-    id           = Column(String(36), primary_key=True)
-    user_id      = Column(String(36), ForeignKey("users.id"), nullable=False)
-    endpoint     = Column(String(100), nullable=False)            # e.g. "generate_copy"
-    prompt_type  = Column(String(50), nullable=True)              # e.g. "product_description"
-    tokens_used  = Column(Integer, default=0)
-    cost_usd     = Column(Float, default=0.0)                     # cost to us in USD
-    latency_ms   = Column(Integer, default=0)
-    created_at   = Column(DateTime, default=datetime.utcnow)
+    id               = Column(String(36), primary_key=True)
+    user_id          = Column(String(36), ForeignKey("users.id"), nullable=False)
+    endpoint         = Column(String(100), nullable=False)            # e.g. "generate_copy"
+    prompt_type      = Column(String(50), nullable=True)              # e.g. "product_description"
+    generations_used = Column(Integer, default=1)                     # 1 requested variation = 1 generation
+    tokens_used      = Column(Integer, default=0)                     # internal LLM telemetry
+    cost_usd         = Column(Float, default=0.0)                     # cost to us in USD
+    latency_ms       = Column(Integer, default=0)
+    created_at       = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="usage_records")
 
@@ -113,7 +123,7 @@ class RevenueRecord(Base):
     amount_cents       = Column(Integer, nullable=False)           # amount in cents
     currency           = Column(String(3), default="usd")
     plan               = Column(String(20), nullable=True)
-    type               = Column(String(30), nullable=False)        # subscription / credit_pack / refund
+    type               = Column(String(30), nullable=False)        # subscription / generation_pack / refund
     status             = Column(String(20), default="succeeded")
     created_at         = Column(DateTime, default=datetime.utcnow)
 
@@ -178,5 +188,23 @@ def get_db():
 
 
 def init_db():
-    """Create all tables. Called on server startup."""
+    """Create all tables and run automatic migrations if columns are missing."""
     Base.metadata.create_all(bind=engine)
+    # Schema migration helper for existing SQLite databases
+    from sqlalchemy import text, inspect
+    with engine.connect() as conn:
+        inspector = inspect(engine)
+        if "users" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("users")]
+            if "generations_remaining" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN generations_remaining INTEGER DEFAULT 50"))
+                conn.commit()
+                # Migrate any existing credits (e.g. 5000 tokens -> 50 gens)
+                if "credits" in columns:
+                    conn.execute(text("UPDATE users SET generations_remaining = MAX(1, CAST(credits / 100 AS INTEGER)) WHERE credits IS NOT NULL"))
+                    conn.commit()
+        if "usage_records" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("usage_records")]
+            if "generations_used" not in columns:
+                conn.execute(text("ALTER TABLE usage_records ADD COLUMN generations_used INTEGER DEFAULT 1"))
+                conn.commit()

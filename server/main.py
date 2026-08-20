@@ -29,8 +29,8 @@ from .models import (
     UserRegister, UserLogin, TokenResponse, UserProfile,
     APIKeyCreate, APIKeyResponse, APIKeyCreated,
     GenerateRequest, GenerateResponse,
-    CheckoutRequest, CreditPackRequest, CheckoutResponse,
-    UsageSummary, HealthResponse,
+    CheckoutRequest, GenerationPackRequest, CreditPackRequest, CheckoutResponse,
+    SubscriptionStatus, UsageSummary, HealthResponse,
 )
 from .auth import (
     register_user, authenticate_user, create_access_token,
@@ -39,8 +39,8 @@ from .auth import (
 )
 from .ai_engine import generate_copy
 from .billing import (
-    create_subscription_checkout, create_credit_pack_checkout,
-    handle_stripe_webhook, get_total_revenue, PLANS, CREDIT_PACKS,
+    create_subscription_checkout, create_generation_pack_checkout, create_credit_pack_checkout,
+    handle_stripe_webhook, get_total_revenue, PLANS, GENERATION_PACKS, CREDIT_PACKS,
 )
 from .marketing import generate_seo_post
 from .scheduler import create_scheduler
@@ -237,22 +237,32 @@ async def health_check():
 
 @app.get("/api/plans", tags=["Billing"])
 async def list_plans():
-    """Returns all subscription plans and credit packs — no auth needed."""
+    """Returns all subscription plans and generation packs — no auth needed."""
     return {
         "subscriptions": {
             k: {
-                "name":           v["name"],
-                "price_usd":      v["price_usd"],
-                "monthly_tokens": v["monthly_tokens"],
-                "features":       v["features"],
+                "name":                 v["name"],
+                "price_usd":            v["price_usd"],
+                "monthly_generations":  v.get("monthly_generations", v.get("monthly_tokens", 0)),
+                "monthly_tokens":       v.get("monthly_generations", v.get("monthly_tokens", 0)),
+                "features":             v["features"],
             }
             for k, v in PLANS.items()
         },
+        "generation_packs": {
+            k: {
+                "name":        v["name"],
+                "price_usd":   v["price_usd"],
+                "generations": v.get("generations", v.get("tokens", 0)),
+            }
+            for k, v in GENERATION_PACKS.items()
+        },
         "credit_packs": {
             k: {
-                "name":      v["name"],
-                "price_usd": v["price_usd"],
-                "tokens":    v["tokens"],
+                "name":        v["name"],
+                "price_usd":   v["price_usd"],
+                "tokens":      v.get("generations", v.get("tokens", 0)),
+                "generations": v.get("generations", v.get("tokens", 0)),
             }
             for k, v in CREDIT_PACKS.items()
         },
@@ -272,7 +282,8 @@ async def register(request: Request, body: UserRegister, db: Session = Depends(g
     return TokenResponse(
         access_token=token,
         plan=user.plan,
-        credits=user.credits,
+        generations_remaining=user.generations_remaining,
+        credits=user.generations_remaining,
     )
 
 
@@ -287,7 +298,8 @@ async def login(request: Request, body: UserLogin, db: Session = Depends(get_db)
     return TokenResponse(
         access_token=token,
         plan=user.plan,
-        credits=user.credits,
+        generations_remaining=user.generations_remaining,
+        credits=user.generations_remaining,
     )
 
 
@@ -368,25 +380,23 @@ async def generate(
     """
     user, api_key = auth
 
-    # ── Atomic credit deduction — eliminates the concurrency race condition ────
-    # We reserve an estimated cost BEFORE calling the AI. If credits are
-    # insufficient, we reject immediately. The actual token count is reconciled
-    # afterward. Business plan users are now subject to the same 1M monthly cap.
-    estimated_cost = body.max_tokens * body.variations  # conservative upper bound
+    # ── Atomic generation deduction ──────────────────────────────────────────
+    # 1 requested variation = 1 generation. Fair, predictable, transparent.
+    generations_cost = body.variations
 
     rows_updated = db.execute(
         text(
-            "UPDATE users SET credits = credits - :cost "
-            "WHERE id = :uid AND credits >= :cost"
+            "UPDATE users SET generations_remaining = generations_remaining - :cost "
+            "WHERE id = :uid AND generations_remaining >= :cost"
         ),
-        {"cost": estimated_cost, "uid": user.id},
+        {"cost": generations_cost, "uid": user.id},
     ).rowcount
     db.commit()
 
     if rows_updated == 0:
         raise HTTPException(
             status_code=402,
-            detail="No credits remaining. Upgrade your plan or buy a credit pack at /dashboard",
+            detail="No generations remaining. Upgrade your plan or buy a generation pack at /dashboard",
         )
 
     # Run generation
@@ -401,33 +411,27 @@ async def generate(
             db=db,
         )
     except Exception:
-        # Refund the reservation if AI call fails entirely
+        # Refund generations if AI call fails entirely
         db.execute(
-            text("UPDATE users SET credits = credits + :cost WHERE id = :uid"),
-            {"cost": estimated_cost, "uid": user.id},
+            text("UPDATE users SET generations_remaining = generations_remaining + :cost WHERE id = :uid"),
+            {"cost": generations_cost, "uid": user.id},
         )
         db.commit()
         raise
 
-    # Reconcile: refund over-reservation (we reserved max_tokens, used actual)
-    actual_cost    = result["tokens_used"]
-    over_reserved  = max(0, estimated_cost - actual_cost)
-    if over_reserved > 0:
-        db.execute(
-            text("UPDATE users SET credits = credits + :refund WHERE id = :uid"),
-            {"refund": over_reserved, "uid": user.id},
-        )
-        db.commit()
-
-    # Re-fetch fresh credit balance for the response
+    # Re-fetch fresh generation balance for the response
     db.refresh(user)
+
+    actual_gens = result.get("generations_used", body.variations)
 
     return GenerateResponse(
         type=body.type,
         variations=result["variations"],
-        credits_used=result["tokens_used"],
-        tokens_used=result["tokens_used"],
-        credits_remaining=user.credits,
+        generations_used=actual_gens,
+        generations_remaining=user.generations_remaining,
+        credits_used=actual_gens,
+        credits_remaining=user.generations_remaining,
+        tokens_used=result.get("tokens_used", 0),
         generation_time_ms=result["generation_time_ms"],
     )
 
@@ -451,14 +455,15 @@ async def subscribe(
     return CheckoutResponse(**result)
 
 
+@app.post("/billing/packs", response_model=CheckoutResponse, tags=["Billing"])
 @app.post("/billing/credits", response_model=CheckoutResponse, tags=["Billing"])
-async def buy_credits(
-    body: CreditPackRequest,
+async def buy_packs(
+    body: GenerationPackRequest,
     current_user: User = Depends(get_current_user_jwt),
     db: Session = Depends(get_db),
 ):
-    """Create a Stripe checkout session for a one-time credit pack."""
-    result = create_credit_pack_checkout(
+    """Create a Stripe checkout session for a one-time generation pack."""
+    result = create_generation_pack_checkout(
         pack=body.pack,
         user=current_user,
         db=db,
@@ -486,7 +491,7 @@ async def billing_status(
     current_user: User = Depends(get_current_user_jwt),
     db: Session = Depends(get_db),
 ):
-    """Returns the current user's subscription status and credit balance."""
+    """Returns the current user's subscription status and generation balance."""
     from .database import Subscription
     sub = db.query(Subscription).filter(
         Subscription.user_id == current_user.id,
@@ -494,11 +499,12 @@ async def billing_status(
     ).order_by(Subscription.created_at.desc()).first()
 
     return {
-        "plan":               current_user.plan,
-        "status":             sub.status if sub else "free",
-        "credits":            current_user.credits,
-        "monthly_limit":      current_user.monthly_limit,
-        "current_period_end": sub.current_period_end if sub else None,
+        "plan":                  current_user.plan,
+        "status":                sub.status if sub else "free",
+        "generations_remaining": current_user.generations_remaining,
+        "monthly_limit":         current_user.monthly_limit,
+        "credits":               current_user.generations_remaining,
+        "current_period_end":    sub.current_period_end if sub else None,
     }
 
 
@@ -525,16 +531,19 @@ async def get_usage(
 
     agg = db.query(
         func.count(UsageRecord.id).label("total_requests"),
+        func.sum(UsageRecord.generations_used).label("total_generations"),
         func.sum(UsageRecord.tokens_used).label("total_tokens"),
     ).filter(UsageRecord.user_id == current_user.id).first()
 
-    total_used = agg.total_tokens or 0
+    total_gens = agg.total_generations or 0
     return UsageSummary(
         total_requests=agg.total_requests or 0,
-        total_credits_used=total_used,
-        total_tokens=total_used,
-        credits_remaining=current_user.credits,
+        total_generations_used=total_gens,
+        generations_remaining=current_user.generations_remaining,
         monthly_limit=current_user.monthly_limit,
+        total_credits_used=total_gens,
+        credits_remaining=current_user.generations_remaining,
+        total_tokens=agg.total_tokens or 0,
         plan=current_user.plan,
         period_start=period_start,
         period_end=period_end,

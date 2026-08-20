@@ -16,7 +16,7 @@ SnapCopy AI generates high-converting product descriptions, ad copy, emails, and
 - **Backend:** Python (FastAPI, Uvicorn, SQLAlchemy)
 - **Database:** PostgreSQL (Neon.tech)
 - **AI Engine:** Google Gemini (`gemini-flash-latest`)
-- **Billing:** Stripe (Subscriptions, Credit Packs, Webhooks)
+- **Billing:** Stripe (Subscriptions, Generation Packs, Webhooks)
 - **Frontend:** Vanilla HTML/CSS/JS
 - **Hosting:** Render.com
 

@@ -25,7 +25,8 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     plan: str
-    credits: int
+    generations_remaining: int
+    credits: Optional[int] = None  # backwards compatibility alias
 
 
 class UserProfile(BaseModel):
@@ -33,8 +34,9 @@ class UserProfile(BaseModel):
     email: str
     full_name: Optional[str]
     plan: str
-    credits: int
+    generations_remaining: int
     monthly_limit: int
+    credits: Optional[int] = None  # backwards compatibility alias
     created_at: datetime
 
     class Config:
@@ -95,9 +97,11 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     type: str
     variations: List[str]
-    credits_used: int
-    tokens_used: int  # preserved for backwards compatibility
-    credits_remaining: int
+    generations_used: int
+    generations_remaining: int
+    credits_used: Optional[int] = None        # backwards compatibility alias
+    credits_remaining: Optional[int] = None   # backwards compatibility alias
+    tokens_used: Optional[int] = None         # internal LLM telemetry
     generation_time_ms: int
 
 
@@ -107,8 +111,11 @@ class CheckoutRequest(BaseModel):
     plan: Literal["basic", "pro", "business"]
 
 
-class CreditPackRequest(BaseModel):
+class GenerationPackRequest(BaseModel):
     pack: Literal["starter", "growth", "scale"]
+
+# Backward compatibility alias
+CreditPackRequest = GenerationPackRequest
 
 
 class CheckoutResponse(BaseModel):
@@ -120,18 +127,21 @@ class SubscriptionStatus(BaseModel):
     plan: str
     status: str
     current_period_end: Optional[datetime]
-    credits: int
+    generations_remaining: int
     monthly_limit: int
+    credits: Optional[int] = None  # backwards compatibility alias
 
 
 # ── Usage & Analytics ─────────────────────────────────────────────────────────
 
 class UsageSummary(BaseModel):
     total_requests: int
-    total_credits_used: int
-    total_tokens: int  # preserved for backwards compatibility
-    credits_remaining: int
+    total_generations_used: int
+    generations_remaining: int
     monthly_limit: int
+    total_credits_used: Optional[int] = None  # backwards compatibility alias
+    credits_remaining: Optional[int] = None   # backwards compatibility alias
+    total_tokens: Optional[int] = None        # internal telemetry
     plan: str
     period_start: Optional[str]
     period_end: Optional[str]

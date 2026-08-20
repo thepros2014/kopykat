@@ -1,5 +1,6 @@
 .env
 snapcopy.db
+*.db
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -8,3 +9,5 @@ __pycache__/
 .DS_Store
 node_modules/
 dist/
+Backup-codes*.txt
+

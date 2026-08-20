@@ -44,7 +44,7 @@
           <div class="stat-card-value" id="stat-plan">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-label">Usage Remaining</div>
+          <div class="stat-card-label">Generations Remaining</div>
           <div class="stat-card-value purple" id="stat-credits">—</div>
         </div>
         <div class="stat-card">
@@ -59,7 +59,7 @@
 
       <!-- Usage progress bar -->
       <div class="card">
-        <h3>Usage This Period</h3>
+        <h3>Generations This Period</h3>
         <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);">
           <span id="usage-label">Loading...</span>
           <span id="usage-pct">—</span>
@@ -136,11 +136,11 @@ curl -X POST https://YOUR_APP_URL/api/generate \
           <div class="stat-card-value purple" id="u-requests">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-label">Total Usage</div>
+          <div class="stat-card-label">Generations Used</div>
           <div class="stat-card-value" id="u-tokens">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-card-label">Usage Remaining</div>
+          <div class="stat-card-label">Generations Remaining</div>
           <div class="stat-card-value green" id="u-credits">—</div>
         </div>
         <div class="stat-card">
@@ -155,14 +155,14 @@ curl -X POST https://YOUR_APP_URL/api/generate \
       </div>
 
       <div class="card">
-        <h3>Need more usage?</h3>
+        <h3>Need more generations?</h3>
         <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
-          Buy a one-time usage pack or upgrade your plan.
+          Buy a one-time generation pack or upgrade your plan.
         </p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-outline btn-sm" onclick="buyPack('starter')">Starter — ~250 gens (25K usage) — $5</button>
-          <button class="btn btn-primary btn-sm" onclick="buyPack('growth')">Growth — ~1,000 gens (100K usage) — $15</button>
-          <button class="btn btn-outline btn-sm" onclick="buyPack('scale')">Scale — ~3,000 gens (300K usage) — $40</button>
+          <button class="btn btn-outline btn-sm" onclick="buyPack('starter')">Starter — 250 generations — $5</button>
+          <button class="btn btn-primary btn-sm" onclick="buyPack('growth')">Growth — 1,000 generations — $15</button>
+          <button class="btn btn-outline btn-sm" onclick="buyPack('scale')">Scale — 3,000 generations — $40</button>
         </div>
       </div>
     </section>
@@ -170,13 +170,13 @@ curl -X POST https://YOUR_APP_URL/api/generate \
     <!-- ── BILLING ───────────────────────────────────────────────────────── -->
     <section id="section-billing" class="dash-section hidden">
       <div class="page-title">Billing & Plan</div>
-      <div class="page-sub">Manage your subscription and usage allowance.</div>
+      <div class="page-sub">Manage your subscription and generation allowance.</div>
 
       <div class="card">
         <h3>Current Plan</h3>
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
           <span class="plan-chip" id="billing-plan-chip">Free</span>
-          <span style="color:var(--muted);font-size:14px;" id="billing-plan-detail">5,000 usage allowance</span>
+          <span style="color:var(--muted);font-size:14px;" id="billing-plan-detail">50 monthly generations</span>
         </div>
         <p style="color:var(--muted);font-size:13px;" id="billing-period-end"></p>
       </div>
@@ -187,10 +187,10 @@ curl -X POST https://YOUR_APP_URL/api/generate \
           <div class="plan-name">Basic</div>
           <div class="plan-price">$9<span>/mo</span></div>
           <ul class="plan-features">
-            <li>✓ 50,000 monthly usage</li>
-            <li>✓ ~500 generations</li>
+            <li>✓ 500 monthly generations</li>
             <li>✓ All copy types</li>
             <li>✓ 1 API key</li>
+            <li>✓ Email support</li>
           </ul>
           <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('basic')">Upgrade to Basic</button>
         </div>
@@ -199,10 +199,10 @@ curl -X POST https://YOUR_APP_URL/api/generate \
           <div class="plan-name">Pro</div>
           <div class="plan-price">$29<span>/mo</span></div>
           <ul class="plan-features">
-            <li>✓ 250,000 monthly usage</li>
-            <li>✓ ~2,500 generations</li>
+            <li>✓ 2,500 monthly generations</li>
             <li>✓ All copy types</li>
             <li>✓ 3 API keys</li>
+            <li>✓ Priority support</li>
           </ul>
           <button class="btn btn-primary btn-full btn-sm" onclick="startCheckout('pro')">Upgrade to Pro</button>
         </div>
@@ -211,24 +211,25 @@ curl -X POST https://YOUR_APP_URL/api/generate \
           <div class="plan-name">Business</div>
           <div class="plan-price">$79<span>/mo</span></div>
           <ul class="plan-features">
-            <li>✓ 1,000,000 monthly usage</li>
-            <li>✓ ~10,000 generations</li>
+            <li>✓ 10,000 monthly generations</li>
             <li>✓ All copy types</li>
             <li>✓ 5 API keys</li>
+            <li>✓ Custom prompts</li>
+            <li>✓ Priority support</li>
           </ul>
           <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('business')">Upgrade to Business</button>
         </div>
       </div>
 
       <div class="card">
-        <h3>One-Time Usage Packs</h3>
+        <h3>One-Time Generation Packs</h3>
         <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
-          Don't need a subscription? Buy usage that never expires.
+          Don't need a subscription? Buy generations that never expire.
         </p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-outline" onclick="buyPack('starter')">Starter — ~250 gens (25K usage) — $5</button>
-          <button class="btn btn-primary" onclick="buyPack('growth')">Growth — ~1,000 gens (100K usage) — $15</button>
-          <button class="btn btn-outline" onclick="buyPack('scale')">Scale — ~3,000 gens (300K usage) — $40</button>
+          <button class="btn btn-outline" onclick="buyPack('starter')">Starter — 250 generations — $5</button>
+          <button class="btn btn-primary" onclick="buyPack('growth')">Growth — 1,000 generations — $15</button>
+          <button class="btn btn-outline" onclick="buyPack('scale')">Scale — 3,000 generations — $40</button>
         </div>
       </div>
     </section>
@@ -313,23 +314,28 @@ async function loadProfile() {
 
     // Stats
     const planLabel = profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1);
+    const gensRemaining = profile.generations_remaining !== undefined ? profile.generations_remaining : profile.credits;
+    const monthlyLimit  = profile.monthly_limit;
+
     document.getElementById('stat-plan').innerHTML = `<span class="plan-chip ${profile.plan}">${planLabel}</span>`;
-    document.getElementById('stat-credits').textContent = profile.credits.toLocaleString();
-    document.getElementById('stat-limit').textContent = profile.monthly_limit.toLocaleString();
+    document.getElementById('stat-credits').textContent = gensRemaining.toLocaleString();
+    document.getElementById('stat-limit').textContent = monthlyLimit.toLocaleString();
     document.getElementById('stat-requests').textContent = usage.total_requests.toLocaleString();
 
     // Progress bar
-    const used = profile.monthly_limit - profile.credits;
-    const pct  = profile.monthly_limit > 0 ? Math.min(100, (used / profile.monthly_limit) * 100) : 0;
+    const used = Math.max(0, monthlyLimit - gensRemaining);
+    const pct  = monthlyLimit > 0 ? Math.min(100, (used / monthlyLimit) * 100) : 0;
     document.getElementById('usage-bar').style.width = pct + '%';
-    document.getElementById('usage-label').textContent = `${used.toLocaleString()} / ${profile.monthly_limit.toLocaleString()} used`;
+    document.getElementById('usage-label').textContent = `${used.toLocaleString()} / ${monthlyLimit.toLocaleString()} generations used`;
     document.getElementById('usage-pct').textContent = pct.toFixed(1) + '%';
 
     // Usage section
+    const gensUsed = usage.total_generations_used !== undefined ? usage.total_generations_used : (usage.total_tokens || 0);
+    const uGensRemaining = usage.generations_remaining !== undefined ? usage.generations_remaining : usage.credits_remaining;
     document.getElementById('u-requests').textContent = usage.total_requests.toLocaleString();
-    document.getElementById('u-tokens').textContent   = (usage.total_tokens || 0).toLocaleString();
-    document.getElementById('u-credits').textContent  = usage.credits_remaining.toLocaleString();
-    document.getElementById('u-limit').textContent    = usage.monthly_limit.toLocaleString();
+    document.getElementById('u-tokens').textContent   = gensUsed.toLocaleString();
+    document.getElementById('u-credits').textContent  = uGensRemaining.toLocaleString();
+    document.getElementById('u-limit').textContent    = (usage.monthly_limit || monthlyLimit).toLocaleString();
     if (usage.period_start && usage.period_end) {
       document.getElementById('u-period').textContent =
         `Billing period: ${new Date(usage.period_start).toLocaleDateString()} – ${new Date(usage.period_end).toLocaleDateString()}`;
@@ -339,6 +345,7 @@ async function loadProfile() {
     const chip = document.getElementById('billing-plan-chip');
     chip.textContent = planLabel;
     chip.className = `plan-chip ${profile.plan}`;
+    document.getElementById('billing-plan-detail').textContent = `${monthlyLimit.toLocaleString()} monthly generations`;
 
     // Base URL
     document.getElementById('base-url-display').textContent = window.location.origin;
@@ -432,7 +439,7 @@ async function startCheckout(plan) {
 }
 
 async function buyPack(pack) {
-  const res  = await fetch(`${API}/billing/credits`, {
+  const res  = await fetch(`${API}/billing/packs`, {
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
     body: JSON.stringify({

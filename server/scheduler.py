@@ -190,8 +190,8 @@ def _check_subscription_health():
         for sub in past_due_subs:
             user = db.query(User).filter(User.id == sub.user_id).first()
             if user and user.plan != "free":
-                user.plan    = "free"
-                user.credits = 0
+                user.plan                  = "free"
+                user.generations_remaining = 0
                 logger.info(f"Suspended past-due account: {user.email}")
 
         db.commit()

@@ -186,6 +186,7 @@ async def generate_copy(
     else:
         result_variations = [text]
 
+    generations_count = max(1, len(result_variations))
     elapsed_ms = int((time.time() - start_ms) * 1000)
     model_name = OPENAI_MODEL if provider == "openai" else GEMINI_MODEL
     cost_usd   = (tokens / 1000) * COST_PER_1K.get(model_name, 0.0002)
@@ -196,6 +197,7 @@ async def generate_copy(
         user_id=user_id,
         endpoint="generate_copy",
         prompt_type=copy_type,
+        generations_used=generations_count,
         tokens_used=tokens,
         cost_usd=round(cost_usd, 6),
         latency_ms=elapsed_ms,
@@ -204,8 +206,9 @@ async def generate_copy(
     db.commit()
 
     return {
-        "variations":       result_variations,
-        "tokens_used":      tokens,
-        "cost_usd":         cost_usd,
+        "variations":         result_variations,
+        "generations_used":   generations_count,
+        "tokens_used":        tokens,
+        "cost_usd":           cost_usd,
         "generation_time_ms": elapsed_ms,
     }

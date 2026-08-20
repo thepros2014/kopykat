@@ -97,9 +97,9 @@ def run_drip_campaigns():
 
             # Drip schedule
             steps = {
-                1: ("Welcome to SnapCopy AI 🚀", "Hi!<br><br>Thanks for joining. You have 5,000 free tokens to generate high-converting copy.<br><br>Log in and make your first API call today!"),
+                1: ("Welcome to SnapCopy AI 🚀", "Hi!<br><br>Thanks for joining. You have 50 free generations to create high-converting copy.<br><br>Log in and make your first API call today!"),
                 3: ("How's your copy looking?", "Just checking in. Have you tried the Product Description or Social Post generator yet? It'll save you hours this week."),
-                7: ("Your free tokens are expiring soon...", "Time to upgrade to the Basic Plan for just $9/mo to keep the copy flowing and unlock more keys.<br><br>Upgrade in your dashboard.")
+                7: ("Need more generations?", "Time to upgrade to the Basic Plan for just $9/mo to get 500 monthly generations and unlock more keys.<br><br>Upgrade in your dashboard.")
             }
 
             if age_days in steps:
