@@ -43,8 +43,8 @@ class User(Base):
     full_name          = Column(String(255), nullable=True)
     stripe_customer_id = Column(String(50), nullable=True)
     plan               = Column(String(20), default="free")            # free / basic / pro / business
-    generations = Column(Integer, default=50)                # remaining generations balance
-    monthly_limit      = Column(Integer, default=50)                   # generations per billing cycle
+    generations = Column(Integer, default=5)                # remaining generations balance
+    monthly_limit      = Column(Integer, default=5)                   # generations per billing cycle
     is_active          = Column(Boolean, default=True)
     is_verified        = Column(Boolean, default=False)
     created_at         = Column(DateTime, default=datetime.utcnow)
