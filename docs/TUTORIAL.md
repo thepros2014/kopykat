@@ -4,18 +4,18 @@ This guide explains how to operate, manage, and modify your automated SaaS busin
 
 ## 1. Checking Your Revenue & Stats
 You don't need to log into Stripe to see how much money you made.
-Open your browser or use curl to hit your admin endpoint:
-```text
-https://snapcopy-ai.onrender.com/admin/revenue?secret=YOUR_ADMIN_SECRET
+Open your terminal or use curl to hit your admin endpoint with your secret header:
+```bash
+curl -H "x-admin-secret: YOUR_ADMIN_SECRET" https://snapcopy-ai.onrender.com/admin/revenue
 ```
 *(Replace `YOUR_ADMIN_SECRET` with the value in your Render environment variables).*
 
 ## 2. Managing the AI Blog
 The AI writes posts automatically on Mon, Wed, and Fri. 
 **To force it to write a post immediately:**
-Visit this URL in your browser:
-```text
-https://snapcopy-ai.onrender.com/admin/trigger-seo?secret=YOUR_ADMIN_SECRET
+Trigger it via curl with your admin header:
+```bash
+curl -H "x-admin-secret: YOUR_ADMIN_SECRET" https://snapcopy-ai.onrender.com/admin/trigger-seo
 ```
 Wait about 20 seconds, then check `https://snapcopy-ai.onrender.com/blog`.
 
