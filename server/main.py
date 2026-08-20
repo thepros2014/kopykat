@@ -79,7 +79,7 @@ if SENTRY_DSN:
     )
 
 app = FastAPI(
-    title="SnapCopy AI",
+    title="KopyKat",
     description="Instant AI-powered marketing copy. Automated. Always on.",
     version=APP_VERSION,
     docs_url="/api/docs",
@@ -91,8 +91,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS — restrict to explicit allow-list ─────────────────────────────────────
 # Set ALLOWED_ORIGINS in your .env as a comma-separated list of allowed origins.
-# Example: ALLOWED_ORIGINS=https://snapcopy-ai.onrender.com,https://www.snapcopy.ai
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "https://snapcopy-ai.onrender.com")
+# Example: ALLOWED_ORIGINS=https://kopykat-ai.onrender.com,https://www.kopykat.ai
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "https://kopykat-ai.onrender.com")
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
@@ -128,17 +128,17 @@ def sanitize_html(raw: str) -> str:
 
 @app.on_event("startup")
 async def startup():
-    logger.info("🚀 SnapCopy AI starting up...")
+    logger.info("🚀 KopyKat starting up...")
     init_db()
     logger.info("✅ Database initialized")
-    logger.info(f"🟢 SnapCopy AI v{APP_VERSION} is live and running")
+    logger.info(f"🟢 KopyKat v{APP_VERSION} is live and running")
     # Note: Background tasks (APScheduler) are now run separately via worker.py
     # to prevent duplicate jobs when scaling horizontally.
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    logger.info("SnapCopy AI shut down gracefully")
+    logger.info("KopyKat shut down gracefully")
 
 
 # ── Static files ───────────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ async def landing_page():
     index = frontend_dir / "index.html"
     if index.exists():
         return HTMLResponse(index.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>SnapCopy AI — Loading...</h1>")
+    return HTMLResponse("<h1>KopyKat — Loading...</h1>")
 
 
 
@@ -286,8 +286,8 @@ async def register(request: Request, body: UserRegister, background_tasks: Backg
     user  = register_user(body.email, body.password, body.full_name, db)
     
     from .scheduler import _send_email
-    subject = "Welcome to SnapCopy AI 🚀"
-    email_body = f"Hi {body.full_name or 'there'},<br><br>Welcome to SnapCopy AI! Your account is loaded with 50 free generations.<br><br>Log in to generate your first high-converting copy: <a href='https://snapcopy-ai.onrender.com/dashboard'>SnapCopy Dashboard</a>"
+    subject = "Welcome to KopyKat 🚀"
+    email_body = f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 50 free generations.<br><br>Log in to generate your first high-converting copy: <a href='https://kopykat-ai.onrender.com/dashboard'>KopyKat Dashboard</a>"
     background_tasks.add_task(_send_email, subject, email_body, user.email)
     token = create_access_token(user.id, user.email)
     return TokenResponse(
@@ -625,7 +625,7 @@ async def request_password_reset(
         db.add(VerificationToken(token=token, user_id=user.id, token_type="password_reset", expires_at=expires))
         db.commit()
         
-        base_url = "https://snapcopy-ai.onrender.com"
+        base_url = "https://kopykat-ai.onrender.com"
         background_tasks.add_task(_send_password_reset_email, user.email, token, base_url)
     
     return {"message": "If an account with that email exists, a password reset link has been sent."}

@@ -13,7 +13,7 @@ from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 # ── Database file lives in the same directory as this file ─────────────────
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./snapcopy.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./kopykat.db")
 
 # Fix for SQLAlchemy 1.4+ which dropped support for "postgres://"
 if DATABASE_URL.startswith("postgres://"):

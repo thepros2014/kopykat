@@ -1,7 +1,7 @@
-# SnapCopy AI — Technical Spec Sheet
+# KopyKat — Technical Spec Sheet
 
 ## 🏗 Architecture Overview
-SnapCopy AI is a monolithic Python web application serving both a RESTful API and a Server-Side Rendered (SSR) / Static HTML frontend. 
+KopyKat is a monolithic Python web application serving both a RESTful API and a Server-Side Rendered (SSR) / Static HTML frontend. 
 
 *   **Backend Framework:** FastAPI (Asynchronous Python)
 *   **Web Server:** Uvicorn

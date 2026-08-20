@@ -48,7 +48,7 @@ async def generate_seo_post():
         - "title": a catchy SEO title
         - "slug": url-friendly-slug-of-title
         - "meta_desc": 150 char meta description
-        - "content": the full blog post in HTML format (using <h2>, <h3>, <p>, <ul>). Include a subtle pitch for SnapCopy AI at the end. Do not include markdown wrappers around the HTML.
+        - "content": the full blog post in HTML format (using <h2>, <h3>, <p>, <ul>). Include a subtle pitch for KopyKat at the end. Do not include markdown wrappers around the HTML.
         
         Return ONLY valid JSON.
         """
@@ -107,9 +107,9 @@ def run_drip_campaigns():
 
             # Drip schedule
             steps = {
-                2: ("The secret to high-converting copy 🤫", "Hi there,<br><br>The biggest mistake marketers make? Talking about features instead of <b>benefits</b>. SnapCopy AI automatically uses proven copywriting frameworks (like AIDA and PAS) to generate copy that actually sells.<br><br><a href='https://snapcopy-ai.onrender.com/dashboard'>Log in and try the Ad Copy Generator</a> today."),
-                4: ("Save 10+ hours this week ⏳", "How much time do you spend staring at a blank screen?<br><br>With SnapCopy AI, you can generate 5 variations of a landing page hero section in 2 seconds. Use your remaining free generations to see the magic yourself."),
-                7: ("Your free generations are running out", "Hey,<br><br>I hope you've loved using SnapCopy AI. If you want to scale up your marketing, it's time to upgrade.<br><br>Our <b>Basic Plan is just $9/mo</b> and gives you <b>500 generations</b> every single month. That's enough to run your entire social and email strategy.<br><br><a href='https://snapcopy-ai.onrender.com/dashboard'>Upgrade in your dashboard now</a> and never write manual copy again.")
+                2: ("The secret to high-converting copy 🤫", "Hi there,<br><br>The biggest mistake marketers make? Talking about features instead of <b>benefits</b>. KopyKat automatically uses proven copywriting frameworks (like AIDA and PAS) to generate copy that actually sells.<br><br><a href='https://kopykat-ai.onrender.com/dashboard'>Log in and try the Ad Copy Generator</a> today."),
+                4: ("Save 10+ hours this week ⏳", "How much time do you spend staring at a blank screen?<br><br>With KopyKat, you can generate 5 variations of a landing page hero section in 2 seconds. Use your remaining free generations to see the magic yourself."),
+                7: ("Your free generations are running out", "Hey,<br><br>I hope you've loved using KopyKat. If you want to scale up your marketing, it's time to upgrade.<br><br>Our <b>Basic Plan is just $9/mo</b> and gives you <b>500 generations</b> every single month. That's enough to run your entire social and email strategy.<br><br><a href='https://kopykat-ai.onrender.com/dashboard'>Upgrade in your dashboard now</a> and never write manual copy again.")
             }
 
             if age_days in steps:
@@ -139,7 +139,7 @@ async def scan_reddit_opportunities():
         genai.configure(api_key=os.environ.get('GEMINI_API_KEY', ''))
         model = genai.GenerativeModel(os.environ.get('GEMINI_MODEL', 'gemini-flash-latest'))
 
-        headers = {'User-Agent': 'Mozilla/5.0 SnapCopyScout/1.0'}
+        headers = {'User-Agent': 'Mozilla/5.0 KopyKatScout/1.0'}
         
         for sub in SUBREDDITS:
             r = requests.get(f"https://www.reddit.com/r/{sub}/new/.json?limit=15", headers=headers)
@@ -160,7 +160,7 @@ async def scan_reddit_opportunities():
                         continue
 
                     # Draft reply
-                    prompt = f"Write a helpful, non-spammy Reddit reply to this post: '{title}\n{selftext}'. Suggest they try an AI tool called SnapCopy AI (https://snapcopy-ai.onrender.com) to automate their copywriting. Keep it under 80 words, sound casual like a real redditor."
+                    prompt = f"Write a helpful, non-spammy Reddit reply to this post: '{title}\n{selftext}'. Suggest they try an AI tool called KopyKat (https://kopykat-ai.onrender.com) to automate their copywriting. Keep it under 80 words, sound casual like a real redditor."
                     response = await model.generate_content_async(prompt)
                     draft = response.text.strip()
 

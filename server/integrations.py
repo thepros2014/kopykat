@@ -33,7 +33,7 @@ def push_to_mailchimp(creds: dict, subject: str, content: str, meta: dict) -> di
     
     data = {
         "type": "regular",
-        "settings": {"subject_line": subject, "title": subject, "reply_to": "hello@example.com", "from_name": "SnapCopy AI"}
+        "settings": {"subject_line": subject, "title": subject, "reply_to": "hello@example.com", "from_name": "KopyKat"}
     }
     
     list_id = meta.get("list_id") or creds.get("list_id")

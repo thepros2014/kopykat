@@ -1,8 +1,8 @@
-Yes — I checked the GitHub side of SnapCopy AI.
+Yes — I checked the GitHub side of KopyKat.
 
 What I see
 
-Your repo is thepros2014/snapcopy-ai, currently private, with main as the default branch.
+Your repo is thepros2014/kopykat-ai, currently private, with main as the default branch.
 
 The README describes it as a fully automated marketing-copy SaaS with:
 
@@ -66,14 +66,14 @@ Also, because you're running this live on Render, I would not make the repositor
 
 The good news: the GitHub repo is only about 53 KB, so this is small enough that I can inspect essentially the entire codebase rather than giving you a superficial review.
 
-If you want me to go full @GitHub engineer mode, I can audit thepros2014/snapcopy-ai file-by-file and give you a brutally honest production-readiness score, security findings, monetization weaknesses, and exactly what I'd change before trying to acquire paying customers.
+If you want me to go full @GitHub engineer mode, I can audit thepros2014/kopykat-ai file-by-file and give you a brutally honest production-readiness score, security findings, monetization weaknesses, and exactly what I'd change before trying to acquire paying customers.
 
 Worked for 16s
 
 I went deeper into the actual repository rather than judging the landing page alone.
 
-[SnapCopy AI live application](https://snapcopy-ai.onrender.com/?utm_source=chatgpt.com)
-[SnapCopy AI GitHub repository](https://github.com/thepros2014/snapcopy-ai?utm_source=chatgpt.com)
+[KopyKat live application](https://kopykat-ai.onrender.com/?utm_source=chatgpt.com)
+[KopyKat GitHub repository](https://github.com/thepros2014/kopykat-ai?utm_source=chatgpt.com)
 
 My blunt assessment
 
@@ -268,7 +268,7 @@ You should restrict this to your actual frontend origin(s).
 
 For example:
 
-https://snapcopy-ai.onrender.com
+https://kopykat-ai.onrender.com
 
 and any future production domain.
 
@@ -365,7 +365,7 @@ Quality scoring
      ↓
 FINAL COPY
 
-That changes SnapCopy from:
+That changes KopyKat from:
 
 > "AI writes copy."
 
@@ -612,7 +612,7 @@ That means you're not limited to selling the web interface.
 
 You could eventually sell:
 
-SnapCopy API
+KopyKat API
 
 POST /api/generate
 
@@ -630,7 +630,7 @@ CRM systems
 
 other AI applications
 
-Then SnapCopy becomes infrastructure.
+Then KopyKat becomes infrastructure.
 
 That has substantially more upside than competing purely with consumer-facing AI copywriting websites.
 
@@ -760,7 +760,7 @@ The biggest mistake now would be spending weeks making the landing page prettier
 
 I'd spend the next engineering cycle making the financial and usage primitives bulletproof, then turn the copy engine into a strategy → generation → critique → optimization pipeline.
 
-That's where I think SnapCopy AI could become substantially more valuable than the current version.If I evaluate SnapCopy AI as a product after the fixes I outlined, rather than just the current codebase, I'd put it around:
+That's where I think KopyKat could become substantially more valuable than the current version.If I evaluate KopyKat as a product after the fixes I outlined, rather than just the current codebase, I'd put it around:
 
 8.5/10 overall
 
@@ -806,7 +806,7 @@ Your moat has to become the automation, workflows, integrations, proprietary usa
 
 If you can demonstrate something like:
 
-"SnapCopy doesn't just generate copy. It analyzes the customer's product, audience and objective, generates multiple strategies, critiques them, optimizes the winner, distributes the content, and measures the result."
+"KopyKat doesn't just generate copy. It analyzes the customer's product, audience and objective, generates multiple strategies, critiques them, optimizes the winner, distributes the content, and measures the result."
 
 then 8.5 can realistically become 9+.
 
@@ -816,7 +816,7 @@ Yes. And I would separate the price of the software from the value of the SaaS b
 
 I checked current 2026 SaaS acquisition data. The market is selective: Acquire.com reports that confirmed SaaS transactions in 2025 had a median around 3.9× profit, with most deals clustering around 3–5× net income. Exceptional growth, retention, scale, and strategic value can push substantially higher. 
 
-For SnapCopy, however, I would not price it like a normal small SaaS if you're specifically approaching Fortune 500 companies.
+For KopyKat, however, I would not price it like a normal small SaaS if you're specifically approaching Fortune 500 companies.
 
 My target valuation strategy
 
@@ -836,7 +836,7 @@ If you get traction
 
 This is where the numbers change dramatically.
 
-Position of SnapCopyReasonable outright acquisition targetWorking product, little/no revenue$250K–$750K$10K MRR$750K–$1.5M$25K MRR$1.5M–$3M$50K MRR$3M–$6M$100K MRR$6M–$12M+$250K MRR + strong retention$15M–$30M+Strategic Fortune-500 acquisitionPotentially considerably higher 
+Position of KopyKatReasonable outright acquisition targetWorking product, little/no revenue$250K–$750K$10K MRR$750K–$1.5M$25K MRR$1.5M–$3M$50K MRR$3M–$6M$100K MRR$6M–$12M+$250K MRR + strong retention$15M–$30M+Strategic Fortune-500 acquisitionPotentially considerably higher 
 
 Those aren't guaranteed market prices—they're negotiation targets based on the combination of SaaS economics and strategic value.
 
@@ -854,7 +854,7 @@ They can build or buy dozens of those.
 
 Instead:
 
-"SnapCopy AI is an automated AI marketing infrastructure platform with its own generation API, usage metering, billing infrastructure, automated SEO acquisition, customer lifecycle automation, and lead-discovery engine. I'm offering the complete technology and IP for acquisition."
+"KopyKat is an automated AI marketing infrastructure platform with its own generation API, usage metering, billing infrastructure, automated SEO acquisition, customer lifecycle automation, and lead-discovery engine. I'm offering the complete technology and IP for acquisition."
 
 Now you're selling infrastructure + IP + automation + distribution technology.
 
@@ -992,4 +992,4 @@ If you get to $100K MRR, I'd be thinking about a $10M+ acquisition conversation,
 
 And if you get strong enterprise adoption before selling, the objective changes from "sell my app" to "sell a strategic technology asset."
 
-That's where I think SnapCopy has the potential to become much more valuable than the ~$6.5–7/10 valuation I gave the current implementation.
+That's where I think KopyKat has the potential to become much more valuable than the ~$6.5–7/10 valuation I gave the current implementation.

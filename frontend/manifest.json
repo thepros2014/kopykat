@@ -1,6 +1,6 @@
 {
-  "name": "SnapCopy AI",
-  "short_name": "SnapCopy",
+  "name": "KopyKat",
+  "short_name": "KopyKat",
   "description": "The Omni-Campaign Orchestrator. Listen to the market. Generate the campaign. Deploy everywhere.",
   "start_url": "/dashboard",
   "display": "standalone",

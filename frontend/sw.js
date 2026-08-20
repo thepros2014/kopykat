@@ -1,4 +1,4 @@
-const CACHE_NAME = 'snapcopy-v1';
+const CACHE_NAME = 'kopykat-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/dashboard',

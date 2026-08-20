@@ -156,7 +156,7 @@ class IntegrationSaveRequest(BaseModel):
 class PushRequest(BaseModel):
     platform: Literal["wordpress", "mailchimp", "hubspot", "shopify", "webflow"]
     content: str
-    title: Optional[str] = "Generated via SnapCopy AI"
+    title: Optional[str] = "Generated via KopyKat"
     metadata: Optional[dict] = {}
 
 class CampaignGenerateRequest(BaseModel):

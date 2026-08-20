@@ -1,4 +1,4 @@
-# 🛠 SnapCopy AI — Owner's Tutorial & Manual
+# 🛠 KopyKat — Owner's Tutorial & Manual
 
 This guide explains how to operate, manage, and modify your automated SaaS business.
 
@@ -6,7 +6,7 @@ This guide explains how to operate, manage, and modify your automated SaaS busin
 You don't need to log into Stripe to see how much money you made.
 Open your terminal or use curl to hit your admin endpoint with your secret header:
 ```bash
-curl -H "x-admin-secret: YOUR_ADMIN_SECRET" https://snapcopy-ai.onrender.com/admin/revenue
+curl -H "x-admin-secret: YOUR_ADMIN_SECRET" https://kopykat-ai.onrender.com/admin/revenue
 ```
 *(Replace `YOUR_ADMIN_SECRET` with the value in your Render environment variables).*
 
@@ -15,9 +15,9 @@ The AI writes posts automatically on Mon, Wed, and Fri.
 **To force it to write a post immediately:**
 Trigger it via curl with your admin header:
 ```bash
-curl -H "x-admin-secret: YOUR_ADMIN_SECRET" https://snapcopy-ai.onrender.com/admin/trigger-seo
+curl -H "x-admin-secret: YOUR_ADMIN_SECRET" https://kopykat-ai.onrender.com/admin/trigger-seo
 ```
-Wait about 20 seconds, then check `https://snapcopy-ai.onrender.com/blog`.
+Wait about 20 seconds, then check `https://kopykat-ai.onrender.com/blog`.
 
 ## 3. Handling Leads (Opportunity Scout)
 Every 4 hours, the server checks Reddit. If it finds someone complaining about writing copy, you will get an email (sent to the address in your `OWNER_EMAIL` environment variable).

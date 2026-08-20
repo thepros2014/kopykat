@@ -1,11 +1,11 @@
-# ⚡ SnapCopy AI
+# ⚡ KopyKat
 
 A fully automated, AI-powered marketing copywriting SaaS.
 
-SnapCopy AI generates high-converting product descriptions, ad copy, emails, and social posts in seconds. It runs on autopilot, featuring automated subscription billing, an SEO blog engine, and background lead generation.
+KopyKat generates high-converting product descriptions, ad copy, emails, and social posts in seconds. It runs on autopilot, featuring automated subscription billing, an SEO blog engine, and background lead generation.
 
 ## 🔗 Live Application
-**Website:** [snapcopy-ai.onrender.com](https://snapcopy-ai.onrender.com)
+**Website:** [kopykat-ai.onrender.com](https://kopykat-ai.onrender.com)
 
 ## 📚 Documentation
 - **[Month 1 Marketing Playbook](playbook.md):** The exact step-by-step guide to acquiring your first paying customers.

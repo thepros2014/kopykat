@@ -1,6 +1,6 @@
 Evaluation of Overall Software (Post-Upgrades)
 
-Once you complete all the technical, security, and strategic upgrades outlined in the roadmap, the overall evaluation of SnapCopy AI leaps from a functional prototype baseline of 6.5/10 up to an elite, enterprise-grade score of 8.5/10.
+Once you complete all the technical, security, and strategic upgrades outlined in the roadmap, the overall evaluation of KopyKat leaps from a functional prototype baseline of 6.5/10 up to an elite, enterprise-grade score of 8.5/10.
 
 The transition completely changes how the software is evaluated across key metrics:
 
@@ -10,19 +10,19 @@ The transition completely changes how the software is evaluated across key metri
 
 • Security (5.0 → 8.5–9.0) & Monetization (7.5 → 9.0): Fixing the concurrency credit race condition, implementing Stripe webhook idempotency, restricting permissive CORS, and sanitizing generated HTML makes your billing and databases bulletproof against malicious exploitation.
 
-Ultimately, completing these fixes transitions SnapCopy AI from a consumer writing tool into a highly secure, transaction-safe autonomous AI marketing operations platform—making it highly attractive for strategic corporate acquisition.
+Ultimately, completing these fixes transitions KopyKat from a consumer writing tool into a highly secure, transaction-safe autonomous AI marketing operations platform—making it highly attractive for strategic corporate acquisition.
 
 Alternative & Expanded Use Cases
 
-Beyond its current advertising as a basic copywriting assistant, SnapCopy AI's underlying code possesses unique architecture that unlocks four powerful, high-value alternative use cases:
+Beyond its current advertising as a basic copywriting assistant, KopyKat's underlying code possesses unique architecture that unlocks four powerful, high-value alternative use cases:
 
-• Developer-Facing Infrastructure (Headless B2B API): Because you have already built API key generation, secure hashing, usage accounting, database persistence, and Stripe metered billing, you can sell SnapCopy as an infrastructure API (e.g., POST /api/generate). Instead of competing with consumer writing UIs, you can sell this infrastructure directly to Shopify developers, CRM systems, marketing agencies, and e-commerce platforms.
+• Developer-Facing Infrastructure (Headless B2B API): Because you have already built API key generation, secure hashing, usage accounting, database persistence, and Stripe metered billing, you can sell KopyKat as an infrastructure API (e.g., POST /api/generate). Instead of competing with consumer writing UIs, you can sell this infrastructure directly to Shopify developers, CRM systems, marketing agencies, and e-commerce platforms.
 
 • Autonomous B2B Lead Scouting & SDR Engine: Your built-in Reddit engine scans subreddits for copywriting discussions, qualifies leads, drafts highly contextual replies, logs opportunities, and emails them directly to you. By keeping a "human-in-the-loop" approval flow, you can package and license this feature as an automated outbound Sales Development Representative (SDR) platform for agencies looking to automate cold outreach and social-listening sales.
 
-• Autonomous Content Operations (ContentOps) Platform: By advancing your automated blog publisher with keyword intent classification, competitor SERP analysis, and strict quality scoring thresholds, SnapCopy can be repositioned as a hands-free corporate ContentOps network rather than a standard blog-writer.
+• Autonomous Content Operations (ContentOps) Platform: By advancing your automated blog publisher with keyword intent classification, competitor SERP analysis, and strict quality scoring thresholds, KopyKat can be repositioned as a hands-free corporate ContentOps network rather than a standard blog-writer.
 
-• Edge AI State Replication Layer (Academic/Decentralized Networks): At a deeply technical level, the SnapCopy paradigm implements a highly optimized semantic state-cloning layer. By serializing LLM context matrices, neural voice weights, and payment states, and transmitting only delta vectors (\(\Delta S\)), the system maintains point-in-time thread continuity across hardware boundaries. This architecture is uniquely suited for local-first decentralized applications—such as edge cashier kiosks (e.g., ZeroClaw Commerce) or high-frequency quantitative trading bots (e.g., the Kracken trading bot) that need to survive dynamic container updates or hardware restarts without losing operational memory.
+• Edge AI State Replication Layer (Academic/Decentralized Networks): At a deeply technical level, the KopyKat paradigm implements a highly optimized semantic state-cloning layer. By serializing LLM context matrices, neural voice weights, and payment states, and transmitting only delta vectors (\(\Delta S\)), the system maintains point-in-time thread continuity across hardware boundaries. This architecture is uniquely suited for local-first decentralized applications—such as edge cashier kiosks (e.g., ZeroClaw Commerce) or high-frequency quantitative trading bots (e.g., the Kracken trading bot) that need to survive dynamic container updates or hardware restarts without losing operational memory.
 
 Best Customer Acquisition & Advertising Options
 
@@ -32,7 +32,7 @@ To capture maximum market traction or strategic interest, your marketing and pos
 
 • Leverage Telegram Storefronts: Taking a page from your portfolio’s edge-commerce workflows, target mobile-first markets by deploying Telegram as a primary storefront channel. Offering direct, conversational access to your copy strategist and lead-generation tools via messaging can bypass competitive web spaces.
 
-• Dogfood Your Built-In Lead Engine: Use SnapCopy's own Reddit and social-listening engines to actively discover and pitch prospective users who are online complaining about copywriting workloads or looking for marketing automation. Approve and send custom, AI-crafted pitches directly to them.
+• Dogfood Your Built-In Lead Engine: Use KopyKat's own Reddit and social-listening engines to actively discover and pitch prospective users who are online complaining about copywriting workloads or looking for marketing automation. Approve and send custom, AI-crafted pitches directly to them.
 
 • M&A "Strategic Acquisition" Landing Page Tag: If your ultimate goal is an outright sale, do not list a standard price tag on the site. Instead, place a highly visible, elite banner: "Available for Strategic Technology / IP Acquisition". This frames the software as a complete technology asset (source code, API, automation pipelines, and infrastructure) and attracts inbound corporate development inquiries from major software companies seeking to accelerate their AI roadmaps.
 

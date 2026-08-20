@@ -373,7 +373,7 @@ def _handle_payment_failed(invoice: dict, db: Session):
         user = db.query(User).filter(User.id == sub.user_id).first()
         if user:
             from .scheduler import _send_email
-            _send_email("Action Required: SnapCopy AI Payment Failed", "Hi,<br><br>Your recent subscription payment failed. Please log into your dashboard and update your payment method to avoid service interruption.<br><br>- SnapCopy Team", user.email)
+            _send_email("Action Required: KopyKat Payment Failed", "Hi,<br><br>Your recent subscription payment failed. Please log into your dashboard and update your payment method to avoid service interruption.<br><br>- KopyKat Team", user.email)
         db.commit()
         logger.warning(f"Payment failed for subscription {subscription_id}")
 
