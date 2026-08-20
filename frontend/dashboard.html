@@ -4,6 +4,11 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard — SnapCopy AI</title>
+
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#8e44ad"/>
+  <link rel="apple-touch-icon" href="/static/icon.png"/>
+
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/static/styles.css"/>
@@ -283,6 +288,15 @@ curl -X POST https://YOUR_APP_URL/api/generate \
     </section>
 
   </main>
+
+  <!-- 📱 Bottom Mobile Nav -->
+  <nav class="bottom-nav">
+    <button class="bottom-nav-link active" onclick="showSection('overview'); activateBottomNav(this);">Overview</button>
+    <button class="bottom-nav-link" onclick="showSection('generator'); activateBottomNav(this);">Create</button>
+    <button class="bottom-nav-link" onclick="showSection('omni'); activateBottomNav(this);">Omni</button>
+    <button class="bottom-nav-link" onclick="showSection('apikeys'); activateBottomNav(this);">Keys</button>
+  </nav>
+
 </div>
 
 <script>
@@ -727,6 +741,29 @@ async function runOmniPush() {
   
   btn.textContent = " Deploy Now";
   btn.disabled = false;
+}
+
+
+function activateBottomNav(btn) {
+  document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+</script>
+
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        console.log('SW registration failed: ', err);
+      });
+    });
+  }
+
+function activateBottomNav(btn) {
+  document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
 }
 
 </script>

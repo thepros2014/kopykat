@@ -161,6 +161,15 @@ async def landing_page():
     return HTMLResponse("<h1>SnapCopy AI — Loading...</h1>")
 
 
+
+@app.get("/manifest.json", include_in_schema=False)
+async def get_manifest():
+    return FileResponse(frontend_dir / "manifest.json")
+
+@app.get("/sw.js", include_in_schema=False)
+async def get_sw():
+    return FileResponse(frontend_dir / "sw.js")
+
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard_page():
     """Serve the customer dashboard."""

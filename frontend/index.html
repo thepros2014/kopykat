@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SnapCopy AI — Instant Marketing Copy, Powered by AI</title>
+
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#8e44ad"/>
+  <link rel="apple-touch-icon" href="/static/icon.png"/>
+
   <meta name="description" content="Generate high-converting marketing copy in seconds. Product descriptions, emails, ads, social posts — all powered by AI."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
@@ -387,5 +392,16 @@ if (getToken()) {
   const alreadyLoggedIn = document.createElement('div');
 }
 </script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        console.log('SW registration failed: ', err);
+      });
+    });
+  }
+</script>
+
 </body>
 </html>
