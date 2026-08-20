@@ -201,7 +201,7 @@ def init_db():
                 conn.commit()
                 # Migrate any existing credits (e.g. 5000 tokens -> 50 gens)
                 if "credits" in columns:
-                    conn.execute(text("UPDATE users SET generations_remaining = MAX(1, CAST(credits / 100 AS INTEGER)) WHERE credits IS NOT NULL"))
+                    conn.execute(text("UPDATE users SET generations_remaining = CASE WHEN CAST(credits / 100 AS INTEGER) > 1 THEN CAST(credits / 100 AS INTEGER) ELSE 1 END WHERE credits IS NOT NULL"))
                     conn.commit()
         if "usage_records" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("usage_records")]
