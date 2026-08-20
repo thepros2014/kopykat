@@ -97,9 +97,9 @@ def run_drip_campaigns():
 
             # Drip schedule
             steps = {
-                1: ("Welcome to SnapCopy AI 🚀", "Hi!<br><br>Thanks for joining. You have 50 free generations to create high-converting copy.<br><br>Log in and make your first API call today!"),
-                3: ("How's your copy looking?", "Just checking in. Have you tried the Product Description or Social Post generator yet? It'll save you hours this week."),
-                7: ("Need more generations?", "Time to upgrade to the Basic Plan for just $9/mo to get 500 monthly generations and unlock more keys.<br><br>Upgrade in your dashboard.")
+                2: ("The secret to high-converting copy 🤫", "Hi there,<br><br>The biggest mistake marketers make? Talking about features instead of <b>benefits</b>. SnapCopy AI automatically uses proven copywriting frameworks (like AIDA and PAS) to generate copy that actually sells.<br><br><a href='https://snapcopy-ai.onrender.com/dashboard'>Log in and try the Ad Copy Generator</a> today."),
+                4: ("Save 10+ hours this week ⏳", "How much time do you spend staring at a blank screen?<br><br>With SnapCopy AI, you can generate 5 variations of a landing page hero section in 2 seconds. Use your remaining free generations to see the magic yourself."),
+                7: ("Your free generations are running out", "Hey,<br><br>I hope you've loved using SnapCopy AI. If you want to scale up your marketing, it's time to upgrade.<br><br>Our <b>Basic Plan is just $9/mo</b> and gives you <b>500 generations</b> every single month. That's enough to run your entire social and email strategy.<br><br><a href='https://snapcopy-ai.onrender.com/dashboard'>Upgrade in your dashboard now</a> and never write manual copy again.")
             }
 
             if age_days in steps:

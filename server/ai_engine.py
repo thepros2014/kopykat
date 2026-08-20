@@ -1,11 +1,12 @@
 """
-ai_engine.py — AI content generation.
+ai_engine.py - AI content generation.
 Supports OpenAI GPT-4o and Google Gemini. Falls back automatically.
 """
 
 import os
 import time
 import uuid
+import json
 from datetime import datetime
 from typing import List, Optional
 
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from .database import UsageRecord
 
-# ── Config ────────────────────────────────────────────────────────────────────
+#  Config 
 
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
 GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY", "")
@@ -29,70 +30,75 @@ COST_PER_1K = {
     "gemini-1.5-pro":   0.00125,
 }
 
-# ── Prompt templates for each copy type ──────────────────────────────────────
+#  Prompt templates for each copy type 
 
 PROMPTS = {
     "product_description": (
-        "Write a compelling product description for the following. "
-        "Focus on benefits, not features. Use sensory language. Keep it under 150 words.\n\n"
+        "Write {variations} compelling product description(s). "
+        "Use the AIDA framework (Attention, Interest, Desire, Action). "
+        "Focus heavily on benefits and transformation rather than just features. Keep under 150 words each.\n\n"
         "Product/Context: {context}\n\nTone: {tone}"
     ),
     "email_subject": (
-        "Write {variations} email subject line(s) that maximize open rates. "
-        "Use curiosity, urgency, or personalization. Each on a new line.\n\n"
+        "Write {variations} email subject line(s) optimized for maximum open rates. "
+        "Utilize curiosity gaps, urgency, or personalization. Keep them punchy (under 50 characters ideally).\n\n"
         "Context: {context}\n\nTone: {tone}"
     ),
     "email_body": (
-        "Write a persuasive marketing email body. Include a clear CTA. "
-        "Keep it concise and scannable with short paragraphs.\n\n"
+        "Write {variations} persuasive marketing email body/bodies. "
+        "Use the PAS framework (Problem, Agitation, Solution). Make paragraphs extremely short (1-2 sentences) "
+        "for high scannability. End with a singular, clear Call to Action.\n\n"
         "Context: {context}\n\nTone: {tone}"
     ),
     "social_post": (
-        "Write {variations} social media post(s) with strong hooks. "
-        "Include relevant emojis and a call to action. Each separated by ---.\n\n"
+        "Write {variations} engaging social media post(s) designed to stop the scroll. "
+        "Start with a strong hook, provide value or a bold claim, use appropriate emojis, and end with a CTA.\n\n"
         "Context: {context}\n\nTone: {tone}"
     ),
     "ad_headline": (
-        "Write {variations} high-converting ad headline(s), max 10 words each. "
-        "Make each one punch hard and create curiosity or desire.\n\n"
+        "Write {variations} high-converting ad headline(s). Maximum 10 words each. "
+        "Focus on the primary pain point or the ultimate dream outcome. Make it irresistible.\n\n"
         "Context: {context}\n\nTone: {tone}"
     ),
     "ad_body": (
-        "Write persuasive ad copy body text that supports a headline. "
-        "Highlight the key benefit, address an objection, and end with a CTA.\n\n"
+        "Write {variations} persuasive ad copy body/bodies. "
+        "Overcome a key objection immediately, highlight the primary benefit, and drive urgency to click.\n\n"
         "Context: {context}\n\nTone: {tone}"
     ),
     "landing_page_hero": (
-        "Write a landing page hero section: headline, subheadline, and CTA button text. "
-        "Format as:\nHeadline: ...\nSubheadline: ...\nCTA: ...\n\n"
+        "Write {variations} landing page hero section(s). Format each exactly like this:\n"
+        "Headline: [Punchy benefit-driven headline]\n"
+        "Subheadline: [Supporting context that handles objections]\n"
+        "CTA: [Action-oriented button text]\n\n"
         "Context: {context}\n\nTone: {tone}"
     ),
     "call_to_action": (
-        "Write {variations} powerful call-to-action button texts (3-8 words each). "
-        "Make them action-oriented and benefit-driven. Each on a new line.\n\n"
+        "Write {variations} powerful call-to-action button text(s). Limit to 2-6 words each. "
+        "Use action verbs and focus on the value the user gets by clicking (e.g., 'Get My Free Plan' instead of 'Submit').\n\n"
         "Context: {context}\n\nTone: {tone}"
     ),
     "seo_meta_description": (
-        "Write an SEO meta description under 160 characters. Include the primary keyword naturally. "
-        "Make it compelling enough to earn the click.\n\n"
+        "Write {variations} SEO meta description(s) strictly under 155 characters. "
+        "Include the primary keyword naturally and create a strong reason to click the search result.\n\n"
         "Context: {context}"
     ),
     "blog_intro": (
-        "Write a captivating blog post introduction (150-200 words) that hooks the reader "
-        "immediately, establishes the problem, and previews the solution.\n\n"
+        "Write {variations} captivating blog post introduction(s) (100-150 words). "
+        "Use the APP method (Agree, Promise, Preview) to hook the reader immediately.\n\n"
         "Topic/Context: {context}\n\nTone: {tone}"
     ),
 }
 
 SYSTEM_PROMPT = (
-    "You are SnapCopy AI, a world-class marketing copywriter. "
-    "You write high-converting, professional copy that drives results. "
-    "Be direct, specific, and persuasive. Never use filler phrases like 'Certainly!' or 'Of course!'. "
-    "Output ONLY the requested copy — no explanations, no meta-commentary."
+    "You are SnapCopy AI, an elite, world-class direct-response copywriter. "
+    "You write high-converting copy that drives sales. "
+    "CRITICAL INSTRUCTION: You MUST output your response strictly as a JSON object with a single key 'variations' which is an array of strings. "
+    "Do NOT wrap the JSON in markdown code blocks. Do NOT output any conversational text. "
+    "Example format: {\"variations\": [\"variation 1 text\", \"variation 2 text\"]}"
 )
 
 
-# ── OpenAI generation ─────────────────────────────────────────────────────────
+#  OpenAI generation 
 
 async def _generate_openai(prompt: str, max_tokens: int) -> tuple[str, int]:
     """Returns (text, tokens_used)."""
@@ -107,6 +113,7 @@ async def _generate_openai(prompt: str, max_tokens: int) -> tuple[str, int]:
             ],
             max_tokens=max_tokens,
             temperature=0.8,
+            response_format={ "type": "json_object" }
         )
         text   = response.choices[0].message.content.strip()
         tokens = response.usage.total_tokens
@@ -115,7 +122,7 @@ async def _generate_openai(prompt: str, max_tokens: int) -> tuple[str, int]:
         raise RuntimeError(f"OpenAI error: {e}")
 
 
-# ── Gemini generation ─────────────────────────────────────────────────────────
+#  Gemini generation 
 
 async def _generate_gemini(prompt: str, max_tokens: int) -> tuple[str, int]:
     """Returns (text, tokens_used). Gemini token counts are estimated."""
@@ -128,17 +135,17 @@ async def _generate_gemini(prompt: str, max_tokens: int) -> tuple[str, int]:
             generation_config=genai.types.GenerationConfig(
                 max_output_tokens=max_tokens,
                 temperature=0.8,
+                response_mime_type="application/json"
             ),
         )
         text   = response.text.strip()
-        # Gemini doesn't always expose token counts in free tier — estimate
         tokens = response.usage_metadata.total_token_count if hasattr(response, "usage_metadata") else len(text.split()) * 2
         return text, tokens
     except Exception as e:
         raise RuntimeError(f"Gemini error: {e}")
 
 
-# ── Main generation function ──────────────────────────────────────────────────
+#  Main generation function 
 
 async def generate_copy(
     copy_type:  str,
@@ -164,6 +171,7 @@ async def generate_copy(
 
     # Choose provider
     provider = AI_PROVIDER
+    
     if provider == "openai" and OPENAI_API_KEY:
         text, tokens = await _generate_openai(prompt, max_tokens)
     elif provider == "gemini" and GEMINI_API_KEY:
@@ -175,16 +183,30 @@ async def generate_copy(
     else:
         raise RuntimeError("No AI API key configured. Set OPENAI_API_KEY or GEMINI_API_KEY in .env")
 
-    # Split into individual variations if multiple requested
-    if variations > 1:
+    # Parse JSON
+    try:
+        clean_text = text.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:]
+        if clean_text.startswith("```"):
+            clean_text = clean_text[3:]
+        if clean_text.endswith("```"):
+            clean_text = clean_text[:-3]
+        clean_text = clean_text.strip()
+        
+        parsed = json.loads(clean_text)
+        result_variations = parsed.get("variations", [])
+        if not result_variations:
+            result_variations = [text]
+    except Exception:
+        # Fallback if json fails
+        import re
         parts = [p.strip() for p in text.split("---") if p.strip()]
-        # Also split by numbered list if --- not present
         if len(parts) < 2:
-            import re
             parts = [re.sub(r"^\d+\.\s*", "", p).strip() for p in text.splitlines() if p.strip()]
         result_variations = parts[:variations] if parts else [text]
-    else:
-        result_variations = [text]
+
+    result_variations = result_variations[:variations]
 
     generations_count = max(1, len(result_variations))
     elapsed_ms = int((time.time() - start_ms) * 1000)

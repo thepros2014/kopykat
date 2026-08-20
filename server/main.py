@@ -264,10 +264,15 @@ async def list_plans():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/auth/register", response_model=TokenResponse, tags=["Auth"])
-@limiter.limit("10/minute")
-async def register(request: Request, body: UserRegister, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def register(request: Request, body: UserRegister, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Create a new account and return a JWT token."""
     user  = register_user(body.email, body.password, body.full_name, db)
+    
+    from .scheduler import _send_email
+    subject = "Welcome to SnapCopy AI 🚀"
+    email_body = f"Hi {body.full_name or 'there'},<br><br>Welcome to SnapCopy AI! Your account is loaded with 50 free generations.<br><br>Log in to generate your first high-converting copy: <a href='https://snapcopy-ai.onrender.com/dashboard'>SnapCopy Dashboard</a>"
+    background_tasks.add_task(_send_email, subject, email_body, user.email)
     token = create_access_token(user.id, user.email)
     return TokenResponse(
         access_token=token,
@@ -542,3 +547,44 @@ async def admin_revenue(
     if not ADMIN_SECRET or x_admin_secret != ADMIN_SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
     return get_total_revenue(db)
+
+@app.get("/api/admin/stats", tags=["Admin"])
+async def admin_stats(
+    x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"),
+    db: Session = Depends(get_db),
+):
+    """Admin dashboard stats."""
+    if not ADMIN_SECRET or x_admin_secret != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    from sqlalchemy import func
+    from .database import RevenueRecord
+    
+    users = db.query(User).count()
+    paying = db.query(User).filter(User.plan != "free").count()
+    revenue = db.query(func.sum(RevenueRecord.amount_cents)).filter(RevenueRecord.status == "succeeded").scalar() or 0
+    reqs = db.query(func.count(UsageRecord.id)).scalar() or 0
+    gens = db.query(func.sum(UsageRecord.generations_used)).scalar() or 0
+    
+    recent = db.query(User).order_by(User.created_at.desc()).limit(10).all()
+    
+    return {
+        "total_users": users,
+        "paying_users": paying,
+        "total_revenue_cents": revenue,
+        "total_requests": reqs,
+        "total_generations": gens,
+        "recent_users": [
+            {"email": u.email, "plan": u.plan, "created_at": u.created_at.isoformat()}
+            for u in recent
+        ]
+    }
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+async def admin_page():
+    """Serve the admin dashboard."""
+    path = BASE_DIR / "frontend" / "admin.html"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Admin panel not found")
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()

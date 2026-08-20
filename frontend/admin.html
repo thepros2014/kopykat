@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapCopy Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-6xl mx-auto" id="app">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">SnapCopy Admin Dashboard</h1>
+            <div id="auth-controls">
+                <input type="password" id="admin-pass" placeholder="Admin Password" class="px-3 py-2 border rounded shadow-sm mr-2">
+                <button onclick="loadStats()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow">Login & Refresh</button>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8" id="stats-grid" style="display:none;">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Users</h3>
+                <p class="text-3xl font-bold text-gray-800" id="stat-users">0</p>
+                <p class="text-sm text-green-500 mt-2 font-medium" id="stat-paying">0 paying</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Revenue</h3>
+                <p class="text-3xl font-bold text-gray-800" id="stat-revenue">$0</p>
+                <p class="text-sm text-gray-400 mt-2 font-medium">All time (succeeded)</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Total API Reqs</h3>
+                <p class="text-3xl font-bold text-gray-800" id="stat-requests">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Generations Used</h3>
+                <p class="text-3xl font-bold text-gray-800" id="stat-generations">0</p>
+            </div>
+        </div>
+
+        <!-- Recent Users Table -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden" id="users-table-container" style="display:none;">
+            <div class="px-6 py-4 border-b border-gray-100">
+                <h2 class="text-lg font-semibold text-gray-800">Recent Signups</h2>
+            </div>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-500 text-sm uppercase tracking-wider">
+                        <th class="px-6 py-3 font-medium">Email</th>
+                        <th class="px-6 py-3 font-medium">Plan</th>
+                        <th class="px-6 py-3 font-medium">Joined</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody" class="divide-y divide-gray-100 text-sm">
+                    <!-- Dynamic -->
+                </tbody>
+            </table>
+        </div>
+        
+        <p id="error-msg" class="text-red-500 mt-4 font-medium hidden"></p>
+    </div>
+
+    <script>
+        async function loadStats() {
+            const pwd = document.getElementById("admin-pass").value;
+            const err = document.getElementById("error-msg");
+            err.classList.add("hidden");
+
+            try {
+                const res = await fetch("/api/admin/stats", {
+                    headers: { "x-admin-secret": pwd }
+                });
+
+                if (!res.ok) {
+                    throw new Error(res.status === 401 ? "Invalid admin password" : "Error fetching stats");
+                }
+
+                const data = await res.json();
+                
+                // Populate summary
+                document.getElementById("stat-users").innerText = data.total_users;
+                document.getElementById("stat-paying").innerText = `${data.paying_users} paying`;
+                document.getElementById("stat-revenue").innerText = `$${(data.total_revenue_cents / 100).toFixed(2)}`;
+                document.getElementById("stat-requests").innerText = data.total_requests;
+                document.getElementById("stat-generations").innerText = data.total_generations;
+
+                // Populate table
+                const tbody = document.getElementById("users-tbody");
+                tbody.innerHTML = "";
+                data.recent_users.forEach(u => {
+                    const row = `<tr>
+                        <td class="px-6 py-4 font-medium text-gray-800">${u.email}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full ${u.plan === 'free' ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-800'}">
+                                ${u.plan.toUpperCase()}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-500">${new Date(u.created_at).toLocaleDateString()}</td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+
+                document.getElementById("stats-grid").style.display = "grid";
+                document.getElementById("users-table-container").style.display = "block";
+            } catch (e) {
+                err.innerText = e.message;
+                err.classList.remove("hidden");
+                document.getElementById("stats-grid").style.display = "none";
+                document.getElementById("users-table-container").style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
