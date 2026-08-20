@@ -113,6 +113,16 @@ class UserIntegration(Base):
     updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+
+    id         = Column(String(36), primary_key=True)
+    user_id    = Column(String(36), nullable=False)
+    name       = Column(String(255), nullable=False)
+    assets     = Column(Text, nullable=False)  # JSON string containing blog, email, social
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class PushJob(Base):
     __tablename__ = "push_jobs"
 

@@ -17,6 +17,7 @@
     <div class="sidebar-logo">⚡ SnapCopy AI</div>
     <button class="sidebar-link active" onclick="showSection('overview')">📊 Overview</button>
     <button class="sidebar-link" onclick="showSection('generator')">✨ Copy Generator</button>
+    <button class="sidebar-link" onclick="showSection('omni')">🚀 Omni-Campaigns</button>
     <button class="sidebar-link" onclick="showSection('apikeys')">🔑 API Keys</button>
     <button class="sidebar-link" onclick="showSection('usage')">📈 Usage</button>
     <button class="sidebar-link" onclick="showSection('billing')">💳 Billing</button>
@@ -642,6 +643,90 @@ function pushMC(btn, text) {
 function pushWF(btn, text) {
     let col = document.getElementById('wf-meta').value;
     pushContent('webflow', text, btn, col ? {collection_id: col} : {});
+}
+
+
+let currentCampaignId = null;
+
+async function runOmniGenerate() {
+  const btn = document.getElementById('btn-omni-generate');
+  btn.textContent = "Scraping Market & Generating...";
+  btn.disabled = true;
+
+  const desc = document.getElementById('omni-desc').value;
+  const kw = document.getElementById('omni-kw').value;
+
+  try {
+    const res = await fetch('/api/campaign/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+      body: JSON.stringify({ keyword: kw, product_desc: desc })
+    });
+    
+    const data = await res.json();
+    if (res.ok) {
+      currentCampaignId = data.id;
+      const assets = data.assets;
+      
+      document.getElementById('omni-blog-title').textContent = assets.blog_post.title;
+      document.getElementById('omni-blog-content').innerHTML = assets.blog_post.content;
+      
+      let emailsHtml = "";
+      assets.email_drip.forEach((e, i) => {
+        emailsHtml += `<strong>${i+1}. ${e.subject}</strong><br/>${e.body}<hr/>`;
+      });
+      document.getElementById('omni-email-content').innerHTML = emailsHtml;
+      
+      document.getElementById('omni-results-wrapper').style.display = 'block';
+    } else {
+      alert("Error: " + data.detail);
+    }
+  } catch (err) {
+    alert("Generation failed.");
+  }
+  
+  btn.textContent = "1. Generate Campaign";
+  btn.disabled = false;
+}
+
+async function runOmniPush() {
+  const btn = document.getElementById('btn-omni-push');
+  btn.textContent = "Deploying...";
+  btn.disabled = true;
+  
+  const blogDest = document.getElementById('omni-blog-dest').value;
+  const emailDest = document.getElementById('omni-email-dest').value;
+  
+  const destinations = {};
+  if (blogDest) destinations.blog = { platform: blogDest };
+  if (emailDest) destinations.email = { platform: emailDest };
+  
+  if (Object.keys(destinations).length === 0) {
+    alert("Please select at least one push destination.");
+    btn.textContent = "🚀 Deploy Now";
+    btn.disabled = false;
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/campaign/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+      body: JSON.stringify({ campaign_id: currentCampaignId, destinations })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert("Campaign deployment started! Tracking " + data.job_ids.length + " jobs in background.");
+      // In a full app, we would loop and poll each job_id here.
+    } else {
+      alert("Error: " + data.detail);
+    }
+  } catch (err) {
+    alert("Push error.");
+  }
+  
+  btn.textContent = "🚀 Deploy Now";
+  btn.disabled = false;
 }
 
 </script>

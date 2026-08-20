@@ -28,6 +28,7 @@ from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
 from .models import (
     RequestPasswordReset, ResetPasswordSubmit,
     IntegrationSaveRequest, PushRequest,
+    CampaignGenerateRequest, CampaignPushRequest,
     UserRegister, UserLogin, TokenResponse, UserProfile,
     APIKeyCreate, APIKeyResponse, APIKeyCreated,
     GenerateRequest, GenerateResponse,
@@ -774,3 +775,107 @@ async def get_push_status(
     return {"status": job.status, "details": job.details}
 
 
+
+@app.post("/api/campaign/generate", tags=["Campaigns"])
+@limiter.limit("5/minute")
+async def api_campaign_generate(
+    request: Request,
+    body: CampaignGenerateRequest,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import Campaign
+    from .campaigns import generate_omni_campaign
+    import uuid
+    import json
+    
+    user, _ = auth
+    try:
+        campaign_data = generate_omni_campaign(body.keyword, body.product_desc)
+        
+        # Save to DB
+        campaign_id = str(uuid.uuid4())
+        name = f"Campaign: {body.keyword.title()}"
+        camp = Campaign(
+            id=campaign_id,
+            user_id=user.id,
+            name=name,
+            assets=json.dumps(campaign_data)
+        )
+        db.add(camp)
+        db.commit()
+        
+        return {"id": campaign_id, "name": name, "assets": campaign_data}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+@app.post("/api/campaign/push", tags=["Campaigns"])
+@limiter.limit("5/minute")
+async def api_campaign_push(
+    request: Request,
+    body: CampaignPushRequest,
+    background_tasks: BackgroundTasks,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import Campaign, UserIntegration, PushJob
+    from .auth import decrypt_credentials
+    from .integrations import background_push
+    import json
+    import uuid
+    
+    user, _ = auth
+    
+    camp = db.query(Campaign).filter(Campaign.id == body.campaign_id, Campaign.user_id == user.id).first()
+    if not camp:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+        
+    assets = json.loads(camp.assets)
+    job_ids = []
+    
+    for asset_type, dest_info in body.destinations.items():
+        platform = dest_info.get("platform")
+        meta = dest_info.get("metadata", {})
+        
+        if not platform:
+            continue
+            
+        integration = db.query(UserIntegration).filter(
+            UserIntegration.user_id == user.id,
+            UserIntegration.platform == platform
+        ).first()
+        
+        if not integration:
+            continue
+            
+        try:
+            creds = json.loads(decrypt_credentials(integration.credentials))
+        except:
+            continue
+            
+        title = ""
+        content = ""
+        if asset_type == "blog" and "blog_post" in assets:
+            title = assets["blog_post"]["title"]
+            content = assets["blog_post"]["content"]
+        elif asset_type == "email" and "email_drip" in assets:
+            if len(assets["email_drip"]) > 0:
+                title = assets["email_drip"][0]["subject"]
+                content = assets["email_drip"][0]["body"]
+        else:
+            continue
+            
+        if not content:
+            continue
+            
+        job_id = str(uuid.uuid4())
+        job = PushJob(id=job_id, user_id=user.id, platform=platform, status="pending")
+        db.add(job)
+        job_ids.append(job_id)
+        
+        background_tasks.add_task(background_push, platform, creds, title, content, meta, integration.id, job_id)
+        
+    db.commit()
+    return JSONResponse(status_code=202, content={"message": "Omni-Push accepted", "job_ids": job_ids})
