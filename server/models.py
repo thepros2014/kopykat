@@ -95,7 +95,8 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     type: str
     variations: List[str]
-    tokens_used: int
+    credits_used: int
+    tokens_used: int  # preserved for backwards compatibility
     credits_remaining: int
     generation_time_ms: int
 
@@ -127,7 +128,8 @@ class SubscriptionStatus(BaseModel):
 
 class UsageSummary(BaseModel):
     total_requests: int
-    total_tokens: int
+    total_credits_used: int
+    total_tokens: int  # preserved for backwards compatibility
     credits_remaining: int
     monthly_limit: int
     plan: str

@@ -425,6 +425,7 @@ async def generate(
     return GenerateResponse(
         type=body.type,
         variations=result["variations"],
+        credits_used=result["tokens_used"],
         tokens_used=result["tokens_used"],
         credits_remaining=user.credits,
         generation_time_ms=result["generation_time_ms"],
@@ -527,9 +528,11 @@ async def get_usage(
         func.sum(UsageRecord.tokens_used).label("total_tokens"),
     ).filter(UsageRecord.user_id == current_user.id).first()
 
+    total_used = agg.total_tokens or 0
     return UsageSummary(
         total_requests=agg.total_requests or 0,
-        total_tokens=agg.total_tokens or 0,
+        total_credits_used=total_used,
+        total_tokens=total_used,
         credits_remaining=current_user.credits,
         monthly_limit=current_user.monthly_limit,
         plan=current_user.plan,
