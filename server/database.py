@@ -54,15 +54,6 @@ class User(Base):
     subscriptions  = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     usage_records  = relationship("UsageRecord", back_populates="user", cascade="all, delete-orphan")
 
-    # Backward compatibility alias
-    @property
-    def credits(self) -> int:
-        return self.generations_remaining
-
-    @credits.setter
-    def credits(self, value: int):
-        self.generations_remaining = value
-
 
 class APIKey(Base):
     __tablename__ = "api_keys"

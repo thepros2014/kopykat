@@ -29,7 +29,7 @@ from .models import (
     UserRegister, UserLogin, TokenResponse, UserProfile,
     APIKeyCreate, APIKeyResponse, APIKeyCreated,
     GenerateRequest, GenerateResponse,
-    CheckoutRequest, GenerationPackRequest, CreditPackRequest, CheckoutResponse,
+    CheckoutRequest, GenerationPackRequest, CheckoutResponse,
     SubscriptionStatus, UsageSummary, HealthResponse,
 )
 from .auth import (
@@ -39,8 +39,8 @@ from .auth import (
 )
 from .ai_engine import generate_copy
 from .billing import (
-    create_subscription_checkout, create_generation_pack_checkout, create_credit_pack_checkout,
-    handle_stripe_webhook, get_total_revenue, PLANS, GENERATION_PACKS, CREDIT_PACKS,
+    create_subscription_checkout, create_generation_pack_checkout,
+    handle_stripe_webhook, get_total_revenue, PLANS, GENERATION_PACKS,
 )
 from .marketing import generate_seo_post
 from .scheduler import create_scheduler
@@ -243,8 +243,7 @@ async def list_plans():
             k: {
                 "name":                 v["name"],
                 "price_usd":            v["price_usd"],
-                "monthly_generations":  v.get("monthly_generations", v.get("monthly_tokens", 0)),
-                "monthly_tokens":       v.get("monthly_generations", v.get("monthly_tokens", 0)),
+                "monthly_generations":  v["monthly_generations"],
                 "features":             v["features"],
             }
             for k, v in PLANS.items()
@@ -253,19 +252,10 @@ async def list_plans():
             k: {
                 "name":        v["name"],
                 "price_usd":   v["price_usd"],
-                "generations": v.get("generations", v.get("tokens", 0)),
+                "generations": v["generations"],
             }
             for k, v in GENERATION_PACKS.items()
-        },
-        "credit_packs": {
-            k: {
-                "name":        v["name"],
-                "price_usd":   v["price_usd"],
-                "tokens":      v.get("generations", v.get("tokens", 0)),
-                "generations": v.get("generations", v.get("tokens", 0)),
-            }
-            for k, v in CREDIT_PACKS.items()
-        },
+        }
     }
 
 
@@ -283,7 +273,6 @@ async def register(request: Request, body: UserRegister, db: Session = Depends(g
         access_token=token,
         plan=user.plan,
         generations_remaining=user.generations_remaining,
-        credits=user.generations_remaining,
     )
 
 
@@ -299,7 +288,6 @@ async def login(request: Request, body: UserLogin, db: Session = Depends(get_db)
         access_token=token,
         plan=user.plan,
         generations_remaining=user.generations_remaining,
-        credits=user.generations_remaining,
     )
 
 
@@ -429,9 +417,6 @@ async def generate(
         variations=result["variations"],
         generations_used=actual_gens,
         generations_remaining=user.generations_remaining,
-        credits_used=actual_gens,
-        credits_remaining=user.generations_remaining,
-        tokens_used=result.get("tokens_used", 0),
         generation_time_ms=result["generation_time_ms"],
     )
 
@@ -456,7 +441,6 @@ async def subscribe(
 
 
 @app.post("/billing/packs", response_model=CheckoutResponse, tags=["Billing"])
-@app.post("/billing/credits", response_model=CheckoutResponse, tags=["Billing"])
 async def buy_packs(
     body: GenerationPackRequest,
     current_user: User = Depends(get_current_user_jwt),
@@ -503,7 +487,6 @@ async def billing_status(
         "status":                sub.status if sub else "free",
         "generations_remaining": current_user.generations_remaining,
         "monthly_limit":         current_user.monthly_limit,
-        "credits":               current_user.generations_remaining,
         "current_period_end":    sub.current_period_end if sub else None,
     }
 
@@ -532,7 +515,6 @@ async def get_usage(
     agg = db.query(
         func.count(UsageRecord.id).label("total_requests"),
         func.sum(UsageRecord.generations_used).label("total_generations"),
-        func.sum(UsageRecord.tokens_used).label("total_tokens"),
     ).filter(UsageRecord.user_id == current_user.id).first()
 
     total_gens = agg.total_generations or 0
@@ -541,9 +523,6 @@ async def get_usage(
         total_generations_used=total_gens,
         generations_remaining=current_user.generations_remaining,
         monthly_limit=current_user.monthly_limit,
-        total_credits_used=total_gens,
-        credits_remaining=current_user.generations_remaining,
-        total_tokens=agg.total_tokens or 0,
         plan=current_user.plan,
         period_start=period_start,
         period_end=period_end,

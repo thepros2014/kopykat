@@ -26,7 +26,6 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     plan: str
     generations_remaining: int
-    credits: Optional[int] = None  # backwards compatibility alias
 
 
 class UserProfile(BaseModel):
@@ -36,7 +35,6 @@ class UserProfile(BaseModel):
     plan: str
     generations_remaining: int
     monthly_limit: int
-    credits: Optional[int] = None  # backwards compatibility alias
     created_at: datetime
 
     class Config:
@@ -99,9 +97,6 @@ class GenerateResponse(BaseModel):
     variations: List[str]
     generations_used: int
     generations_remaining: int
-    credits_used: Optional[int] = None        # backwards compatibility alias
-    credits_remaining: Optional[int] = None   # backwards compatibility alias
-    tokens_used: Optional[int] = None         # internal LLM telemetry
     generation_time_ms: int
 
 
@@ -114,8 +109,6 @@ class CheckoutRequest(BaseModel):
 class GenerationPackRequest(BaseModel):
     pack: Literal["starter", "growth", "scale"]
 
-# Backward compatibility alias
-CreditPackRequest = GenerationPackRequest
 
 
 class CheckoutResponse(BaseModel):
@@ -129,7 +122,6 @@ class SubscriptionStatus(BaseModel):
     current_period_end: Optional[datetime]
     generations_remaining: int
     monthly_limit: int
-    credits: Optional[int] = None  # backwards compatibility alias
 
 
 # ── Usage & Analytics ─────────────────────────────────────────────────────────
@@ -139,9 +131,6 @@ class UsageSummary(BaseModel):
     total_generations_used: int
     generations_remaining: int
     monthly_limit: int
-    total_credits_used: Optional[int] = None  # backwards compatibility alias
-    credits_remaining: Optional[int] = None   # backwards compatibility alias
-    total_tokens: Optional[int] = None        # internal telemetry
     plan: str
     period_start: Optional[str]
     period_end: Optional[str]

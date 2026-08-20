@@ -1,5 +1,4 @@
 """
-billing.py — Stripe integration for subscriptions, credit packs, and webhooks.
 All money collection is automated. Stripe deposits earnings to your CashApp
 account automatically on a schedule you set in the Stripe dashboard.
 """
@@ -32,7 +31,6 @@ PLANS = {
     "free": {
         "name":                "Free",
         "monthly_generations": 50,
-        "monthly_tokens":      50,  # alias for backwards compatibility
         "price_usd":           0,
         "features":            ["50 monthly generations", "All 10 copy types", "1 API key", "Community support"],
     },
@@ -40,7 +38,6 @@ PLANS = {
         "name":                "Basic",
         "price_id_env":        "STRIPE_PRICE_BASIC",        # $9/month
         "monthly_generations": 500,
-        "monthly_tokens":      500,  # alias for backwards compatibility
         "price_usd":           9,
         "features":            ["500 monthly generations", "All 10 copy types", "1 API key", "Email support"],
     },
@@ -48,7 +45,6 @@ PLANS = {
         "name":                "Pro",
         "price_id_env":        "STRIPE_PRICE_PRO",           # $29/month
         "monthly_generations": 2500,
-        "monthly_tokens":      2500,  # alias for backwards compatibility
         "price_usd":           29,
         "features":            ["2,500 monthly generations", "All 10 copy types", "3 API keys", "Priority support"],
     },
@@ -56,7 +52,6 @@ PLANS = {
         "name":                "Business",
         "price_id_env":        "STRIPE_PRICE_BUSINESS",      # $79/month
         "monthly_generations": 10000,
-        "monthly_tokens":      10000,  # alias for backwards compatibility
         "price_usd":           79,
         "features":            ["10,000 monthly generations", "All 10 copy types", "5 API keys", "Priority support", "Custom prompts"],
     },
@@ -68,27 +63,23 @@ GENERATION_PACKS = {
         "name":         "Starter Pack (250 generations)",
         "price_id_env": "STRIPE_PRICE_PACK_STARTER",  # $5 one-time
         "generations":  250,
-        "tokens":       250,  # alias for backwards compatibility
         "price_usd":    5,
     },
     "growth": {
         "name":         "Growth Pack (1,000 generations)",
         "price_id_env": "STRIPE_PRICE_PACK_GROWTH",   # $15 one-time
         "generations":  1000,
-        "tokens":       1000,  # alias for backwards compatibility
         "price_usd":    15,
     },
     "scale": {
         "name":         "Scale Pack (3,000 generations)",
         "price_id_env": "STRIPE_PRICE_PACK_SCALE",    # $40 one-time
         "generations":  3000,
-        "tokens":       3000,  # alias for backwards compatibility
         "price_usd":    40,
     },
 }
 
 # Backward compatibility alias
-CREDIT_PACKS = GENERATION_PACKS
 
 
 
@@ -181,7 +172,6 @@ def create_generation_pack_checkout(
 
 
 # Backward compatibility alias
-create_credit_pack_checkout = create_generation_pack_checkout
 
 
 # ── Stripe webhook handler ────────────────────────────────────────────────────
@@ -206,7 +196,6 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
 
     # ── Idempotency check — Stripe can retry deliveries ───────────────────────
     # If we've already processed this event_id, return early without re-applying
-    # generations or mutations. This prevents double-credit on Stripe retries.
     already_processed = db.query(StripeEvent).filter(
         StripeEvent.event_id == event_id
     ).first()
@@ -342,8 +331,8 @@ def _handle_subscription_changed(subscription: dict, db: Session):
 
 def _handle_generation_pack_purchased(session: dict, db: Session):
     user_id     = session.get("metadata", {}).get("user_id")
-    generations = int(session.get("metadata", {}).get("generations", session.get("metadata", {}).get("tokens", 0)))
     pack        = session.get("metadata", {}).get("pack", "")
+    generations = GENERATION_PACKS.get(pack, {}).get("generations", 0)
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -371,7 +360,6 @@ def _handle_generation_pack_purchased(session: dict, db: Session):
 
 
 # Backward compatibility alias
-_handle_credit_pack_purchased = _handle_generation_pack_purchased
 
 
 def _handle_payment_failed(invoice: dict, db: Session):
