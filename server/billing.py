@@ -58,7 +58,7 @@ PLANS = {
 }
 
 # One-time generation packs (no subscription required)
-GENERATION_PACKS = {
+ONE_TIME_GENERATIONS = {
     "starter": {
         "name":         "Starter Pack (250 generations)",
         "price_id_env": "STRIPE_PRICE_PACK_STARTER",  # $5 one-time
@@ -143,15 +143,15 @@ def create_subscription_checkout(
     return {"checkout_url": session.url, "session_id": session.id}
 
 
-def create_generation_pack_checkout(
+def create_one_time_checkout(
     pack: str,
     user: User,
     db: Session,
 ) -> dict:
-    if pack not in GENERATION_PACKS:
+    if pack not in ONE_TIME_GENERATIONS:
         raise HTTPException(status_code=400, detail=f"Invalid pack: {pack}")
 
-    pack_info    = GENERATION_PACKS[pack]
+    pack_info    = ONE_TIME_GENERATIONS[pack]
     price_id     = _get_price_id(pack_info["price_id_env"])
     customer_id  = get_or_create_stripe_customer(user, db)
 
@@ -225,7 +225,7 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
     elif event_type == "checkout.session.completed":
         session = data_obj
         if session.get("mode") == "payment":
-            _handle_generation_pack_purchased(session, db)
+            _handle_one_time_purchased(session, db)
 
     # ── Payment failed ────────────────────────────────────────────────────────
     elif event_type == "invoice.payment_failed":
@@ -259,7 +259,7 @@ def _handle_subscription_created(subscription: dict, db: Session):
 
     # Update user plan — ALL plans get transparent monthly generation limits
     user.plan                  = plan
-    user.generations_remaining = plan_info["monthly_generations"]
+    user.generations = plan_info["monthly_generations"]
     user.monthly_limit         = plan_info["monthly_generations"]
 
     # Create subscription record
@@ -290,7 +290,7 @@ def _handle_invoice_paid(invoice: dict, db: Session):
         user = db.query(User).filter(User.id == sub.user_id).first()
         if user:
             plan_info                  = PLANS.get(sub.plan, PLANS["basic"])
-            user.generations_remaining = plan_info["monthly_generations"]  # reset generations
+            user.generations = plan_info["monthly_generations"]  # reset generations
             user.monthly_limit         = plan_info["monthly_generations"]
             sub.status                 = "active"
 
@@ -324,15 +324,15 @@ def _handle_subscription_changed(subscription: dict, db: Session):
             user = db.query(User).filter(User.id == sub.user_id).first()
             if user:
                 user.plan                  = "free"
-                user.generations_remaining = 0
+                user.generations = 0
         # Parent commits — do not call db.commit() here
         logger.info(f"Subscription {sub_id} status → {status}")
 
 
-def _handle_generation_pack_purchased(session: dict, db: Session):
+def _handle_one_time_purchased(session: dict, db: Session):
     user_id     = session.get("metadata", {}).get("user_id")
-    pack        = session.get("metadata", {}).get("pack", "")
-    generations = GENERATION_PACKS.get(pack, {}).get("generations", 0)
+    tier        = session.get("metadata", {}).get("tier", "")
+    generations = ONE_TIME_GENERATIONS.get(tier, {}).get("generations", 0)
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -341,7 +341,7 @@ def _handle_generation_pack_purchased(session: dict, db: Session):
         logger.warning(f"Generation pack purchased but user not found: {user_id}")
         return
 
-    user.generations_remaining += generations
+    user.generations += generations
 
     revenue = RevenueRecord(
         id=str(uuid.uuid4()),
@@ -349,7 +349,7 @@ def _handle_generation_pack_purchased(session: dict, db: Session):
         user_id=user.id,
         amount_cents=session.get("amount_total", 0),
         currency=session.get("currency", "usd"),
-        plan=f"pack_{pack}",
+        plan=f"one_time_{tier}",
         type="generation_pack",
         status="succeeded",
     )

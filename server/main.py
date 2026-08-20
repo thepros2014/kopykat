@@ -29,7 +29,7 @@ from .models import (
     UserRegister, UserLogin, TokenResponse, UserProfile,
     APIKeyCreate, APIKeyResponse, APIKeyCreated,
     GenerateRequest, GenerateResponse,
-    CheckoutRequest, GenerationPackRequest, CheckoutResponse,
+    CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse,
     SubscriptionStatus, UsageSummary, HealthResponse,
 )
 from .auth import (
@@ -39,8 +39,8 @@ from .auth import (
 )
 from .ai_engine import generate_copy
 from .billing import (
-    create_subscription_checkout, create_generation_pack_checkout,
-    handle_stripe_webhook, get_total_revenue, PLANS, GENERATION_PACKS,
+    create_subscription_checkout, create_one_time_checkout,
+    handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS,
 )
 from .marketing import generate_seo_post
 from .scheduler import create_scheduler
@@ -248,13 +248,13 @@ async def list_plans():
             }
             for k, v in PLANS.items()
         },
-        "generation_packs": {
+        "one_time_generations": {
             k: {
                 "name":        v["name"],
                 "price_usd":   v["price_usd"],
                 "generations": v["generations"],
             }
-            for k, v in GENERATION_PACKS.items()
+            for k, v in ONE_TIME_GENERATIONS.items()
         }
     }
 
@@ -277,7 +277,7 @@ async def register(request: Request, body: UserRegister, background_tasks: Backg
     return TokenResponse(
         access_token=token,
         plan=user.plan,
-        generations_remaining=user.generations_remaining,
+        generations=user.generations,
     )
 
 
@@ -292,7 +292,7 @@ async def login(request: Request, body: UserLogin, db: Session = Depends(get_db)
     return TokenResponse(
         access_token=token,
         plan=user.plan,
-        generations_remaining=user.generations_remaining,
+        generations=user.generations,
     )
 
 
@@ -379,8 +379,8 @@ async def generate(
 
     rows_updated = db.execute(
         text(
-            "UPDATE users SET generations_remaining = generations_remaining - :cost "
-            "WHERE id = :uid AND generations_remaining >= :cost"
+            "UPDATE users SET generations = generations - :cost "
+            "WHERE id = :uid AND generations >= :cost"
         ),
         {"cost": generations_cost, "uid": user.id},
     ).rowcount
@@ -399,14 +399,14 @@ async def generate(
             context=body.context,
             tone=body.tone or "professional",
             variations=body.variations,
-            max_tokens=body.max_tokens,
+            max_tokens=body.max_words,
             user_id=user.id,
             db=db,
         )
     except Exception:
         # Refund generations if AI call fails entirely
         db.execute(
-            text("UPDATE users SET generations_remaining = generations_remaining + :cost WHERE id = :uid"),
+            text("UPDATE users SET generations = generations + :cost WHERE id = :uid"),
             {"cost": generations_cost, "uid": user.id},
         )
         db.commit()
@@ -421,7 +421,7 @@ async def generate(
         type=body.type,
         variations=result["variations"],
         generations_used=actual_gens,
-        generations_remaining=user.generations_remaining,
+        generations=user.generations,
         generation_time_ms=result["generation_time_ms"],
     )
 
@@ -445,15 +445,15 @@ async def subscribe(
     return CheckoutResponse(**result)
 
 
-@app.post("/billing/packs", response_model=CheckoutResponse, tags=["Billing"])
-async def buy_packs(
-    body: GenerationPackRequest,
+@app.post("/billing/one-time", response_model=CheckoutResponse, tags=["Billing"])
+async def buy_one_time(
+    body: OneTimeGenerationsRequest,
     current_user: User = Depends(get_current_user_jwt),
     db: Session = Depends(get_db),
 ):
     """Create a Stripe checkout session for a one-time generation pack."""
-    result = create_generation_pack_checkout(
-        pack=body.pack,
+    result = create_one_time_checkout(
+        pack=body.tier,
         user=current_user,
         db=db,
     )
@@ -490,7 +490,7 @@ async def billing_status(
     return {
         "plan":                  current_user.plan,
         "status":                sub.status if sub else "free",
-        "generations_remaining": current_user.generations_remaining,
+        "generations": current_user.generations,
         "monthly_limit":         current_user.monthly_limit,
         "current_period_end":    sub.current_period_end if sub else None,
     }
@@ -526,7 +526,7 @@ async def get_usage(
     return UsageSummary(
         total_requests=agg.total_requests or 0,
         total_generations_used=total_gens,
-        generations_remaining=current_user.generations_remaining,
+        generations=current_user.generations,
         monthly_limit=current_user.monthly_limit,
         plan=current_user.plan,
         period_start=period_start,

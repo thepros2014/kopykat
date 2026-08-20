@@ -210,27 +210,27 @@ curl -X POST https://snapcopy-ai.onrender.com/api/generate \
       </div>
     </div>
 
-    <!-- Usage packs -->
-    <div class="packs-section">
-      <h3>Or buy generation packs, no subscription needed</h3>
-      <div class="packs-grid">
-        <div class="pack-card">
-          <div class="pack-name">Starter Pack</div>
-          <div class="pack-tokens">250 generations</div>
-          <div class="pack-price">$5 one-time</div>
-          <button onclick="buyPack('starter')" class="btn btn-sm btn-outline">Buy →</button>
+    <!-- Usage tiers -->
+    <div class="tiers-section">
+      <h3>Or buy generation tiers, no subscription needed</h3>
+      <div class="tiers-grid">
+        <div class="tier-card">
+          <div class="tier-name">Starter Pack</div>
+          <div class="tier-generations">250 generations</div>
+          <div class="tier-price">$5 one-time</div>
+          <button onclick="buyGenerations('starter')" class="btn btn-sm btn-outline">Buy →</button>
         </div>
-        <div class="pack-card popular-pack">
-          <div class="pack-name">Growth Pack</div>
-          <div class="pack-tokens">1,000 generations</div>
-          <div class="pack-price">$15 one-time</div>
-          <button onclick="buyPack('growth')" class="btn btn-sm btn-primary">Buy →</button>
+        <div class="tier-card popular-tier">
+          <div class="tier-name">Growth Pack</div>
+          <div class="tier-generations">1,000 generations</div>
+          <div class="tier-price">$15 one-time</div>
+          <button onclick="buyGenerations('growth')" class="btn btn-sm btn-primary">Buy →</button>
         </div>
-        <div class="pack-card">
-          <div class="pack-name">Scale Pack</div>
-          <div class="pack-tokens">3,000 generations</div>
-          <div class="pack-price">$40 one-time</div>
-          <button onclick="buyPack('scale')" class="btn btn-sm btn-outline">Buy →</button>
+        <div class="tier-card">
+          <div class="tier-name">Scale Pack</div>
+          <div class="tier-generations">3,000 generations</div>
+          <div class="tier-price">$40 one-time</div>
+          <button onclick="buyGenerations('scale')" class="btn btn-sm btn-outline">Buy →</button>
         </div>
       </div>
     </div>
@@ -362,15 +362,15 @@ async function startCheckout(plan) {
   }
 }
 
-async function buyPack(pack) {
+async function buyGenerations(tier) {
   const token = getToken();
   if (!token) { document.getElementById('signup').scrollIntoView({behavior:'smooth'}); return; }
   try {
-    const res = await fetch(`${API}/billing/packs`, {
+    const res = await fetch(`${API}/billing/one-time`, {
       method: 'POST',
       headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${token}`},
       body: JSON.stringify({
-        pack,
+        tier,
         success_url: window.location.origin + '/dashboard?success=1',
         cancel_url:  window.location.origin + '/#pricing',
       })

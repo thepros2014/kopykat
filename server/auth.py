@@ -150,7 +150,7 @@ def register_user(email: str, password: str, full_name: Optional[str], db: Sessi
         hashed_password=hash_password(password),
         full_name=full_name,
         plan="free",
-        generations_remaining=50,
+        generations=50,
         monthly_limit=50,
     )
     db.add(user)

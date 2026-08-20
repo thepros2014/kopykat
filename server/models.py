@@ -25,7 +25,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     plan: str
-    generations_remaining: int
+    generations: int
 
 
 class UserProfile(BaseModel):
@@ -33,7 +33,7 @@ class UserProfile(BaseModel):
     email: str
     full_name: Optional[str]
     plan: str
-    generations_remaining: int
+    generations: int
     monthly_limit: int
     created_at: datetime
 
@@ -89,14 +89,14 @@ class GenerateRequest(BaseModel):
     )
     tone: Optional[Literal["professional", "casual", "urgent", "friendly", "bold"]] = "professional"
     variations: int = Field(default=1, ge=1, le=5)
-    max_tokens: int = Field(default=300, ge=50, le=1000)
+    max_words: int = Field(default=300, ge=50, le=1000)
 
 
 class GenerateResponse(BaseModel):
     type: str
     variations: List[str]
     generations_used: int
-    generations_remaining: int
+    generations: int
     generation_time_ms: int
 
 
@@ -106,8 +106,8 @@ class CheckoutRequest(BaseModel):
     plan: Literal["basic", "pro", "business"]
 
 
-class GenerationPackRequest(BaseModel):
-    pack: Literal["starter", "growth", "scale"]
+class OneTimeGenerationsRequest(BaseModel):
+    tier: Literal["starter", "growth", "scale"]
 
 
 
@@ -120,7 +120,7 @@ class SubscriptionStatus(BaseModel):
     plan: str
     status: str
     current_period_end: Optional[datetime]
-    generations_remaining: int
+    generations: int
     monthly_limit: int
 
 
@@ -129,7 +129,7 @@ class SubscriptionStatus(BaseModel):
 class UsageSummary(BaseModel):
     total_requests: int
     total_generations_used: int
-    generations_remaining: int
+    generations: int
     monthly_limit: int
     plan: str
     period_start: Optional[str]

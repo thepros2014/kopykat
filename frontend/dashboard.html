@@ -45,7 +45,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-card-label">Generations Remaining</div>
-          <div class="stat-card-value purple" id="stat-credits">—</div>
+          <div class="stat-card-value purple" id="stat-generations-rem">—</div>
         </div>
         <div class="stat-card">
           <div class="stat-card-label">Monthly Limit</div>
@@ -137,11 +137,11 @@ curl -X POST https://YOUR_APP_URL/api/generate \
         </div>
         <div class="stat-card">
           <div class="stat-card-label">Generations Used</div>
-          <div class="stat-card-value" id="u-tokens">—</div>
+          <div class="stat-card-value" id="u-generations-used">—</div>
         </div>
         <div class="stat-card">
           <div class="stat-card-label">Generations Remaining</div>
-          <div class="stat-card-value green" id="u-credits">—</div>
+          <div class="stat-card-value green" id="u-generations-rem">—</div>
         </div>
         <div class="stat-card">
           <div class="stat-card-label">Monthly Limit</div>
@@ -157,12 +157,12 @@ curl -X POST https://YOUR_APP_URL/api/generate \
       <div class="card">
         <h3>Need more generations?</h3>
         <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
-          Buy a one-time generation pack or upgrade your plan.
+          Buy a one-time generation tier or upgrade your plan.
         </p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-outline btn-sm" onclick="buyPack('starter')">Starter — 250 generations — $5</button>
-          <button class="btn btn-primary btn-sm" onclick="buyPack('growth')">Growth — 1,000 generations — $15</button>
-          <button class="btn btn-outline btn-sm" onclick="buyPack('scale')">Scale — 3,000 generations — $40</button>
+          <button class="btn btn-outline btn-sm" onclick="buyGenerations('starter')">Starter — 250 generations — $5</button>
+          <button class="btn btn-primary btn-sm" onclick="buyGenerations('growth')">Growth — 1,000 generations — $15</button>
+          <button class="btn btn-outline btn-sm" onclick="buyGenerations('scale')">Scale — 3,000 generations — $40</button>
         </div>
       </div>
     </section>
@@ -227,9 +227,9 @@ curl -X POST https://YOUR_APP_URL/api/generate \
           Don't need a subscription? Buy generations that never expire.
         </p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-outline" onclick="buyPack('starter')">Starter — 250 generations — $5</button>
-          <button class="btn btn-primary" onclick="buyPack('growth')">Growth — 1,000 generations — $15</button>
-          <button class="btn btn-outline" onclick="buyPack('scale')">Scale — 3,000 generations — $40</button>
+          <button class="btn btn-outline" onclick="buyGenerations('starter')">Starter — 250 generations — $5</button>
+          <button class="btn btn-primary" onclick="buyGenerations('growth')">Growth — 1,000 generations — $15</button>
+          <button class="btn btn-outline" onclick="buyGenerations('scale')">Scale — 3,000 generations — $40</button>
         </div>
       </div>
     </section>
@@ -314,7 +314,7 @@ async function loadProfile() {
 
     // Stats
     const planLabel = profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1);
-    const gensRemaining = profile.generations_remaining !== undefined ? profile.generations_remaining : profile.credits;
+    const gensRemaining = profile.generations_remaining !== undefined ? profile.generations_remaining : 0;
     const monthlyLimit  = profile.monthly_limit;
 
     document.getElementById('stat-plan').innerHTML = `<span class="plan-chip ${profile.plan}">${planLabel}</span>`;
@@ -330,11 +330,11 @@ async function loadProfile() {
     document.getElementById('usage-pct').textContent = pct.toFixed(1) + '%';
 
     // Usage section
-    const gensUsed = usage.total_generations_used !== undefined ? usage.total_generations_used : (usage.total_tokens || 0);
-    const uGensRemaining = usage.generations_remaining !== undefined ? usage.generations_remaining : usage.credits_remaining;
+    const gensUsed = usage.total_generations_used || 0;
+    const uGensRemaining = usage.generations_remaining || 0;
     document.getElementById('u-requests').textContent = usage.total_requests.toLocaleString();
-    document.getElementById('u-tokens').textContent   = gensUsed.toLocaleString();
-    document.getElementById('u-credits').textContent  = uGensRemaining.toLocaleString();
+    document.getElementById('u-generations-used').textContent = gensUsed.toLocaleString();
+    document.getElementById('u-generations-rem').textContent = uGensRemaining.toLocaleString();
     document.getElementById('u-limit').textContent    = (usage.monthly_limit || monthlyLimit).toLocaleString();
     if (usage.period_start && usage.period_end) {
       document.getElementById('u-period').textContent =
@@ -438,12 +438,12 @@ async function startCheckout(plan) {
   else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
 }
 
-async function buyPack(pack) {
-  const res  = await fetch(`${API}/billing/packs`, {
+async function buyGenerations(tier) {
+  const res  = await fetch(`${API}/billing/one-time`, {
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
     body: JSON.stringify({
-      pack,
+      tier,
       success_url: window.location.origin + '/dashboard?success=1',
       cancel_url:  window.location.origin + '/dashboard#billing',
     }),

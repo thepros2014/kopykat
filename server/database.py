@@ -43,7 +43,7 @@ class User(Base):
     full_name          = Column(String(255), nullable=True)
     stripe_customer_id = Column(String(50), nullable=True)
     plan               = Column(String(20), default="free")            # free / basic / pro / business
-    generations_remaining = Column(Integer, default=50)                # remaining generations balance
+    generations = Column(Integer, default=50)                # remaining generations balance
     monthly_limit      = Column(Integer, default=50)                   # generations per billing cycle
     is_active          = Column(Boolean, default=True)
     is_verified        = Column(Boolean, default=False)
@@ -187,13 +187,12 @@ def init_db():
         inspector = inspect(engine)
         if "users" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("users")]
-            if "generations_remaining" not in columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN generations_remaining INTEGER DEFAULT 50"))
+            if "generations" not in columns:
+                if "generations_remaining" in columns:
+                    conn.execute(text("ALTER TABLE users RENAME COLUMN generations_remaining TO generations"))
+                else:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN generations INTEGER DEFAULT 50"))
                 conn.commit()
-                # Migrate any existing credits (e.g. 5000 tokens -> 50 gens)
-                if "credits" in columns:
-                    conn.execute(text("UPDATE users SET generations_remaining = CASE WHEN CAST(credits / 100 AS INTEGER) > 1 THEN CAST(credits / 100 AS INTEGER) ELSE 1 END WHERE credits IS NOT NULL"))
-                    conn.commit()
         if "usage_records" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("usage_records")]
             if "generations_used" not in columns:
