@@ -289,7 +289,7 @@ curl -X POST https://YOUR_APP_URL/api/generate \
 
   </main>
 
-  <!-- 📱 Bottom Mobile Nav -->
+  <!--  Bottom Mobile Nav -->
   <nav class="bottom-nav">
     <button class="bottom-nav-link active" onclick="showSection('overview'); activateBottomNav(this);">Overview</button>
     <button class="bottom-nav-link" onclick="showSection('generator'); activateBottomNav(this);">Create</button>
@@ -661,6 +661,26 @@ function pushWF(btn, text) {
 
 
 let currentCampaignId = null;
+
+
+function fillTemplate(type) {
+  const desc = document.getElementById('omni-desc');
+  const kw = document.getElementById('omni-kw');
+  
+  if (type === 'saas') {
+    kw.value = 'B2B SaaS Automation';
+    desc.value = 'A new B2B SaaS platform that automates invoice processing for small agencies. It integrates with QuickBooks and Xero, saving 10 hours a week.';
+  } else if (type === 'ecommerce') {
+    kw.value = 'Organic Coffee Beans';
+    desc.value = 'Premium, fair-trade organic coffee beans sourced directly from Colombia. Dark roast with notes of chocolate and caramel.';
+  } else if (type === 'realestate') {
+    kw.value = 'Luxury Condo Downtown';
+    desc.value = 'A newly renovated 2-bedroom luxury condo in the heart of downtown. Features floor-to-ceiling windows, smart home integration, and a rooftop pool.';
+  } else if (type === 'fitness') {
+    kw.value = 'Online Fitness Coaching';
+    desc.value = 'A 12-week personalized online fitness coaching program designed for busy professionals. Includes custom meal plans and weekly 1-on-1 Zoom check-ins.';
+  }
+}
 
 async function runOmniGenerate() {
   const btn = document.getElementById('btn-omni-generate');

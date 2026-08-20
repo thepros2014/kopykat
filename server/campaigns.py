@@ -90,3 +90,49 @@ The JSON must have the following exact structure:
         logger.error(f"Failed to parse Omni-Campaign JSON: {text}")
         raise ValueError("AI returned invalid campaign formatting. Please try again.")
 
+
+def generate_demo_campaign(keyword: str, product_desc: str) -> dict:
+    pain_points = scrape_pain_points(keyword)
+    
+    genai.configure(api_key=os.environ.get('GEMINI_API_KEY', ''))
+    model = genai.GenerativeModel(os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash'))
+    
+    prompt = f"""You are an elite marketer.
+Product: {product_desc}
+Keyword: {keyword}
+Pain Points: {pain_points}
+
+Generate a SHORT TEASER marketing campaign in strict JSON format. 
+DO NOT include markdown wrappers like ```json.
+{{
+  "blog_post": {{
+    "title": "A catchy, SEO-optimized title",
+    "content": "<p>A short introductory paragraph teasing the blog post.</p>"
+  }},
+  "email_drip": [
+    {{
+      "subject": "Teaser Email Subject",
+      "body": "<p>A short teaser email body.</p>"
+    }}
+  ],
+  "social_posts": [
+    "A short teaser social post."
+  ]
+}}
+"""
+    
+    response = model.generate_content(prompt)
+    text = response.text.strip()
+    
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+        
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Demo Omni-Campaign JSON: {text}")
+        raise ValueError("AI returned invalid formatting. Please try again.")

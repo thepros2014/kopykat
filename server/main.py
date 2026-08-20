@@ -785,6 +785,21 @@ async def get_push_status(
 
 
 
+
+@app.post("/api/public/demo", tags=["Public"])
+@limiter.limit("2/day")
+async def api_public_demo(
+    request: Request,
+    body: CampaignGenerateRequest,
+    db: Session = Depends(get_db)
+):
+    from .campaigns import generate_demo_campaign
+    try:
+        campaign_data = generate_demo_campaign(body.keyword, body.product_desc)
+        return {"assets": campaign_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Demo failed: {str(e)}")
+
 @app.post("/api/campaign/generate", tags=["Campaigns"])
 @limiter.limit("5/minute")
 async def api_campaign_generate(
