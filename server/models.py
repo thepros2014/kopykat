@@ -150,10 +150,11 @@ class ResetPasswordSubmit(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 class IntegrationSaveRequest(BaseModel):
-    platform: Literal["wordpress", "mailchimp"]
+    platform: Literal["wordpress", "mailchimp", "hubspot", "shopify", "webflow"]
     credentials: dict
 
 class PushRequest(BaseModel):
-    platform: Literal["wordpress", "mailchimp"]
+    platform: Literal["wordpress", "mailchimp", "hubspot", "shopify", "webflow"]
     content: str
     title: Optional[str] = "Generated via SnapCopy AI"
+    metadata: Optional[dict] = {}

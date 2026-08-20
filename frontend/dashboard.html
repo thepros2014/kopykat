@@ -475,9 +475,14 @@ async function saveIntegration(platform) {
     };
   } else if (platform === 'mailchimp') {
     creds = {
-      api_key: document.getElementById('mc-key').value,
-      list_id: document.getElementById('mc-list').value
+      api_key: document.getElementById('mc-key').value
     };
+  } else if (platform === 'hubspot') {
+    creds = { access_token: document.getElementById('hs-token').value };
+  } else if (platform === 'shopify') {
+    creds = { shop_url: document.getElementById('sh-url').value, access_token: document.getElementById('sh-token').value };
+  } else if (platform === 'webflow') {
+    creds = { site_id: document.getElementById('wf-site').value, access_token: document.getElementById('wf-token').value };
   }
 
   try {
@@ -500,7 +505,14 @@ async function saveIntegration(platform) {
   }
 }
 
-async function pushContent(platform, text) {
+async function pushContent(platform, text, btnElement, meta={}) {
+  let originalText = "";
+  if (btnElement) {
+    originalText = btnElement.innerText;
+    btnElement.innerText = "Pushing...";
+    btnElement.disabled = true;
+  }
+  
   try {
     const res = await fetch('/api/push', {
       method: 'POST',
@@ -508,17 +520,43 @@ async function pushContent(platform, text) {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + currentToken
       },
-      body: JSON.stringify({ platform, content: text })
+      body: JSON.stringify({ platform, content: text, metadata: meta })
     });
     const data = await res.json();
-    if (res.ok) {
-      alert('Successfully pushed to ' + platform + '!');
+    if (res.status === 202) {
+      pollJobStatus(data.job_id, btnElement, originalText, platform);
     } else {
       alert("Error: " + data.detail);
+      if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
     }
   } catch (err) {
     alert("Push error");
+    if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
   }
+}
+
+function pollJobStatus(jobId, btnElement, originalText, platform) {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/push/status/' + jobId, {
+        headers: { 'Authorization': 'Bearer ' + currentToken }
+      });
+      const data = await res.json();
+      
+      if (data.status === 'success') {
+        clearInterval(interval);
+        alert('🎉 Successfully pushed to ' + platform + '!');
+        if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
+      } else if (data.status === 'failed') {
+        clearInterval(interval);
+        alert('❌ Push failed: ' + data.details);
+        if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
+      }
+    } catch (err) {
+      clearInterval(interval);
+      if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
+    }
+  }, 2000);
 }
 
 
@@ -549,12 +587,38 @@ async function runGenerator() {
       const encodedText = encodeURIComponent(text);
       resDiv.innerHTML = `
         <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;">${text}</div>
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:8px;">
-          <button class="btn" style="background:#0073aa;color:#fff;" onclick="pushContent('wordpress', decodeURIComponent('${encodedText}'))">Push to WordPress</button>
-          <button class="btn" style="background:#FFE01B;color:#241C15;" onclick="pushContent('mailchimp', decodeURIComponent('${encodedText}'))">Push to Mailchimp</button>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
+          
+          <div style="display:flex;gap:4px;">
+            <button class="btn" style="background:#0073aa;color:#fff;" onclick="pushWP(this, decodeURIComponent('${encodedText}'))">WP 🚀</button>
+            <select id="wp-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
+              <option value="">No Category</option>
+              ${(integrationMetadata.wordpress || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+            </select>
+          </div>
+
+          <div style="display:flex;gap:4px;">
+            <button class="btn" style="background:#FFE01B;color:#241C15;" onclick="pushMC(this, decodeURIComponent('${encodedText}'))">Mailchimp 🚀</button>
+            <select id="mc-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
+              <option value="">Default List</option>
+              ${(integrationMetadata.mailchimp || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+            </select>
+          </div>
+          
+          <button class="btn" style="background:#ff7a59;color:#fff;" onclick="pushContent('hubspot', decodeURIComponent('${encodedText}'), this)">HubSpot 🚀</button>
+          <button class="btn" style="background:#95bf47;color:#fff;" onclick="pushContent('shopify', decodeURIComponent('${encodedText}'), this)">Shopify 🚀</button>
+          
+          <div style="display:flex;gap:4px;">
+            <button class="btn" style="background:#4353ff;color:#fff;" onclick="pushWF(this, decodeURIComponent('${encodedText}'))">Webflow 🚀</button>
+            <select id="wf-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
+              <option value="">Collection</option>
+              ${(integrationMetadata.webflow || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+            </select>
+          </div>
+
         </div>
       `;
-      loadDashboardData(); // refresh stats
+      loadProfile(); // refresh stats
     } else {
       resDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail}</span>`;
     }
@@ -564,6 +628,20 @@ async function runGenerator() {
   
   btn.textContent = "✨ Generate Options";
   btn.disabled = false;
+}
+
+
+function pushWP(btn, text) {
+    let cat = document.getElementById('wp-meta').value;
+    pushContent('wordpress', text, btn, cat ? {category_id: cat} : {});
+}
+function pushMC(btn, text) {
+    let lst = document.getElementById('mc-meta').value;
+    pushContent('mailchimp', text, btn, lst ? {list_id: lst} : {});
+}
+function pushWF(btn, text) {
+    let col = document.getElementById('wf-meta').value;
+    pushContent('webflow', text, btn, col ? {collection_id: col} : {});
 }
 
 </script>

@@ -667,14 +667,19 @@ async def save_integration(
         UserIntegration.platform == body.platform
     ).first()
 
+    from .auth import encrypt_credentials
+    
+    enc_creds = encrypt_credentials(json.dumps(body.credentials))
     if existing:
-        existing.credentials = json.dumps(body.credentials)
+        existing.credentials = enc_creds
+        existing.status = "connected"
     else:
         new_int = UserIntegration(
             id=str(uuid.uuid4()),
             user_id=user.id,
             platform=body.platform,
-            credentials=json.dumps(body.credentials)
+            credentials=enc_creds,
+            status="connected"
         )
         db.add(new_int)
 
@@ -687,23 +692,41 @@ async def get_integrations(
     db: Session = Depends(get_db)
 ):
     from .database import UserIntegration
+    from .auth import decrypt_credentials
+    from .integrations import fetch_metadata
+    import json
+    
     user, _ = auth
     ints = db.query(UserIntegration).filter(UserIntegration.user_id == user.id).all()
-    # Return just the platform names that are connected for security
-    connected = [i.platform for i in ints]
-    return {"connected": connected}
+    
+    connected = []
+    metadata_map = {}
+    
+    for i in ints:
+        connected.append(i.platform)
+        try:
+            creds = json.loads(decrypt_credentials(i.credentials))
+            opts = fetch_metadata(i.platform, creds)
+            if opts:
+                metadata_map[i.platform] = opts
+        except:
+            pass
+            
+    return {"connected": connected, "metadata": metadata_map}
 
 @app.post("/api/push", tags=["Integrations"])
 @limiter.limit("10/minute")
 async def push_content(
     request: Request,
     body: PushRequest,
+    background_tasks: BackgroundTasks,
     auth: tuple = Depends(get_current_user_apikey),
     db: Session = Depends(get_db)
 ):
-    from .database import UserIntegration
-    from .integrations import push_to_wordpress, push_to_mailchimp
+    from .database import UserIntegration, PushJob
+    from .auth import decrypt_credentials
     import json
+    import uuid
     user, _ = auth
 
     integration = db.query(UserIntegration).filter(
@@ -714,16 +737,40 @@ async def push_content(
     if not integration:
         raise HTTPException(status_code=400, detail=f"No {body.platform} integration configured.")
 
-    creds = json.loads(integration.credentials)
     try:
-        if body.platform == "wordpress":
-            result = push_to_wordpress(creds, body.title, body.content)
-            return result
-        elif body.platform == "mailchimp":
-            result = push_to_mailchimp(creds, body.title, body.content)
-            return result
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported platform")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        decrypted = decrypt_credentials(integration.credentials)
+        creds = json.loads(decrypted)
+    except Exception:
+        integration.status = "invalid_credentials"
+        db.commit()
+        raise HTTPException(status_code=400, detail="Integration credentials invalid or corrupted. Please reconnect.")
+
+    job_id = str(uuid.uuid4())
+    
+    # Create the job in the DB
+    job = PushJob(id=job_id, user_id=user.id, platform=body.platform, status="pending")
+    db.add(job)
+    db.commit()
+
+    from .integrations import background_push
+    
+    # Run the high-latency push in the background
+    background_tasks.add_task(background_push, body.platform, creds, body.title, body.content, body.metadata, integration.id, job_id)
+
+    return JSONResponse(status_code=202, content={"message": "Push accepted", "job_id": job_id})
+
+@app.get("/api/push/status/{job_id}", tags=["Integrations"])
+async def get_push_status(
+    job_id: str,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import PushJob
+    user, _ = auth
+    job = db.query(PushJob).filter(PushJob.id == job_id, PushJob.user_id == user.id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Push job not found.")
+    
+    return {"status": job.status, "details": job.details}
+
 

@@ -202,3 +202,21 @@ def revoke_api_key(key_id: str, user: User, db: Session) -> bool:
     api_key.is_active = False
     db.commit()
     return True
+
+from cryptography.fernet import Fernet
+import os
+
+# Secure key for symmetric encryption of integration credentials
+_INTEGRATION_KEY = os.environ.get("INTEGRATION_ENCRYPTION_KEY")
+if not _INTEGRATION_KEY:
+    _INTEGRATION_KEY = Fernet.generate_key().decode()
+    os.environ["INTEGRATION_ENCRYPTION_KEY"] = _INTEGRATION_KEY
+
+_fernet = Fernet(_INTEGRATION_KEY.encode())
+
+def encrypt_credentials(data: str) -> str:
+    return _fernet.encrypt(data.encode()).decode()
+
+def decrypt_credentials(data: str) -> str:
+    return _fernet.decrypt(data.encode()).decode()
+

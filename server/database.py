@@ -101,13 +101,27 @@ class VerificationToken(Base):
 
 class UserIntegration(Base):
     __tablename__ = "user_integrations"
+    __table_args__ = (UniqueConstraint('user_id', 'platform', name='uq_user_platform'),)
 
-    id          = Column(String(36), primary_key=True)
-    user_id     = Column(String(36), nullable=False)
-    platform    = Column(String(50), nullable=False)  # "wordpress", "mailchimp"
-    credentials = Column(String(1000), nullable=False) # JSON string
-    created_at  = Column(DateTime, default=datetime.utcnow)
-    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id             = Column(String(36), primary_key=True)
+    user_id        = Column(String(36), nullable=False)
+    platform       = Column(String(50), nullable=False)  # "wordpress", "mailchimp"
+    credentials    = Column(String(1000), nullable=False) # Encrypted JSON string
+    status         = Column(String(50), default="connected")
+    last_synced_at = Column(DateTime, nullable=True)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PushJob(Base):
+    __tablename__ = "push_jobs"
+
+    id         = Column(String(36), primary_key=True)
+    user_id    = Column(String(36), nullable=False)
+    platform   = Column(String(50), nullable=False)
+    status     = Column(String(30), default="pending")  # pending, processing, success, failed
+    details    = Column(String(1000), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class UsageRecord(Base):
     __tablename__ = "usage_records"
