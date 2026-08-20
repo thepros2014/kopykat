@@ -269,3 +269,15 @@ def create_scheduler() -> AsyncIOScheduler:
 
     logger.info("Background scheduler configured with 7 automated tasks (including marketing)")
     return scheduler
+
+def _send_password_reset_email(email: str, token: str, base_url: str):
+    subject = "Reset Your Password - SnapCopy AI"
+    reset_link = f"{base_url}/auth/reset-password?token={token}"
+    body = f"Hi,<br><br>You requested a password reset. Click the link below to set a new password:<br><br><a href='{reset_link}'>{reset_link}</a><br><br>If you did not request this, please ignore this email."
+    _send_email(subject, body, email)
+
+def _send_verification_email(email: str, token: str, base_url: str):
+    subject = "Verify Your Email - SnapCopy AI"
+    verify_link = f"{base_url}/auth/verify-email?token={token}"
+    body = f"Welcome to SnapCopy AI!<br><br>Please verify your email address by clicking the link below:<br><br><a href='{verify_link}'>{verify_link}</a>"
+    _send_email(subject, body, email)

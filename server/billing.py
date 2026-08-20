@@ -325,6 +325,7 @@ def _handle_subscription_changed(subscription: dict, db: Session):
             if user:
                 user.plan                  = "free"
                 user.generations = 0
+                user.monthly_limit = 50
         # Parent commits — do not call db.commit() here
         logger.info(f"Subscription {sub_id} status → {status}")
 
@@ -369,6 +370,10 @@ def _handle_payment_failed(invoice: dict, db: Session):
     ).first()
     if sub:
         sub.status = "past_due"
+        user = db.query(User).filter(User.id == sub.user_id).first()
+        if user:
+            from .scheduler import _send_email
+            _send_email("Action Required: SnapCopy AI Payment Failed", "Hi,<br><br>Your recent subscription payment failed. Please log into your dashboard and update your payment method to avoid service interruption.<br><br>- SnapCopy Team", user.email)
         db.commit()
         logger.warning(f"Payment failed for subscription {subscription_id}")
 

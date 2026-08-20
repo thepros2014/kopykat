@@ -88,6 +88,16 @@ class Subscription(Base):
     user = relationship("User", back_populates="subscriptions")
 
 
+
+class VerificationToken(Base):
+    __tablename__ = "verification_tokens"
+
+    token      = Column(String(64), primary_key=True)
+    user_id    = Column(String(36), nullable=False)
+    token_type = Column(String(20), nullable=False)  # "password_reset", "email_verify"
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class UsageRecord(Base):
     __tablename__ = "usage_records"
 

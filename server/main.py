@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
 from .models import (
+    RequestPasswordReset, ResetPasswordSubmit,
     UserRegister, UserLogin, TokenResponse, UserProfile,
     APIKeyCreate, APIKeyResponse, APIKeyCreated,
     GenerateRequest, GenerateResponse,
@@ -63,6 +64,17 @@ ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
 # Uses client IP for unauthenticated routes; stricter limits on auth/generate.
 
 limiter = Limiter(key_func=get_remote_address)
+
+
+import sentry_sdk
+
+SENTRY_DSN = os.environ.get("SENTRY_DSN")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
 
 app = FastAPI(
     title="SnapCopy AI",
@@ -112,25 +124,18 @@ def sanitize_html(raw: str) -> str:
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-scheduler = None
-
 @app.on_event("startup")
 async def startup():
-    global scheduler
     logger.info("🚀 SnapCopy AI starting up...")
     init_db()
     logger.info("✅ Database initialized")
-    scheduler = create_scheduler()
-    scheduler.start()
-    logger.info("✅ Background scheduler started")
-    logger.info(f"✅ SnapCopy AI v{APP_VERSION} is live and running")
+    logger.info(f"🟢 SnapCopy AI v{APP_VERSION} is live and running")
+    # Note: Background tasks (APScheduler) are now run separately via worker.py
+    # to prevent duplicate jobs when scaling horizontally.
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    global scheduler
-    if scheduler:
-        scheduler.shutdown(wait=False)
     logger.info("SnapCopy AI shut down gracefully")
 
 
@@ -588,3 +593,57 @@ async def admin_page():
         raise HTTPException(status_code=404, detail="Admin panel not found")
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
+
+@app.post("/auth/request-password-reset", tags=["Auth"])
+@limiter.limit("5/minute")
+async def request_password_reset(
+    request: Request,
+    body: RequestPasswordReset,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    from .database import VerificationToken, User
+    import secrets
+    from datetime import datetime, timedelta
+    from .scheduler import _send_password_reset_email
+
+    user = db.query(User).filter(User.email == body.email).first()
+    if user:
+        token = secrets.token_urlsafe(32)
+        expires = datetime.utcnow() + timedelta(hours=1)
+        db.add(VerificationToken(token=token, user_id=user.id, token_type="password_reset", expires_at=expires))
+        db.commit()
+        
+        base_url = "https://snapcopy-ai.onrender.com"
+        background_tasks.add_task(_send_password_reset_email, user.email, token, base_url)
+    
+    return {"message": "If an account with that email exists, a password reset link has been sent."}
+
+@app.post("/auth/reset-password", tags=["Auth"])
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    body: ResetPasswordSubmit,
+    db: Session = Depends(get_db)
+):
+    from .database import VerificationToken, User
+    from .auth import get_password_hash
+    from datetime import datetime
+
+    token_record = db.query(VerificationToken).filter(
+        VerificationToken.token == body.token,
+        VerificationToken.token_type == "password_reset",
+        VerificationToken.expires_at > datetime.utcnow()
+    ).first()
+
+    if not token_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+
+    user = db.query(User).filter(User.id == token_record.user_id).first()
+    if user:
+        user.hashed_password = get_password_hash(body.new_password)
+        db.delete(token_record)
+        db.commit()
+        return {"message": "Password successfully reset."}
+    
+    raise HTTPException(status_code=400, detail="User not found.")

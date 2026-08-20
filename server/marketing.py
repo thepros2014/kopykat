@@ -64,14 +64,24 @@ async def generate_seo_post():
         if db.query(BlogPost).filter(BlogPost.slug == data["slug"]).first():
             data["slug"] = data["slug"] + "-" + str(random.randint(100, 999))
 
+        import bleach
+        allowed_tags = ["h2", "h3", "p", "ul", "ol", "li", "b", "strong", "em", "a"]
+        allowed_attrs = {"a": ["href", "title", "rel", "target"]}
+        sanitized_content = bleach.clean(
+            data["content"], 
+            tags=allowed_tags, 
+            attributes=allowed_attrs, 
+            strip=True
+        )
+
         post = BlogPost(
             id=str(uuid.uuid4()),
             title=data["title"],
             slug=data["slug"],
             keyword=keyword,
             meta_desc=data["meta_desc"],
-            content=data["content"],
-            word_count=len(data["content"].split())
+            content=sanitized_content,
+            word_count=len(sanitized_content.split())
         )
         db.add(post)
         db.commit()
