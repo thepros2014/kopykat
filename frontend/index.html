@@ -53,7 +53,7 @@
       <span class="demo-label">Live API Example</span>
     </div>
     <pre class="demo-code"><code><span class="c-comment"># Generate a product description</span>
-curl -X POST https://snapcopy.onrender.com/api/generate \
+curl -X POST https://snapcopy-ai.onrender.com/api/generate \
   -H <span class="c-str">"Authorization: Bearer sc_your_key_here"</span> \
   -d <span class="c-str">'{"type":"product_description",
      "context":"Wireless earbuds, 40h battery, ANC",
@@ -69,7 +69,7 @@ curl -X POST https://snapcopy.onrender.com/api/generate \
      premium audio with ANC that drowns out the world 
      so you can focus on what matters."</span>
   ],
-  <span class="c-key">"tokens_used"</span>: 187,
+  <span class="c-key">"credits_used"</span>: 187,
   <span class="c-key">"credits_remaining"</span>: 4813,
   <span class="c-key">"generation_time_ms"</span>: 1240
 }</code></pre>
@@ -129,7 +129,7 @@ curl -X POST https://snapcopy.onrender.com/api/generate \
       <div class="step">
         <div class="step-num">1</div>
         <h3>Create free account</h3>
-        <p>Sign up below — no credit card required. Get 5,000 free tokens instantly.</p>
+        <p>Sign up below — no credit card required. Get 5,000 free usage credits instantly.</p>
       </div>
       <div class="step-arrow">→</div>
       <div class="step">
@@ -161,7 +161,8 @@ curl -X POST https://snapcopy.onrender.com/api/generate \
         <div class="plan-name">Free</div>
         <div class="plan-price">$0<span>/mo</span></div>
         <ul class="plan-features">
-          <li>✓ 5,000 tokens</li>
+          <li>✓ 5,000 usage credits</li>
+          <li>✓ ~50 copy generations</li>
           <li>✓ All 10 copy types</li>
           <li>✓ 1 API key</li>
           <li>✓ Community support</li>
@@ -174,7 +175,8 @@ curl -X POST https://snapcopy.onrender.com/api/generate \
         <div class="plan-name">Basic</div>
         <div class="plan-price">$9<span>/mo</span></div>
         <ul class="plan-features">
-          <li>✓ 50,000 tokens/month</li>
+          <li>✓ 50,000 monthly credits</li>
+          <li>✓ ~500 copy generations</li>
           <li>✓ All 10 copy types</li>
           <li>✓ 1 API key</li>
           <li>✓ Email support</li>
@@ -187,7 +189,8 @@ curl -X POST https://snapcopy.onrender.com/api/generate \
         <div class="plan-name">Pro</div>
         <div class="plan-price">$29<span>/mo</span></div>
         <ul class="plan-features">
-          <li>✓ 250,000 tokens/month</li>
+          <li>✓ 250,000 monthly credits</li>
+          <li>✓ ~2,500 copy generations</li>
           <li>✓ All 10 copy types</li>
           <li>✓ 3 API keys</li>
           <li>✓ Priority support</li>
@@ -200,7 +203,8 @@ curl -X POST https://snapcopy.onrender.com/api/generate \
         <div class="plan-name">Business</div>
         <div class="plan-price">$79<span>/mo</span></div>
         <ul class="plan-features">
-          <li>✓ 1M tokens/month</li>
+          <li>✓ 1,000,000 monthly credits</li>
+          <li>✓ ~10,000 copy generations</li>
           <li>✓ All 10 copy types</li>
           <li>✓ 5 API keys</li>
           <li>✓ Custom prompts</li>
@@ -216,19 +220,19 @@ curl -X POST https://snapcopy.onrender.com/api/generate \
       <div class="packs-grid">
         <div class="pack-card">
           <div class="pack-name">Starter Pack</div>
-          <div class="pack-tokens">25,000 tokens</div>
+          <div class="pack-tokens">25,000 credits (~250 generations)</div>
           <div class="pack-price">$5 one-time</div>
           <button onclick="buyPack('starter')" class="btn btn-sm btn-outline">Buy →</button>
         </div>
         <div class="pack-card popular-pack">
           <div class="pack-name">Growth Pack</div>
-          <div class="pack-tokens">100,000 tokens</div>
+          <div class="pack-tokens">100,000 credits (~1,000 generations)</div>
           <div class="pack-price">$15 one-time</div>
           <button onclick="buyPack('growth')" class="btn btn-sm btn-primary">Buy →</button>
         </div>
         <div class="pack-card">
           <div class="pack-name">Scale Pack</div>
-          <div class="pack-tokens">300,000 tokens</div>
+          <div class="pack-tokens">300,000 credits (~3,000 generations)</div>
           <div class="pack-price">$40 one-time</div>
           <button onclick="buyPack('scale')" class="btn btn-sm btn-outline">Buy →</button>
         </div>
@@ -242,7 +246,7 @@ curl -X POST https://snapcopy.onrender.com/api/generate \
   <div class="container">
     <div class="auth-box">
       <h2>Create your free account</h2>
-      <p>5,000 free tokens. No credit card required.</p>
+      <p>5,000 free usage credits. No credit card required.</p>
       <div class="auth-tabs">
         <button class="auth-tab active" onclick="switchTab('register')">Sign Up</button>
         <button class="auth-tab" onclick="switchTab('login')">Log In</button>

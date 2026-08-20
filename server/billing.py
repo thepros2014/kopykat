@@ -34,45 +34,46 @@ PLANS = {
         "price_id_env":  "STRIPE_PRICE_BASIC",        # $9/month
         "monthly_tokens": 50_000,
         "price_usd":     9,
-        "features":      ["50,000 tokens/month", "All 10 copy types", "1 API key", "Email support"],
+        "features":      ["50,000 credits/mo (~500 generations)", "All 10 copy types", "1 API key", "Email support"],
     },
     "pro": {
         "name":          "Pro",
         "price_id_env":  "STRIPE_PRICE_PRO",           # $29/month
         "monthly_tokens": 250_000,
         "price_usd":     29,
-        "features":      ["250,000 tokens/month", "All 10 copy types", "3 API keys", "Priority support"],
+        "features":      ["250,000 credits/mo (~2,500 generations)", "All 10 copy types", "3 API keys", "Priority support"],
     },
     "business": {
         "name":          "Business",
         "price_id_env":  "STRIPE_PRICE_BUSINESS",      # $79/month
         "monthly_tokens": 1_000_000,
         "price_usd":     79,
-        "features":      ["1M tokens/month", "All 10 copy types", "5 API keys", "Priority support", "Custom prompts"],
+        "features":      ["1,000,000 credits/mo (~10,000 generations)", "All 10 copy types", "5 API keys", "Priority support", "Custom prompts"],
     },
 }
 
 # One-time credit packs (no subscription required)
 CREDIT_PACKS = {
     "starter": {
-        "name":         "Starter Pack",
+        "name":         "Starter Pack (25,000 credits / ~250 gens)",
         "price_id_env": "STRIPE_PRICE_PACK_STARTER",  # $5 one-time
         "tokens":       25_000,
         "price_usd":    5,
     },
     "growth": {
-        "name":         "Growth Pack",
+        "name":         "Growth Pack (100,000 credits / ~1,000 gens)",
         "price_id_env": "STRIPE_PRICE_PACK_GROWTH",   # $15 one-time
         "tokens":       100_000,
         "price_usd":    15,
     },
     "scale": {
-        "name":         "Scale Pack",
+        "name":         "Scale Pack (300,000 credits / ~3,000 gens)",
         "price_id_env": "STRIPE_PRICE_PACK_SCALE",    # $40 one-time
         "tokens":       300_000,
         "price_usd":    40,
     },
 }
+
 
 
 def _get_price_id(env_var: str) -> str:
