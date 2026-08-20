@@ -98,6 +98,17 @@ class VerificationToken(Base):
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class UserIntegration(Base):
+    __tablename__ = "user_integrations"
+
+    id          = Column(String(36), primary_key=True)
+    user_id     = Column(String(36), nullable=False)
+    platform    = Column(String(50), nullable=False)  # "wordpress", "mailchimp"
+    credentials = Column(String(1000), nullable=False) # JSON string
+    created_at  = Column(DateTime, default=datetime.utcnow)
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class UsageRecord(Base):
     __tablename__ = "usage_records"
 

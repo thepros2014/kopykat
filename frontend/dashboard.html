@@ -16,10 +16,12 @@
   <aside class="sidebar">
     <div class="sidebar-logo">⚡ SnapCopy AI</div>
     <button class="sidebar-link active" onclick="showSection('overview')">📊 Overview</button>
+    <button class="sidebar-link" onclick="showSection('generator')">✨ Copy Generator</button>
     <button class="sidebar-link" onclick="showSection('apikeys')">🔑 API Keys</button>
     <button class="sidebar-link" onclick="showSection('usage')">📈 Usage</button>
     <button class="sidebar-link" onclick="showSection('billing')">💳 Billing</button>
     <button class="sidebar-link" onclick="showSection('docs')">📖 API Docs</button>
+    <button class="sidebar-link" onclick="showSection('integrations')">🔌 Integrations</button>
     <div style="flex:1;"></div>
     <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">🚪 Log Out</button>
   </aside>
@@ -462,6 +464,108 @@ if (new URLSearchParams(window.location.search).get('success')) {
   document.getElementById('success-banner').style.display = 'block';
   window.history.replaceState({}, '', '/dashboard');
 }
+
+async function saveIntegration(platform) {
+  let creds = {};
+  if (platform === 'wordpress') {
+    creds = {
+      url: document.getElementById('wp-url').value,
+      username: document.getElementById('wp-user').value,
+      app_password: document.getElementById('wp-pass').value
+    };
+  } else if (platform === 'mailchimp') {
+    creds = {
+      api_key: document.getElementById('mc-key').value,
+      list_id: document.getElementById('mc-list').value
+    };
+  }
+
+  try {
+    const res = await fetch('/api/integrations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + currentToken
+      },
+      body: JSON.stringify({ platform, credentials: creds })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert(data.message);
+    } else {
+      alert("Error: " + data.detail);
+    }
+  } catch (err) {
+    alert("Integration error");
+  }
+}
+
+async function pushContent(platform, text) {
+  try {
+    const res = await fetch('/api/push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + currentToken
+      },
+      body: JSON.stringify({ platform, content: text })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert('Successfully pushed to ' + platform + '!');
+    } else {
+      alert("Error: " + data.detail);
+    }
+  } catch (err) {
+    alert("Push error");
+  }
+}
+
+
+async function runGenerator() {
+  const btn = document.getElementById('btn-generate');
+  btn.textContent = "Generating...";
+  btn.disabled = true;
+
+  const type = document.getElementById('gen-type').value;
+  const context = document.getElementById('gen-context').value;
+  const tone = document.getElementById('gen-tone').value;
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + currentToken
+      },
+      body: JSON.stringify({ type, context, tone, variations: 1, max_words: 300 })
+    });
+    
+    const data = await res.json();
+    const resDiv = document.getElementById('gen-results');
+    
+    if (res.ok) {
+      const text = data.variations[0];
+      const encodedText = encodeURIComponent(text);
+      resDiv.innerHTML = `
+        <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;">${text}</div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:8px;">
+          <button class="btn" style="background:#0073aa;color:#fff;" onclick="pushContent('wordpress', decodeURIComponent('${encodedText}'))">Push to WordPress</button>
+          <button class="btn" style="background:#FFE01B;color:#241C15;" onclick="pushContent('mailchimp', decodeURIComponent('${encodedText}'))">Push to Mailchimp</button>
+        </div>
+      `;
+      loadDashboardData(); // refresh stats
+    } else {
+      resDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail}</span>`;
+    }
+  } catch (err) {
+    document.getElementById('gen-results').innerHTML = `<span style="color:#ff6b6b;">Failed to generate</span>`;
+  }
+  
+  btn.textContent = "✨ Generate Options";
+  btn.disabled = false;
+}
+
 </script>
 
 </body>

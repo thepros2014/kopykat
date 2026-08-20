@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
 from .models import (
     RequestPasswordReset, ResetPasswordSubmit,
+    IntegrationSaveRequest, PushRequest,
     UserRegister, UserLogin, TokenResponse, UserProfile,
     APIKeyCreate, APIKeyResponse, APIKeyCreated,
     GenerateRequest, GenerateResponse,
@@ -647,3 +648,82 @@ async def reset_password(
         return {"message": "Password successfully reset."}
     
     raise HTTPException(status_code=400, detail="User not found.")
+
+@app.post("/api/integrations", tags=["Integrations"])
+@limiter.limit("20/minute")
+async def save_integration(
+    request: Request,
+    body: IntegrationSaveRequest,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import UserIntegration
+    import json
+    import uuid
+    user, _ = auth
+
+    existing = db.query(UserIntegration).filter(
+        UserIntegration.user_id == user.id,
+        UserIntegration.platform == body.platform
+    ).first()
+
+    if existing:
+        existing.credentials = json.dumps(body.credentials)
+    else:
+        new_int = UserIntegration(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            platform=body.platform,
+            credentials=json.dumps(body.credentials)
+        )
+        db.add(new_int)
+
+    db.commit()
+    return {"message": f"{body.platform.capitalize()} integration saved"}
+
+@app.get("/api/integrations", tags=["Integrations"])
+async def get_integrations(
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import UserIntegration
+    user, _ = auth
+    ints = db.query(UserIntegration).filter(UserIntegration.user_id == user.id).all()
+    # Return just the platform names that are connected for security
+    connected = [i.platform for i in ints]
+    return {"connected": connected}
+
+@app.post("/api/push", tags=["Integrations"])
+@limiter.limit("10/minute")
+async def push_content(
+    request: Request,
+    body: PushRequest,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import UserIntegration
+    from .integrations import push_to_wordpress, push_to_mailchimp
+    import json
+    user, _ = auth
+
+    integration = db.query(UserIntegration).filter(
+        UserIntegration.user_id == user.id,
+        UserIntegration.platform == body.platform
+    ).first()
+
+    if not integration:
+        raise HTTPException(status_code=400, detail=f"No {body.platform} integration configured.")
+
+    creds = json.loads(integration.credentials)
+    try:
+        if body.platform == "wordpress":
+            result = push_to_wordpress(creds, body.title, body.content)
+            return result
+        elif body.platform == "mailchimp":
+            result = push_to_mailchimp(creds, body.title, body.content)
+            return result
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported platform")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+

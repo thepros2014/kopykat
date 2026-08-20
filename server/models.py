@@ -148,3 +148,12 @@ class RequestPasswordReset(BaseModel):
 class ResetPasswordSubmit(BaseModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
+
+class IntegrationSaveRequest(BaseModel):
+    platform: Literal["wordpress", "mailchimp"]
+    credentials: dict
+
+class PushRequest(BaseModel):
+    platform: Literal["wordpress", "mailchimp"]
+    content: str
+    title: Optional[str] = "Generated via SnapCopy AI"
