@@ -14,17 +14,17 @@
 
   <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
   <aside class="sidebar">
-    <div class="sidebar-logo">⚡ SnapCopy AI</div>
-    <button class="sidebar-link active" onclick="showSection('overview')">📊 Overview</button>
-    <button class="sidebar-link" onclick="showSection('generator')">✨ Copy Generator</button>
-    <button class="sidebar-link" onclick="showSection('omni')">🚀 Omni-Campaigns</button>
-    <button class="sidebar-link" onclick="showSection('apikeys')">🔑 API Keys</button>
-    <button class="sidebar-link" onclick="showSection('usage')">📈 Usage</button>
-    <button class="sidebar-link" onclick="showSection('billing')">💳 Billing</button>
-    <button class="sidebar-link" onclick="showSection('docs')">📖 API Docs</button>
-    <button class="sidebar-link" onclick="showSection('integrations')">🔌 Integrations</button>
+    <div class="sidebar-logo"> SnapCopy AI</div>
+    <button class="sidebar-link active" onclick="showSection('overview')"> Overview</button>
+    <button class="sidebar-link" onclick="showSection('generator')"> Copy Generator</button>
+    <button class="sidebar-link" onclick="showSection('omni')"> Omni-Campaigns</button>
+    <button class="sidebar-link" onclick="showSection('apikeys')"> API Keys</button>
+    <button class="sidebar-link" onclick="showSection('usage')"> Usage</button>
+    <button class="sidebar-link" onclick="showSection('billing')"> Billing</button>
+    <button class="sidebar-link" onclick="showSection('docs')"> API Docs</button>
+    <button class="sidebar-link" onclick="showSection('integrations')"> Integrations</button>
     <div style="flex:1;"></div>
-    <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">🚪 Log Out</button>
+    <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;"> Log Out</button>
   </aside>
 
   <!-- ── Main ─────────────────────────────────────────────────────────────── -->
@@ -32,7 +32,7 @@
 
     <!-- SUCCESS BANNER (after Stripe checkout) -->
     <div id="success-banner" class="card" style="background:rgba(34,197,94,0.08);border-color:#22c55e;display:none;margin-bottom:24px;">
-      <strong style="color:#22c55e;">🎉 Payment successful!</strong>
+      <strong style="color:#22c55e;"> Payment successful!</strong>
       Your plan and usage balance have been updated. Thank you!
     </div>
 
@@ -74,7 +74,7 @@
 
       <!-- Quick start guide -->
       <div class="card">
-        <h3>🚀 Quick Start</h3>
+        <h3> Quick Start</h3>
         <p style="color:var(--muted);margin-bottom:20px;font-size:14px;">
           Make your first API call in 30 seconds.
         </p>
@@ -109,9 +109,9 @@ curl -X POST https://YOUR_APP_URL/api/generate \
 
       <!-- New key display -->
       <div id="new-key-box" class="new-key-box">
-        <div class="new-key-warning">⚠️ Copy this key now — it won't be shown again!</div>
+        <div class="new-key-warning">️ Copy this key now — it won't be shown again!</div>
         <div class="new-key-value" id="new-key-value"></div>
-        <button class="copy-btn" onclick="copyKey()">📋 Copy Key</button>
+        <button class="copy-btn" onclick="copyKey()"> Copy Key</button>
       </div>
 
       <div class="card">
@@ -190,10 +190,10 @@ curl -X POST https://YOUR_APP_URL/api/generate \
           <div class="plan-name">Basic</div>
           <div class="plan-price">$9<span>/mo</span></div>
           <ul class="plan-features">
-            <li>✓ 500 monthly generations</li>
-            <li>✓ All copy types</li>
-            <li>✓ 1 API key</li>
-            <li>✓ Email support</li>
+            <li> 500 monthly generations</li>
+            <li> All copy types</li>
+            <li> 1 API key</li>
+            <li> Email support</li>
           </ul>
           <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('basic')">Upgrade to Basic</button>
         </div>
@@ -202,10 +202,10 @@ curl -X POST https://YOUR_APP_URL/api/generate \
           <div class="plan-name">Pro</div>
           <div class="plan-price">$29<span>/mo</span></div>
           <ul class="plan-features">
-            <li>✓ 2,500 monthly generations</li>
-            <li>✓ All copy types</li>
-            <li>✓ 3 API keys</li>
-            <li>✓ Priority support</li>
+            <li> 2,500 monthly generations</li>
+            <li> All copy types</li>
+            <li> 3 API keys</li>
+            <li> Priority support</li>
           </ul>
           <button class="btn btn-primary btn-full btn-sm" onclick="startCheckout('pro')">Upgrade to Pro</button>
         </div>
@@ -214,11 +214,11 @@ curl -X POST https://YOUR_APP_URL/api/generate \
           <div class="plan-name">Business</div>
           <div class="plan-price">$79<span>/mo</span></div>
           <ul class="plan-features">
-            <li>✓ 10,000 monthly generations</li>
-            <li>✓ All copy types</li>
-            <li>✓ 5 API keys</li>
-            <li>✓ Custom prompts</li>
-            <li>✓ Priority support</li>
+            <li> 10,000 monthly generations</li>
+            <li> All copy types</li>
+            <li> 5 API keys</li>
+            <li> Custom prompts</li>
+            <li> Priority support</li>
           </ul>
           <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('business')">Upgrade to Business</button>
         </div>
@@ -377,7 +377,7 @@ async function loadKeys() {
           <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} · ${k.requests_today} requests today</div>
         </div>
         <code class="key-prefix">${k.key_prefix}•••••••••••••••••••••••••••</code>
-        <button class="key-delete" onclick="deleteKey('${k.id}')" title="Revoke key">🗑</button>
+        <button class="key-delete" onclick="deleteKey('${k.id}')" title="Revoke key"></button>
       </div>
     `).join('');
   } catch(e) {
@@ -420,8 +420,8 @@ function copyKey() {
   const val = document.getElementById('new-key-value').textContent;
   navigator.clipboard.writeText(val).then(() => {
     const btn = document.querySelector('.copy-btn');
-    btn.textContent = '✅ Copied!';
-    setTimeout(() => btn.textContent = '📋 Copy Key', 2000);
+    btn.textContent = ' Copied!';
+    setTimeout(() => btn.textContent = ' Copy Key', 2000);
   });
 }
 
@@ -546,11 +546,11 @@ function pollJobStatus(jobId, btnElement, originalText, platform) {
       
       if (data.status === 'success') {
         clearInterval(interval);
-        alert('🎉 Successfully pushed to ' + platform + '!');
+        alert(' Successfully pushed to ' + platform + '!');
         if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
       } else if (data.status === 'failed') {
         clearInterval(interval);
-        alert('❌ Push failed: ' + data.details);
+        alert(' Push failed: ' + data.details);
         if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
       }
     } catch (err) {
@@ -591,7 +591,7 @@ async function runGenerator() {
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
           
           <div style="display:flex;gap:4px;">
-            <button class="btn" style="background:#0073aa;color:#fff;" onclick="pushWP(this, decodeURIComponent('${encodedText}'))">WP 🚀</button>
+            <button class="btn" style="background:#0073aa;color:#fff;" onclick="pushWP(this, decodeURIComponent('${encodedText}'))">WP </button>
             <select id="wp-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
               <option value="">No Category</option>
               ${(integrationMetadata.wordpress || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
@@ -599,18 +599,18 @@ async function runGenerator() {
           </div>
 
           <div style="display:flex;gap:4px;">
-            <button class="btn" style="background:#FFE01B;color:#241C15;" onclick="pushMC(this, decodeURIComponent('${encodedText}'))">Mailchimp 🚀</button>
+            <button class="btn" style="background:#FFE01B;color:#241C15;" onclick="pushMC(this, decodeURIComponent('${encodedText}'))">Mailchimp </button>
             <select id="mc-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
               <option value="">Default List</option>
               ${(integrationMetadata.mailchimp || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
             </select>
           </div>
           
-          <button class="btn" style="background:#ff7a59;color:#fff;" onclick="pushContent('hubspot', decodeURIComponent('${encodedText}'), this)">HubSpot 🚀</button>
-          <button class="btn" style="background:#95bf47;color:#fff;" onclick="pushContent('shopify', decodeURIComponent('${encodedText}'), this)">Shopify 🚀</button>
+          <button class="btn" style="background:#ff7a59;color:#fff;" onclick="pushContent('hubspot', decodeURIComponent('${encodedText}'), this)">HubSpot </button>
+          <button class="btn" style="background:#95bf47;color:#fff;" onclick="pushContent('shopify', decodeURIComponent('${encodedText}'), this)">Shopify </button>
           
           <div style="display:flex;gap:4px;">
-            <button class="btn" style="background:#4353ff;color:#fff;" onclick="pushWF(this, decodeURIComponent('${encodedText}'))">Webflow 🚀</button>
+            <button class="btn" style="background:#4353ff;color:#fff;" onclick="pushWF(this, decodeURIComponent('${encodedText}'))">Webflow </button>
             <select id="wf-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
               <option value="">Collection</option>
               ${(integrationMetadata.webflow || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
@@ -627,7 +627,7 @@ async function runGenerator() {
     document.getElementById('gen-results').innerHTML = `<span style="color:#ff6b6b;">Failed to generate</span>`;
   }
   
-  btn.textContent = "✨ Generate Options";
+  btn.textContent = " Generate Options";
   btn.disabled = false;
 }
 
@@ -703,7 +703,7 @@ async function runOmniPush() {
   
   if (Object.keys(destinations).length === 0) {
     alert("Please select at least one push destination.");
-    btn.textContent = "🚀 Deploy Now";
+    btn.textContent = " Deploy Now";
     btn.disabled = false;
     return;
   }
@@ -725,7 +725,7 @@ async function runOmniPush() {
     alert("Push error.");
   }
   
-  btn.textContent = "🚀 Deploy Now";
+  btn.textContent = " Deploy Now";
   btn.disabled = false;
 }
 
