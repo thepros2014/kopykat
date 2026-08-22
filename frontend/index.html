@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.0.2";
+    const APP_VERSION = "1.0.3";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -29,6 +29,81 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/static/styles.css"/>
+
+  <style>
+    /* Dashboard Animation Styles */
+    .anim-window {
+      max-width: 800px; margin: 60px auto 0 auto;
+      background: #0f172a; border: 1px solid #334155; border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); overflow: hidden;
+      position: relative; text-align: left;
+    }
+    .anim-header {
+      height: 24px; background: #1e293b; display: flex; align-items: center; padding: 0 12px; gap: 6px;
+    }
+    .anim-dot { width: 10px; height: 10px; border-radius: 50%; background: #475569; }
+    .anim-dot.r { background: #ef4444; } .anim-dot.y { background: #eab308; } .anim-dot.g { background: #22c55e; }
+    
+    .anim-body { padding: 30px; display: flex; gap: 30px; }
+    .anim-input-area { flex: 1; }
+    .anim-results-area { flex: 1.5; opacity: 0; animation: fadeInResults 8s infinite; }
+    
+    .anim-label { font-size: 12px; color: #94a3b8; margin-bottom: 8px; display: block; font-weight: 600; }
+    .anim-input { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 12px; color: #f8fafc; font-size: 14px; margin-bottom: 20px; font-family: monospace; position: relative; }
+    
+    .anim-typewriter::after {
+      content: '|'; animation: typewrite 8s infinite; color: #a855f7;
+    }
+    
+    .anim-btn { background: #a855f7; color: white; padding: 10px; border-radius: 6px; text-align: center; font-size: 14px; font-weight: 600; position: relative; overflow: hidden;}
+    .anim-btn::after {
+      content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+      background: rgba(255,255,255,0.2); animation: btnFlash 8s infinite;
+    }
+    
+    .anim-skeleton { background: #1e293b; height: 12px; border-radius: 4px; margin-bottom: 10px; width: 100%; }
+    .anim-skeleton.short { width: 60%; }
+    .anim-skeleton.title { height: 18px; width: 40%; margin-bottom: 16px; background: #334155; }
+    
+    .anim-cursor {
+      position: absolute; width: 20px; height: 20px;
+      background-image: url('data:image/svg+xml;utf8,<svg width="24" height="24" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M4 4L11.5312 21.196L14.7797 14.7797L21.196 11.5312L4 4Z" stroke="black" stroke-width="2"/></svg>');
+      background-size: contain; z-index: 10;
+      animation: cursorMove 8s infinite; pointer-events: none;
+    }
+
+    @keyframes typewrite {
+      0%, 10% { content: ''; }
+      15% { content: 'W'; }
+      20% { content: 'Win'; }
+      25% { content: 'Winter'; }
+      30% { content: 'Winter C'; }
+      35% { content: 'Winter Coat'; }
+      40%, 100% { content: 'Winter Coat|'; }
+    }
+    
+    @keyframes cursorMove {
+      0%, 35% { top: 70%; left: 80%; opacity: 0; }
+      40% { top: 70%; left: 80%; opacity: 1; }
+      50% { top: 60%; left: 30%; opacity: 1; transform: scale(1); }
+      52% { top: 60%; left: 30%; opacity: 1; transform: scale(0.9); }
+      54% { top: 60%; left: 30%; opacity: 1; transform: scale(1); }
+      60%, 100% { top: 90%; left: 10%; opacity: 0; }
+    }
+    
+    @keyframes btnFlash {
+      0%, 50% { left: -100%; }
+      52% { left: 100%; }
+      100% { left: 100%; }
+    }
+    
+    @keyframes fadeInResults {
+      0%, 55% { opacity: 0; transform: translateY(10px); }
+      60%, 90% { opacity: 1; transform: translateY(0); }
+      95%, 100% { opacity: 0; transform: translateY(-10px); }
+    }
+  </style>
+
 </head>
 <body>
 
@@ -48,8 +123,8 @@
 
 <!-- ── HERO ────────────────────────────────────────────────────────────── -->
 <section class="hero">
-  <div class="badge"> AI-Powered Copywriting API</div>
-  <h1>Write copy that <span class="gradient-text">converts</span>.<br/>In seconds. Automatically.</h1>
+  <div class="badge">?? The E-Commerce Marketing Engine</div>
+  <h1>Your Autonomous Marketing Employee.<br/>Ready to work 24/7.</h1>
   <p class="hero-sub">
     KopyKat generates high-performing product descriptions, email sequences, 
     ad copy, and social posts — via simple API call or web dashboard. 
@@ -60,69 +135,39 @@
     <a href="/api/docs" class="btn btn-outline btn-lg" target="_blank">View API Docs</a>
   </div>
   
-  <!-- Interactive Demo Widget -->
-  <div class="demo-widget" style="max-width: 600px; margin: 40px auto 0 auto; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: left; box-shadow: 0 10px 30px rgba(0,0,0,0.05); position: relative;">
-    <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 18px;">Try it live</h3>
-    <div class="form-group" style="margin-bottom: 16px;">
-      <input type="text" id="demo-product" placeholder="What are you selling? (e.g. AI Fitness Coaching App)" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border);" />
-    </div>
-    <button class="btn btn-primary" id="demo-btn" style="width: 100%; padding: 12px; font-size: 16px;" onclick="runDemo()">See the Magic</button>
-    
-    <!-- Results Overlay -->
-    <div id="demo-results" style="display: none; margin-top: 24px;">
-      <div style="position: relative; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); overflow: hidden;">
-        <div id="demo-content" style="font-size: 14px; line-height: 1.6; padding: 16px; max-height: 140px; overflow: hidden;"></div>
-        <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 80px; background: linear-gradient(to bottom, transparent, var(--bg) 90%);"></div>
+  
+    <!-- Animated UI Video/Placeholder -->
+    <div class="anim-window">
+      <div class="anim-header">
+        <div class="anim-dot r"></div><div class="anim-dot y"></div><div class="anim-dot g"></div>
+        <div style="margin-left:auto; font-size:11px; color:#64748b; font-family:sans-serif;">KopyKat Omni-Campaign</div>
       </div>
-      <div style="margin-top: 16px; text-align: center;">
-        <p style="color: var(--muted); font-size: 14px; margin-bottom: 12px; font-weight: 500;">Create a free account to read the rest of your campaign and deploy it directly to WordPress, Mailchimp, and Shopify.</p>
-        <a href="#signup" class="btn btn-primary" style="width: 100%;">Unlock Full Campaign (Free)</a>
+      <div class="anim-body">
+        <div class="anim-input-area">
+          <span class="anim-label">Target Keyword</span>
+          <div class="anim-input anim-typewriter"></div>
+          <span class="anim-label">Product Description</span>
+          <div class="anim-input" style="height: 60px; color:#64748b;">(Auto-scraped from store...)</div>
+          <div class="anim-btn">Generate Campaign</div>
+        </div>
+        <div class="anim-results-area">
+          <div style="background:#1e293b; padding:16px; border-radius:8px; border:1px solid #334155; margin-bottom:16px;">
+            <div class="anim-skeleton title"></div>
+            <div class="anim-skeleton"></div>
+            <div class="anim-skeleton"></div>
+            <div class="anim-skeleton short"></div>
+          </div>
+          <div style="background:#1e293b; padding:16px; border-radius:8px; border:1px solid #334155; position:relative; overflow:hidden;">
+            <div style="position:absolute; top:0; right:0; background:#22c55e; color:white; font-size:10px; font-weight:bold; padding:4px 8px; border-bottom-left-radius:8px;">DEPLOYED TO SHOPIFY</div>
+            <div class="anim-skeleton title"></div>
+            <div class="anim-skeleton"></div>
+            <div class="anim-skeleton short"></div>
+          </div>
+        </div>
+        <div class="anim-cursor"></div>
       </div>
     </div>
 
-  <script>
-    async function runDemo() {
-      const btn = document.getElementById('demo-btn');
-      const prod = document.getElementById('demo-product').value;
-      if (!prod) { alert("Please enter a product first."); return; }
-      
-      btn.textContent = "Scraping market & generating...";
-      btn.disabled = true;
-      
-      try {
-        const res = await fetch('/api/public/demo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keyword: prod, product_desc: prod })
-        });
-        
-        const data = await res.json();
-        if (res.ok) {
-          const assets = data.assets;
-          let html = `<strong>Blog:</strong> ${assets.blog_post.title}<br/><br/><strong>Email:</strong> ${assets.email_drip[0].subject}`;
-          document.getElementById('demo-content').innerHTML = html;
-          document.getElementById('demo-results').style.display = 'block';
-        } else {
-          let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert(msg || "Rate limit reached. Please create a free account to continue.");
-        }
-      } catch (err) {
-        alert("Demo error.");
-      }
-      
-      btn.textContent = "See the Magic";
-      btn.disabled = false;
-    }
-  </script>
-
-<div class="hero-stats" style="display: flex; justify-content: center; gap: 40px; margin-top: 60px; border-top: 1px solid var(--border); padding-top: 40px;">
-    <div class="stat"><span class="stat-num">5</span><span class="stat-label">Native Integrations</span></div>
-    <div class="stat"><span class="stat-num">3</span><span class="stat-label">Assets per Campaign</span></div>
-    <div class="stat"><span class="stat-num">1</span><span class="stat-label">Click to Deploy</span></div>
-  </div>
-
-</section>
-
-<!-- ── HOW IT WORKS ─────────────────────────────────────────────────────── -->
 
   <!-- FEATURES / HOW IT WORKS -->
   <section class="section" id="features" style="background: var(--bg2); padding: 80px 20px;">
