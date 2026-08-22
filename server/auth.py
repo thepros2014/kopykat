@@ -14,36 +14,46 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2Pas
 import bcrypt
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+from cryptography.fernet import Fernet
 
 from .database import get_db, User, APIKey
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-SECRET_KEY    = os.getenv("JWT_SECRET_KEY", secrets.token_hex(32))
-ALGORITHM     = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours (was 7 days)
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY must be configured; refusing to generate a new production signing key")
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
 
-
 # ── Password helpers ──────────────────────────────────────────────────────────
 
 def hash_password(password: str) -> str:
-    """Hash password using bcrypt directly (avoids passlib wrap bug with bcrypt >= 4)."""
-    pwd_bytes = password.encode("utf-8")[:72]
+    """Hash password using bcrypt directly."""
+    pwd_bytes = password.encode("utf-8")
+    if len(pwd_bytes) > 72:
+        raise HTTPException(status_code=400, detail="Password is too long; maximum is 72 UTF-8 bytes")
     return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode("utf-8")
+
+
+def get_password_hash(password: str) -> str:
+    """Compatibility alias used by password-reset code."""
+    return hash_password(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Verify password against bcrypt hash."""
     try:
-        pwd_bytes = plain.encode("utf-8")[:72]
-        hashed_bytes = hashed.encode("utf-8")
-        return bcrypt.checkpw(pwd_bytes, hashed_bytes)
+        pwd_bytes = plain.encode("utf-8")
+        if len(pwd_bytes) > 72:
+            return False
+        return bcrypt.checkpw(pwd_bytes, hashed.encode("utf-8"))
     except Exception:
         return False
-
 
 # ── JWT helpers ───────────────────────────────────────────────────────────────
 
@@ -62,16 +72,12 @@ def decode_access_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
-
 # ── API Key helpers ───────────────────────────────────────────────────────────
 
 def generate_api_key() -> tuple[str, str, str]:
-    """
-    Returns (raw_key, key_hash, key_prefix).
-    raw_key is shown to user ONCE — only the hash is stored.
-    """
-    raw_key    = "sc_" + secrets.token_urlsafe(40)
-    key_hash   = hashlib.sha256(raw_key.encode()).hexdigest()
+    """Returns (raw_key, key_hash, key_prefix)."""
+    raw_key = "sc_" + secrets.token_urlsafe(40)
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
     key_prefix = raw_key[:11]
     return raw_key, key_hash, key_prefix
 
@@ -79,14 +85,12 @@ def generate_api_key() -> tuple[str, str, str]:
 def hash_api_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
-
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
 
 def get_current_user_jwt(
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    """Dependency: validates JWT token and returns the User."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -95,7 +99,7 @@ def get_current_user_jwt(
     if not token:
         raise credentials_exception
     payload = decode_access_token(token)
-    if not payload:
+    if not payload or not payload.get("sub"):
         raise credentials_exception
     user = db.query(User).filter(User.id == payload["sub"]).first()
     if not user or not user.is_active:
@@ -107,21 +111,15 @@ def get_current_user_apikey(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> tuple[User, APIKey]:
-    """
-    Dependency: validates an API key from Authorization: Bearer sc_... header.
-    Returns (User, APIKey) tuple.
-    """
     if not credentials:
         raise HTTPException(status_code=401, detail="API key required")
 
-    raw_key  = credentials.credentials
+    raw_key = credentials.credentials
     key_hash = hash_api_key(raw_key)
-
     api_key = db.query(APIKey).filter(
         APIKey.key_hash == key_hash,
         APIKey.is_active == True,
     ).first()
-
     if not api_key:
         raise HTTPException(status_code=401, detail="Invalid or revoked API key")
 
@@ -129,13 +127,10 @@ def get_current_user_apikey(
     if not user:
         raise HTTPException(status_code=401, detail="Account not found or suspended")
 
-    # Update last-used timestamp
     api_key.last_used = datetime.utcnow()
     api_key.requests_today += 1
     db.commit()
-
     return user, api_key
-
 
 # ── Business logic ────────────────────────────────────────────────────────────
 
@@ -150,8 +145,8 @@ def register_user(email: str, password: str, full_name: Optional[str], db: Sessi
         hashed_password=hash_password(password),
         full_name=full_name,
         plan="free",
-        generations=50,
-        monthly_limit=50,
+        generations=5,
+        monthly_limit=5,
     )
     db.add(user)
     db.commit()
@@ -161,16 +156,12 @@ def register_user(email: str, password: str, full_name: Optional[str], db: Sessi
 
 def authenticate_user(email: str, password: str, db: Session) -> Optional[User]:
     user = db.query(User).filter(User.email == email).first()
-    if not user:
-        return None
-    if not verify_password(password, user.hashed_password):
+    if not user or not verify_password(password, user.hashed_password):
         return None
     return user
 
 
 def create_user_api_key(user: User, name: str, db: Session) -> tuple[str, APIKey]:
-    """Creates and stores a new API key for a user. Returns (raw_key, APIKey)."""
-    # Enforce max 5 keys per user
     existing_count = db.query(APIKey).filter(
         APIKey.user_id == user.id, APIKey.is_active == True
     ).count()
@@ -178,7 +169,6 @@ def create_user_api_key(user: User, name: str, db: Session) -> tuple[str, APIKey
         raise HTTPException(status_code=400, detail="Maximum 5 API keys per account")
 
     raw_key, key_hash, key_prefix = generate_api_key()
-
     api_key = APIKey(
         id=str(uuid.uuid4()),
         user_id=user.id,
@@ -203,20 +193,20 @@ def revoke_api_key(key_id: str, user: User, db: Session) -> bool:
     db.commit()
     return True
 
-from cryptography.fernet import Fernet
-import os
-
-# Secure key for symmetric encryption of integration credentials
-_INTEGRATION_KEY = os.environ.get("INTEGRATION_ENCRYPTION_KEY")
+# ── Integration credential encryption ─────────────────────────────────────────
+_INTEGRATION_KEY = os.getenv("INTEGRATION_ENCRYPTION_KEY")
 if not _INTEGRATION_KEY:
-    _INTEGRATION_KEY = Fernet.generate_key().decode()
-    os.environ["INTEGRATION_ENCRYPTION_KEY"] = _INTEGRATION_KEY
+    raise RuntimeError("INTEGRATION_ENCRYPTION_KEY must be configured; refusing to generate a new credential-encryption key")
 
-_fernet = Fernet(_INTEGRATION_KEY.encode())
+try:
+    _fernet = Fernet(_INTEGRATION_KEY.encode())
+except Exception as exc:
+    raise RuntimeError("INTEGRATION_ENCRYPTION_KEY is invalid; expected a Fernet key") from exc
+
 
 def encrypt_credentials(data: str) -> str:
     return _fernet.encrypt(data.encode()).decode()
 
+
 def decrypt_credentials(data: str) -> str:
     return _fernet.decrypt(data.encode()).decode()
-
