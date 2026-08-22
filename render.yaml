@@ -3,7 +3,7 @@
 
 services:
   - type: web
-    name: snapcopy-ai
+    name: kopykat
     env: python
     plan: free              # FREE tier on Render!
     buildCommand: pip install -r requirements.txt

@@ -91,8 +91,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS — restrict to explicit allow-list ─────────────────────────────────────
 # Set ALLOWED_ORIGINS in your .env as a comma-separated list of allowed origins.
-# Example: ALLOWED_ORIGINS=https://kopykat-ai.onrender.com,https://www.kopykat.ai
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "https://kopykat-ai.onrender.com")
+# Example: ALLOWED_ORIGINS=https://kopykat.onrender.com,https://www.kopykat.ai
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "https://kopykat.onrender.com")
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
@@ -290,7 +290,7 @@ async def register(request: Request, body: UserRegister, background_tasks: Backg
     
     from .scheduler import _send_email
     subject = "Welcome to KopyKat 🚀"
-    email_body = f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 50 free generations.<br><br>Log in to generate your first high-converting copy: <a href='https://kopykat-ai.onrender.com/dashboard'>KopyKat Dashboard</a>"
+    email_body = f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 5 free generations.<br><br>Log in to generate your first high-converting copy: <a href='https://kopykat.onrender.com/dashboard'>KopyKat Dashboard</a>"
     background_tasks.add_task(_send_email, subject, email_body, user.email)
     token = create_access_token(user.id, user.email)
     return TokenResponse(
@@ -628,7 +628,7 @@ async def request_password_reset(
         db.add(VerificationToken(token=token, user_id=user.id, token_type="password_reset", expires_at=expires))
         db.commit()
         
-        base_url = "https://kopykat-ai.onrender.com"
+        base_url = "https://kopykat.onrender.com"
         background_tasks.add_task(_send_password_reset_email, user.email, token, base_url)
     
     return {"message": "If an account with that email exists, a password reset link has been sent."}
