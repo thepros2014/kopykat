@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.0.6";
+    const APP_VERSION = "1.0.7";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -15,7 +15,76 @@
       localStorage.setItem("kopykat_version", APP_VERSION);
       window.location.href = "/"; // Force redirect to refresh state
     }
-  </script>
+  
+// --- BULK SYNC LOGIC ---
+let bulkItems = [];
+function parseCSV() {
+  const fileInput = document.getElementById('csv-file');
+  if (!fileInput.files.length) return alert("Please select a CSV file.");
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    if (lines.length < 2) return alert("CSV is empty or missing headers.");
+    const headers = lines[0].toLowerCase().split(',');
+    const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('title'));
+    const descIdx = headers.findIndex(h => h.includes('desc'));
+    if (nameIdx === -1) return alert("Could not find a 'Name' column.");
+    bulkItems = [];
+    const tbody = document.getElementById('bulk-table-body');
+    tbody.innerHTML = '';
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',');
+      const name = cols[nameIdx];
+      const desc = descIdx !== -1 ? cols[descIdx] : '';
+      if (!name) continue;
+      bulkItems.push({ name, desc, status: 'Ready' });
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      tr.id = `bulk-row-${i-1}`;
+      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${name}</td><td style="padding:12px 8px; color:var(--muted);">${desc.substring(0, 50)}...</td>`;
+      tbody.appendChild(tr);
+    }
+    document.getElementById('bulk-preview-area').classList.remove('hidden');
+  };
+  reader.readAsText(file);
+}
+async function startBulkSyndication() {
+  const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
+  if (dests.length === 0) return alert("Please select at least one syndication destination.");
+  const btn = document.getElementById('btn-start-bulk');
+  btn.disabled = true;
+  btn.textContent = "Syndicating Catalog...";
+  for (let i = 0; i < bulkItems.length; i++) {
+    const item = bulkItems[i];
+    const row = document.getElementById(`bulk-row-${i}`);
+    const statusCell = row.querySelector('.status-cell');
+    try {
+      statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
+      const genRes = await fetch('/api/campaign/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+        body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
+      });
+      if (!genRes.ok) throw new Error("Generation failed");
+      const genData = await genRes.json();
+      const blogHTML = genData.campaign.assets.blog_post.content;
+      statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
+      let pushPromises = [];
+      dests.forEach(dest => {
+        pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
+      });
+      await Promise.all(pushPromises);
+      statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
+    } catch (err) {
+      statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">? Failed</span>';
+    }
+  }
+  btn.textContent = "Syndication Complete!";
+}
+
+</script>
 
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -44,6 +113,7 @@
     <button class="sidebar-link" onclick="showSection('billing')"> Billing</button>
     <button class="sidebar-link" onclick="showSection('docs')"> API Docs</button>
     <button class="sidebar-link" onclick="showSection('integrations')"> Integrations</button>
+      <button class="sidebar-link" onclick="showSection('bulk')" style="font-weight:bold; color:var(--purple);"> ?? Bulk Sync CSV</button>
     <div style="flex:1;"></div>
     <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;"> Log Out</button>
   </aside>
@@ -413,6 +483,55 @@
             <h3 style="margin-bottom:12px; font-size:16px;">Email Drip (3 parts)</h3>
             <div id="omni-email-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
           </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!--  BULK SYNC CSV  -->
+    <section id="section-bulk" class="dash-section hidden">
+      <div class="page-title">Bulk Catalog Sync</div>
+      <div class="page-sub">Upload an inventory CSV. The AI will rewrite every description and syndicate to all marketplaces.</div>
+      
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 style="margin-bottom: 16px;">1. Upload Inventory CSV</h3>
+        <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">
+          Format: <strong>Product Name, Description</strong>, Price, Image URL.
+        </p>
+        <div style="display:flex; gap:16px; align-items:center;">
+          <input type="file" id="csv-file" accept=".csv" style="padding:8px; border:1px dashed var(--border); border-radius:6px; background:var(--bg2); width:100%;">
+          <button class="btn btn-primary" onclick="parseCSV()">Preview Data</button>
+        </div>
+      </div>
+      
+      <div id="bulk-preview-area" class="card hidden">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3>2. Bulk AI Syndication</h3>
+          <button id="btn-start-bulk" class="btn btn-primary" onclick="startBulkSyndication()">Start Syndication</button>
+        </div>
+        
+        <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:16px;">
+          <h4 style="margin-bottom:8px; font-size:14px;">Select destinations for the entire catalog:</h4>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:13px;">
+            <label><input type="checkbox" class="bulk-dest" value="shopify"> Shopify</label>
+            <label><input type="checkbox" class="bulk-dest" value="amazon"> Amazon</label>
+            <label><input type="checkbox" class="bulk-dest" value="ebay"> eBay</label>
+            <label><input type="checkbox" class="bulk-dest" value="walmart"> Walmart</label>
+            <label><input type="checkbox" class="bulk-dest" value="temu"> Temu</label>
+          </div>
+        </div>
+        
+        <div style="overflow-x:auto;">
+          <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="padding:12px 8px;">Status</th>
+                <th style="padding:12px 8px;">Product Name</th>
+                <th style="padding:12px 8px;">Raw Description</th>
+              </tr>
+            </thead>
+            <tbody id="bulk-table-body"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -994,6 +1113,75 @@ function activateBottomNav(btn) {
   if (btn) btn.classList.add('active');
 }
 
+
+// --- BULK SYNC LOGIC ---
+let bulkItems = [];
+function parseCSV() {
+  const fileInput = document.getElementById('csv-file');
+  if (!fileInput.files.length) return alert("Please select a CSV file.");
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    if (lines.length < 2) return alert("CSV is empty or missing headers.");
+    const headers = lines[0].toLowerCase().split(',');
+    const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('title'));
+    const descIdx = headers.findIndex(h => h.includes('desc'));
+    if (nameIdx === -1) return alert("Could not find a 'Name' column.");
+    bulkItems = [];
+    const tbody = document.getElementById('bulk-table-body');
+    tbody.innerHTML = '';
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',');
+      const name = cols[nameIdx];
+      const desc = descIdx !== -1 ? cols[descIdx] : '';
+      if (!name) continue;
+      bulkItems.push({ name, desc, status: 'Ready' });
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      tr.id = `bulk-row-${i-1}`;
+      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${name}</td><td style="padding:12px 8px; color:var(--muted);">${desc.substring(0, 50)}...</td>`;
+      tbody.appendChild(tr);
+    }
+    document.getElementById('bulk-preview-area').classList.remove('hidden');
+  };
+  reader.readAsText(file);
+}
+async function startBulkSyndication() {
+  const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
+  if (dests.length === 0) return alert("Please select at least one syndication destination.");
+  const btn = document.getElementById('btn-start-bulk');
+  btn.disabled = true;
+  btn.textContent = "Syndicating Catalog...";
+  for (let i = 0; i < bulkItems.length; i++) {
+    const item = bulkItems[i];
+    const row = document.getElementById(`bulk-row-${i}`);
+    const statusCell = row.querySelector('.status-cell');
+    try {
+      statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
+      const genRes = await fetch('/api/campaign/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+        body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
+      });
+      if (!genRes.ok) throw new Error("Generation failed");
+      const genData = await genRes.json();
+      const blogHTML = genData.campaign.assets.blog_post.content;
+      statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
+      let pushPromises = [];
+      dests.forEach(dest => {
+        pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
+      });
+      await Promise.all(pushPromises);
+      statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
+    } catch (err) {
+      statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">? Failed</span>';
+    }
+  }
+  btn.textContent = "Syndication Complete!";
+}
+
 </script>
 
 
@@ -1009,6 +1197,75 @@ function activateBottomNav(btn) {
 function activateBottomNav(btn) {
   document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+}
+
+
+// --- BULK SYNC LOGIC ---
+let bulkItems = [];
+function parseCSV() {
+  const fileInput = document.getElementById('csv-file');
+  if (!fileInput.files.length) return alert("Please select a CSV file.");
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    if (lines.length < 2) return alert("CSV is empty or missing headers.");
+    const headers = lines[0].toLowerCase().split(',');
+    const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('title'));
+    const descIdx = headers.findIndex(h => h.includes('desc'));
+    if (nameIdx === -1) return alert("Could not find a 'Name' column.");
+    bulkItems = [];
+    const tbody = document.getElementById('bulk-table-body');
+    tbody.innerHTML = '';
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',');
+      const name = cols[nameIdx];
+      const desc = descIdx !== -1 ? cols[descIdx] : '';
+      if (!name) continue;
+      bulkItems.push({ name, desc, status: 'Ready' });
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      tr.id = `bulk-row-${i-1}`;
+      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${name}</td><td style="padding:12px 8px; color:var(--muted);">${desc.substring(0, 50)}...</td>`;
+      tbody.appendChild(tr);
+    }
+    document.getElementById('bulk-preview-area').classList.remove('hidden');
+  };
+  reader.readAsText(file);
+}
+async function startBulkSyndication() {
+  const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
+  if (dests.length === 0) return alert("Please select at least one syndication destination.");
+  const btn = document.getElementById('btn-start-bulk');
+  btn.disabled = true;
+  btn.textContent = "Syndicating Catalog...";
+  for (let i = 0; i < bulkItems.length; i++) {
+    const item = bulkItems[i];
+    const row = document.getElementById(`bulk-row-${i}`);
+    const statusCell = row.querySelector('.status-cell');
+    try {
+      statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
+      const genRes = await fetch('/api/campaign/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+        body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
+      });
+      if (!genRes.ok) throw new Error("Generation failed");
+      const genData = await genRes.json();
+      const blogHTML = genData.campaign.assets.blog_post.content;
+      statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
+      let pushPromises = [];
+      dests.forEach(dest => {
+        pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
+      });
+      await Promise.all(pushPromises);
+      statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
+    } catch (err) {
+      statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">? Failed</span>';
+    }
+  }
+  btn.textContent = "Syndication Complete!";
 }
 
 </script>
