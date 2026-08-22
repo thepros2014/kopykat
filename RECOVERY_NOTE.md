@@ -1,0 +1,1 @@
+Temporary recovery marker. The previous security hardening commit accidentally replaced server/main.py with an incomplete file. That file was restored from the prior known-good blob before continuing. This note can be removed after verification.
