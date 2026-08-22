@@ -161,7 +161,7 @@ class PushRequest(BaseModel):
 
 class CampaignGenerateRequest(BaseModel):
     keyword: str = Field(min_length=2, max_length=100)
-    product_desc: str = Field(min_length=10, max_length=1000)
+    product_desc: str = Field(min_length=2, max_length=1000)
 
 class CampaignPushRequest(BaseModel):
     campaign_id: str

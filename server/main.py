@@ -103,6 +103,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Admin-Secret"],
 )
 
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
+)
+
 # ── HTML sanitization allow-list ───────────────────────────────────────────────
 # Used for AI-generated blog post content before it is inserted into the page.
 
@@ -798,7 +802,8 @@ async def api_public_demo(
         campaign_data = generate_demo_campaign(body.keyword, body.product_desc)
         return {"assets": campaign_data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Demo failed: {str(e)}")
+        logger.error(f"Public demo failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Demo generation failed due to an internal error.")
 
 @app.post("/api/campaign/generate", tags=["Campaigns"])
 @limiter.limit("5/minute")
@@ -808,12 +813,28 @@ async def api_campaign_generate(
     auth: tuple = Depends(get_current_user_apikey),
     db: Session = Depends(get_db)
 ):
-    from .database import Campaign
+    from .database import Campaign, UsageRecord
     from .campaigns import generate_omni_campaign
     import uuid
     import json
     
     user, _ = auth
+    
+    # 1. Atomic deduction (prevents concurrency bypass)
+    rows_updated = db.execute(
+        text(
+            "UPDATE users SET generations = generations - 1 "
+            "WHERE id = :uid AND generations >= 1"
+        ),
+        {"uid": user.id}
+    ).rowcount
+
+    if rows_updated == 0:
+        raise HTTPException(
+            status_code=402, 
+            detail="Insufficient campaigns remaining. Please upgrade your plan."
+        )
+
     try:
         campaign_data = generate_omni_campaign(body.keyword, body.product_desc)
         
@@ -827,13 +848,26 @@ async def api_campaign_generate(
             assets=json.dumps(campaign_data)
         )
         db.add(camp)
-        db.commit()
+        
+        # Log usage record
+        usage = UsageRecord(
+            user_id=user.id,
+            type="omni_campaign",
+            context=f"Keyword: {body.keyword}",
+            cost=1
+        )
+        db.add(usage)
+        
+        db.commit() # Commits both the deduction and the new records
         
         return {"id": campaign_id, "name": name, "assets": campaign_data}
     except ValueError as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+        db.rollback()
+        logger.error(f"Campaign generation failed for user {user.id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Generation failed due to an internal error. Your balance was not charged.")
 
 @app.post("/api/campaign/push", tags=["Campaigns"])
 @limiter.limit("5/minute")

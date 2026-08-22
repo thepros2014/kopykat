@@ -29,35 +29,34 @@ APP_BASE_URL            = os.getenv("APP_BASE_URL", "http://localhost:8000")
 
 PLANS = {
     "free": {
-        "name":                "Free",
-        "monthly_generations": 50,
+        "name":                "Test Drive",
+        "monthly_generations": 5,
         "price_usd":           0,
-        "features":            ["50 monthly generations", "All 10 copy types", "1 API key", "Community support"],
+        "features":            ["5 monthly campaigns", "All copy types", "1 API key", "Community support"],
     },
-    "basic": {
-        "name":                "Basic",
-        "price_id_env":        "STRIPE_PRICE_BASIC",        # $9/month
-        "monthly_generations": 500,
-        "price_usd":           9,
-        "features":            ["500 monthly generations", "All 10 copy types", "1 API key", "Email support"],
+    "boutique": {
+        "name":                "Boutique Store",
+        "price_id_env":        "STRIPE_PRICE_BOUTIQUE",        # $97/month
+        "monthly_generations": 250,
+        "price_usd":           97,
+        "features":            ["250 monthly campaigns", "Top 5 Integrations", "1 API key", "Email support"],
     },
-    "pro": {
-        "name":                "Pro",
-        "price_id_env":        "STRIPE_PRICE_PRO",           # $29/month
-        "monthly_generations": 2500,
-        "price_usd":           29,
-        "features":            ["2,500 monthly generations", "All 10 copy types", "3 API keys", "Priority support"],
+    "standard": {
+        "name":                "Standard Store",
+        "price_id_env":        "STRIPE_PRICE_STANDARD",        # $297/month
+        "monthly_generations": 1000,
+        "price_usd":           297,
+        "features":            ["1,000 monthly campaigns", "Top 5 Integrations", "Priority speed", "Priority support"],
     },
-    "business": {
-        "name":                "Business",
-        "price_id_env":        "STRIPE_PRICE_BUSINESS",      # $79/month
-        "monthly_generations": 10000,
-        "price_usd":           79,
-        "features":            ["10,000 monthly generations", "All 10 copy types", "5 API keys", "Priority support", "Custom prompts"],
-    },
+    "megastore": {
+        "name":                "Megastore",
+        "price_id_env":        "STRIPE_PRICE_MEGASTORE",       # $897/month
+        "monthly_generations": 5000,
+        "price_usd":           897,
+        "features":            ["5,000 monthly campaigns", "Unlimited Webhooks", "Unlimited API keys", "24/7 Priority support"],
+    }
 }
 
-# One-time generation packs (no subscription required)
 ONE_TIME_GENERATIONS = {
     "starter": {
         "name":         "Starter Pack (250 generations)",
@@ -325,7 +324,7 @@ def _handle_subscription_changed(subscription: dict, db: Session):
             if user:
                 user.plan                  = "free"
                 user.generations = 0
-                user.monthly_limit = 50
+                user.monthly_limit = 5
         # Parent commits — do not call db.commit() here
         logger.info(f"Subscription {sub_id} status → {status}")
 

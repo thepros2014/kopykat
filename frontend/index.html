@@ -87,7 +87,7 @@
           document.getElementById('demo-content').innerHTML = html;
           document.getElementById('demo-results').style.display = 'block';
         } else {
-          alert(data.detail || "Rate limit reached. Please create a free account to continue.");
+          let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert(msg || "Rate limit reached. Please create a free account to continue.");
         }
       } catch (err) {
         alert("Demo error.");

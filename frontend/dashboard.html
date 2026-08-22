@@ -497,7 +497,7 @@ async function saveIntegration(platform) {
     if (res.ok) {
       alert(data.message);
     } else {
-      alert("Error: " + data.detail);
+      let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
     }
   } catch (err) {
     alert("Integration error");
@@ -525,7 +525,7 @@ async function pushContent(platform, text, btnElement, meta={}) {
     if (res.status === 202) {
       pollJobStatus(data.job_id, btnElement, originalText, platform);
     } else {
-      alert("Error: " + data.detail);
+      let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
       if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
     }
   } catch (err) {
@@ -697,7 +697,7 @@ async function runOmniGenerate() {
       
       document.getElementById('omni-results-wrapper').style.display = 'block';
     } else {
-      alert("Error: " + data.detail);
+      let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
     }
   } catch (err) {
     alert("Generation failed.");
@@ -737,7 +737,7 @@ async function runOmniPush() {
       alert("Campaign deployment started! Tracking " + data.job_ids.length + " jobs in background.");
       // In a full app, we would loop and poll each job_id here.
     } else {
-      alert("Error: " + data.detail);
+      let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
     }
   } catch (err) {
     alert("Push error.");
