@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.0.2";
+    const APP_VERSION = "1.0.4";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -372,11 +372,19 @@
           <h3 style="margin-bottom:16px;">Omni-Push Deploy</h3>
           <div style="display:flex; gap:16px; margin-bottom:16px;">
             <div style="flex:1;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Product Description Destination</label>
+              <select id="omni-product-dest" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+                <option value="">Do Not Push</option>
+                <option value="shopify">Shopify Store</option>
+                <option value="amazon">Amazon Seller Central</option>
+                <option value="ebay">eBay Inventory</option>
+              </select>
+            </div>
+            <div style="flex:1;">
               <label style="display:block;margin-bottom:8px;font-size:13px;">Blog Destination</label>
               <select id="omni-blog-dest" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
                 <option value="">Do Not Push</option>
                 <option value="wordpress">WordPress</option>
-                <option value="shopify">Shopify Blog</option>
               </select>
             </div>
             <div style="flex:1;">
@@ -429,7 +437,23 @@
           </div>
           <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('wordpress')">Connect WordPress</button>
         </div>
-        
+
+        <!-- Shopify -->
+        <div class="card">
+          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+            Shopify
+          </h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Store URL</label>
+            <input type="text" id="shopify-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="mystore.myshopify.com">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Admin Access Token</label>
+            <input type="password" id="shopify-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="shpat_...">
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('shopify')">Connect Shopify</button>
+        </div>
+
         <div class="card">
           <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
             Mailchimp
@@ -444,7 +468,42 @@
           </div>
           <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('mailchimp')">Connect Mailchimp</button>
         </div>
+
+        <!-- Amazon Seller Central -->
+        <div class="card">
+          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+            Amazon Seller Central
+          </h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client ID</label>
+            <input type="text" id="amz-client" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="amzn1.application-oa2-client...">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client Secret</label>
+            <input type="password" id="amz-secret" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxxxxxxxxxxxxxxx">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Refresh Token</label>
+            <input type="password" id="amz-refresh" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Atzr|IwEBI...">
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('amazon')">Connect Amazon SP-API</button>
+        </div>
         
+        <!-- eBay -->
+        <div class="card">
+          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+            eBay
+          </h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">OAuth User Token</label>
+            <input type="password" id="ebay-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="v^1.1#i^1#r^0...">
+          </div>
+          <p style="font-size: 11px; color: var(--muted); margin-bottom: 16px;">
+            To get your OAuth User Token, generate an access token via the eBay Developer Portal with the Sell.Inventory scope.
+          </p>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('ebay')">Connect eBay API</button>
+        </div>
+
       </div>
     </section>
 
