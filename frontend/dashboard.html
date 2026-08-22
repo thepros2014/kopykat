@@ -287,6 +287,151 @@
       </div>
     </section>
 
+
+
+    <!--  COPY GENERATOR  -->
+    <section id="section-generator" class="dash-section hidden">
+      <div class="page-title">Copy Generator</div>
+      <div class="page-sub">Generate individual pieces of highly optimized copy.</div>
+      
+      <div class="card">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Copy Type</label>
+          <select id="gen-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+            <option value="product_description">Product Description</option>
+            <option value="facebook_ad">Facebook Ad</option>
+            <option value="google_ad">Google Ad</option>
+            <option value="email_subject">Email Subject Line</option>
+            <option value="cold_email">Cold Email</option>
+            <option value="seo_blog">SEO Blog Post</option>
+            <option value="landing_page_hero">Landing Page Hero</option>
+          </select>
+        </div>
+        
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Context / Product Description</label>
+          <textarea id="gen-context" rows="4" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="E.g., Wireless earbuds with 40h battery, active noise cancellation, water resistant."></textarea>
+        </div>
+        
+        <div style="margin-bottom:20px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Tone of Voice</label>
+          <select id="gen-tone" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+            <option value="professional">Professional</option>
+            <option value="witty">Witty</option>
+            <option value="persuasive">Persuasive</option>
+            <option value="urgent">Urgent</option>
+            <option value="luxury">Luxury</option>
+          </select>
+        </div>
+        
+        <button id="btn-generate" class="btn btn-primary" onclick="runGenerator()">?? Generate Copy</button>
+      </div>
+      
+      <div id="gen-results" class="card" style="margin-top:20px; min-height:100px; display:block;">
+        <span style="color:var(--muted);">Results will appear here...</span>
+      </div>
+    </section>
+
+    <!--  OMNI-CAMPAIGN WIZARD  -->
+    <section id="section-omni" class="dash-section hidden">
+      <div class="page-title">Omni-Campaign Wizard</div>
+      <div class="page-sub">Type a keyword, and we'll build a blog, email drip, and social posts.</div>
+      
+      <div class="card">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Target Keyword</label>
+          <input type="text" id="omni-kw" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. Leather Wallet">
+        </div>
+        
+        <div style="margin-bottom:20px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Product Description</label>
+          <textarea id="omni-desc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Describe your product..."></textarea>
+        </div>
+        
+        <button id="btn-omni-generate" class="btn btn-primary" onclick="runOmniGenerate()">1. Generate Campaign</button>
+      </div>
+      
+      <div id="omni-results-wrapper" style="display:none; margin-top:24px;">
+        <div class="card" style="margin-bottom:24px; border:1px solid var(--purple);">
+          <h3 style="margin-bottom:16px;">Omni-Push Deploy</h3>
+          <div style="display:flex; gap:16px; margin-bottom:16px;">
+            <div style="flex:1;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Blog Destination</label>
+              <select id="omni-blog-dest" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+                <option value="">Do Not Push</option>
+                <option value="wordpress">WordPress</option>
+                <option value="shopify">Shopify Blog</option>
+              </select>
+            </div>
+            <div style="flex:1;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Email Destination</label>
+              <select id="omni-email-dest" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+                <option value="">Do Not Push</option>
+                <option value="mailchimp">Mailchimp</option>
+                <option value="hubspot">HubSpot</option>
+              </select>
+            </div>
+          </div>
+          <button id="btn-omni-push" class="btn btn-outline btn-full" onclick="runOmniPush()">2. Deploy Omni-Campaign</button>
+        </div>
+      
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+          <div class="card">
+            <h3 id="omni-blog-title" style="margin-bottom:12px; font-size:16px;"></h3>
+            <div id="omni-blog-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:12px; font-size:16px;">Email Drip (3 parts)</h3>
+            <div id="omni-email-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!--  INTEGRATIONS  -->
+    <section id="section-integrations" class="dash-section hidden">
+      <div class="page-title">Integrations</div>
+      <div class="page-sub">Connect your store and email platforms for 1-click publishing.</div>
+      
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
+        
+        <div class="card">
+          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+            WordPress
+          </h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Site URL</label>
+            <input type="text" id="wp-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="https://myblog.com">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Username</label>
+            <input type="text" id="wp-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="admin">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">App Password</label>
+            <input type="password" id="wp-pass" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxx xxxx xxxx xxxx">
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('wordpress')">Connect WordPress</button>
+        </div>
+        
+        <div class="card">
+          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+            Mailchimp
+          </h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">API Key</label>
+            <input type="password" id="mc-key" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="your-mailchimp-api-key">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">List ID (Audience)</label>
+            <input type="text" id="mc-list" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. 1a2b3c4d">
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('mailchimp')">Connect Mailchimp</button>
+        </div>
+        
+      </div>
+    </section>
+
   </main>
 
   <!--  Bottom Mobile Nav -->
