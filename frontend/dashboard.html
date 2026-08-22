@@ -1,6 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Force Cache & State Wipe on Update -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <script>
+    const APP_VERSION = "1.0.1";
+    if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
+      localStorage.clear();
+      sessionStorage.clear();
+      // Clear cookies
+      document.cookie.split(";").forEach(function(c) { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
+      localStorage.setItem("kopykat_version", APP_VERSION);
+      window.location.href = "/"; // Force redirect to refresh state
+    }
+  </script>
+
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard — KopyKat</title>
