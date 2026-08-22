@@ -77,32 +77,48 @@
         </div>
       </div>
 
-      <!-- Quick start guide -->
-      <div class="card">
-        <h3> Quick Start</h3>
-        <p style="color:var(--muted);margin-bottom:20px;font-size:14px;">
-          Make your first API call in 30 seconds.
+      <!-- Onboarding Pipeline -->
+      <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(180deg, rgba(142,68,173,0.03) 0%, transparent 100%);">
+        <h3 style="display:flex; align-items:center; gap:8px;">
+          <svg width="20" height="20" fill="none" stroke="var(--purple)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          Your Autonomous Marketing Employee is Ready
+        </h3>
+        <p style="color:var(--muted); margin-bottom:24px; font-size:14px; line-height:1.5;">
+          Welcome to KopyKat. Follow this 3-step pipeline to put your marketing on autopilot.
         </p>
-        <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:20px;overflow-x:auto;font-size:13px;line-height:1.8;">
-<code><span style="color:#6a7383;"># 1. Get your API key from the API Keys tab
-# 2. Make a request:</span>
+        
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
+          
+          <!-- Step 1 -->
+          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 1</div>
+            <h4 style="margin:10px 0 8px 0; font-size:16px;">Connect Your Store</h4>
+            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+              Link KopyKat to your Shopify, WordPress, or Email provider so it can publish for you automatically.
+            </p>
+            <button class="btn btn-outline btn-sm btn-full" onclick="showSection('integrations')">Go to Integrations</button>
+          </div>
 
-curl -X POST https://YOUR_APP_URL/api/generate \
-  -H "Authorization: Bearer sc_YOUR_KEY_HERE" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "product_description",
-    "context": "Describe your product here",
-    "tone": "professional",
-    "variations": 1
-  }'</code></pre>
-        <div style="margin-top:16px;font-size:13px;color:var(--muted);">
-          Copy types: <code style="color:var(--purple);">product_description</code> · 
-          <code style="color:var(--purple);">email_subject</code> · 
-          <code style="color:var(--purple);">social_post</code> · 
-          <code style="color:var(--purple);">ad_headline</code> · 
-          <code style="color:var(--purple);">landing_page_hero</code> · 
-          <a href="/api/docs" target="_blank" style="color:var(--purple);">+5 more →</a>
+          <!-- Step 2 -->
+          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 2</div>
+            <h4 style="margin:10px 0 8px 0; font-size:16px;">Train the AI</h4>
+            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+              Tell KopyKat what you're selling. It will scrape the market and write an entire campaign in 30 seconds.
+            </p>
+            <button class="btn btn-primary btn-sm btn-full" onclick="showSection('omni')">Start Omni-Campaign</button>
+          </div>
+
+          <!-- Step 3 -->
+          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 3</div>
+            <h4 style="margin:10px 0 8px 0; font-size:16px;">1-Click Deploy</h4>
+            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+              Review the generated copy and click Deploy. KopyKat handles the formatting and publishing across all channels.
+            </p>
+            <button class="btn btn-outline btn-sm btn-full" disabled style="opacity:0.6; cursor:not-allowed;">(Available after generation)</button>
+          </div>
+          
         </div>
       </div>
     </section>
