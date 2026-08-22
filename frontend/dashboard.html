@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.0.5";
+    const APP_VERSION = "1.0.6";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -370,32 +370,35 @@
       <div id="omni-results-wrapper" style="display:none; margin-top:24px;">
         <div class="card" style="margin-bottom:24px; border:1px solid var(--purple);">
           <h3 style="margin-bottom:16px;">Omni-Push Deploy</h3>
-          <div style="display:flex; gap:16px; margin-bottom:16px;">
-            <div style="flex:1;">
-              <label style="display:block;margin-bottom:8px;font-size:13px;">Product Description Destination</label>
-              <select id="omni-product-dest" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
-                <option value="">Do Not Push</option>
-                <option value="shopify">Shopify Store</option>
-                <option value="amazon">Amazon Seller Central</option>
-                <option value="ebay">eBay Inventory</option>
-                <option value="walmart">Walmart Marketplace</option>
-                <option value="temu">Temu Seller Center</option>
-              </select>
+          <div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+            <!-- Product Multi-Select -->
+            <div style="flex:1; min-width:200px;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Product Syndication</label>
+              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="shopify"> Shopify Store</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="amazon"> Amazon Seller Central</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="ebay"> eBay Inventory</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="walmart"> Walmart Marketplace</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="temu"> Temu Seller Center</label>
+              </div>
             </div>
-            <div style="flex:1;">
-              <label style="display:block;margin-bottom:8px;font-size:13px;">Blog Destination</label>
-              <select id="omni-blog-dest" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
-                <option value="">Do Not Push</option>
-                <option value="wordpress">WordPress</option>
-              </select>
+            
+            <!-- Blog Multi-Select -->
+            <div style="flex:1; min-width:200px;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Blog Syndication</label>
+              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="wordpress"> WordPress</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="webflow"> Webflow</label>
+              </div>
             </div>
-            <div style="flex:1;">
-              <label style="display:block;margin-bottom:8px;font-size:13px;">Email Destination</label>
-              <select id="omni-email-dest" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
-                <option value="">Do Not Push</option>
-                <option value="mailchimp">Mailchimp</option>
-                <option value="hubspot">HubSpot</option>
-              </select>
+            
+            <!-- Email Multi-Select -->
+            <div style="flex:1; min-width:200px;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Email Drip Syndication</label>
+              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="mailchimp"> Mailchimp</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="hubspot"> HubSpot CRM</label>
+              </div>
             </div>
           </div>
           <button id="btn-omni-push" class="btn btn-outline btn-full" onclick="runOmniPush()">2. Deploy Omni-Campaign</button>

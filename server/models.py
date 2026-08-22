@@ -150,11 +150,11 @@ class ResetPasswordSubmit(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 class IntegrationSaveRequest(BaseModel):
-    platform: Literal["wordpress", "mailchimp", "hubspot", "shopify", "webflow"]
+    platform: Literal["wordpress", "mailchimp", "hubspot", "shopify", "webflow", "amazon", "ebay", "walmart", "temu"]
     credentials: dict
 
 class PushRequest(BaseModel):
-    platform: Literal["wordpress", "mailchimp", "hubspot", "shopify", "webflow"]
+    platform: Literal["wordpress", "mailchimp", "hubspot", "shopify", "webflow", "amazon", "ebay", "walmart", "temu"]
     content: str
     title: Optional[str] = "Generated via KopyKat"
     metadata: Optional[dict] = {}
