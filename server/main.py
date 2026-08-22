@@ -105,7 +105,6 @@ app.add_middleware(
 
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
-)
 
 # ── HTML sanitization allow-list ───────────────────────────────────────────────
 # Used for AI-generated blog post content before it is inserted into the page.
