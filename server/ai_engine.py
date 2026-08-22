@@ -145,6 +145,43 @@ async def _generate_gemini(prompt: str, max_tokens: int) -> tuple[str, int]:
         raise RuntimeError(f"Gemini error: {e}")
 
 
+
+async def analyze_csv_mapping(headers: list, sample_row: list) -> dict:
+    prompt = f"""
+You are an intelligent data mapping assistant. The user has uploaded an inventory CSV.
+We need to automatically identify which column contains the "Product Name" (or title), and which column contains the "Product Description".
+
+CSV Headers: {headers}
+Sample Row: {sample_row}
+
+Return a JSON object with exactly two string keys:
+"name_col": the exact header string that represents the product name.
+"desc_col": the exact header string that represents the product description (or empty string if none exists).
+"""
+    
+    provider = AI_PROVIDER
+    if provider == "openai" and not OPENAI_API_KEY: provider = "gemini"
+    if provider == "gemini" and not GEMINI_API_KEY: provider = "openai"
+
+    if provider == "openai" and OPENAI_API_KEY:
+        text, _ = await _generate_openai(prompt, 500)
+    elif provider == "gemini" and GEMINI_API_KEY:
+        text, _ = await _generate_gemini(prompt, 500)
+    else:
+        # Fallback to crude heuristics if no AI key is configured
+        name_col = next((h for h in headers if "name" in h.lower() or "title" in h.lower()), headers[0] if headers else "")
+        desc_col = next((h for h in headers if "desc" in h.lower()), "")
+        return {"name_col": name_col, "desc_col": desc_col}
+        
+    try:
+        mapping = json.loads(text)
+        return mapping
+    except Exception:
+        # Fallback to crude heuristics if JSON parsing fails
+        name_col = next((h for h in headers if "name" in h.lower() or "title" in h.lower()), headers[0] if headers else "")
+        desc_col = next((h for h in headers if "desc" in h.lower()), "")
+        return {"name_col": name_col, "desc_col": desc_col}
+
 #  Main generation function 
 
 async def generate_copy(

@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.0.7";
+    const APP_VERSION = "1.0.8";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -18,37 +18,43 @@
   
 // --- BULK SYNC LOGIC ---
 let bulkItems = [];
-function parseCSV() {
+async function parseCSV() {
   const fileInput = document.getElementById('csv-file');
   if (!fileInput.files.length) return alert("Please select a CSV file.");
   const file = fileInput.files[0];
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const text = e.target.result;
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    if (lines.length < 2) return alert("CSV is empty or missing headers.");
-    const headers = lines[0].toLowerCase().split(',');
-    const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('title'));
-    const descIdx = headers.findIndex(h => h.includes('desc'));
-    if (nameIdx === -1) return alert("Could not find a 'Name' column.");
-    bulkItems = [];
+  
+  const formData = new FormData();
+  formData.append("file", file);
+  
+  try {
+    const res = await fetch('/api/catalog/parse-csv', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + currentToken },
+      body: formData
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
+    
+    bulkItems = data.items;
     const tbody = document.getElementById('bulk-table-body');
     tbody.innerHTML = '';
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',');
-      const name = cols[nameIdx];
-      const desc = descIdx !== -1 ? cols[descIdx] : '';
-      if (!name) continue;
-      bulkItems.push({ name, desc, status: 'Ready' });
+    
+    for (let i = 0; i < bulkItems.length; i++) {
+      const item = bulkItems[i];
+      item.status = 'Ready';
       const tr = document.createElement('tr');
       tr.style.borderBottom = '1px solid var(--border)';
-      tr.id = `bulk-row-${i-1}`;
-      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${name}</td><td style="padding:12px 8px; color:var(--muted);">${desc.substring(0, 50)}...</td>`;
+      tr.id = `bulk-row-${i}`;
+      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;font-weight:bold;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${item.name}</td><td style="padding:12px 8px; color:var(--muted);">${item.desc.substring(0, 80)}...</td>`;
       tbody.appendChild(tr);
     }
     document.getElementById('bulk-preview-area').classList.remove('hidden');
-  };
-  reader.readAsText(file);
+    
+    alert(`AI successfully mapped columns:\nName = '${data.mapping_used.name_col}'\nDescription = '${data.mapping_used.desc_col}'\n\nFound ${bulkItems.length} products.`);
+  } catch (err) {
+    alert("Error parsing CSV: " + err.message);
+  }
 }
 async function startBulkSyndication() {
   const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
@@ -1116,37 +1122,43 @@ function activateBottomNav(btn) {
 
 // --- BULK SYNC LOGIC ---
 let bulkItems = [];
-function parseCSV() {
+async function parseCSV() {
   const fileInput = document.getElementById('csv-file');
   if (!fileInput.files.length) return alert("Please select a CSV file.");
   const file = fileInput.files[0];
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const text = e.target.result;
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    if (lines.length < 2) return alert("CSV is empty or missing headers.");
-    const headers = lines[0].toLowerCase().split(',');
-    const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('title'));
-    const descIdx = headers.findIndex(h => h.includes('desc'));
-    if (nameIdx === -1) return alert("Could not find a 'Name' column.");
-    bulkItems = [];
+  
+  const formData = new FormData();
+  formData.append("file", file);
+  
+  try {
+    const res = await fetch('/api/catalog/parse-csv', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + currentToken },
+      body: formData
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
+    
+    bulkItems = data.items;
     const tbody = document.getElementById('bulk-table-body');
     tbody.innerHTML = '';
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',');
-      const name = cols[nameIdx];
-      const desc = descIdx !== -1 ? cols[descIdx] : '';
-      if (!name) continue;
-      bulkItems.push({ name, desc, status: 'Ready' });
+    
+    for (let i = 0; i < bulkItems.length; i++) {
+      const item = bulkItems[i];
+      item.status = 'Ready';
       const tr = document.createElement('tr');
       tr.style.borderBottom = '1px solid var(--border)';
-      tr.id = `bulk-row-${i-1}`;
-      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${name}</td><td style="padding:12px 8px; color:var(--muted);">${desc.substring(0, 50)}...</td>`;
+      tr.id = `bulk-row-${i}`;
+      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;font-weight:bold;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${item.name}</td><td style="padding:12px 8px; color:var(--muted);">${item.desc.substring(0, 80)}...</td>`;
       tbody.appendChild(tr);
     }
     document.getElementById('bulk-preview-area').classList.remove('hidden');
-  };
-  reader.readAsText(file);
+    
+    alert(`AI successfully mapped columns:\nName = '${data.mapping_used.name_col}'\nDescription = '${data.mapping_used.desc_col}'\n\nFound ${bulkItems.length} products.`);
+  } catch (err) {
+    alert("Error parsing CSV: " + err.message);
+  }
 }
 async function startBulkSyndication() {
   const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
@@ -1202,37 +1214,43 @@ function activateBottomNav(btn) {
 
 // --- BULK SYNC LOGIC ---
 let bulkItems = [];
-function parseCSV() {
+async function parseCSV() {
   const fileInput = document.getElementById('csv-file');
   if (!fileInput.files.length) return alert("Please select a CSV file.");
   const file = fileInput.files[0];
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const text = e.target.result;
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    if (lines.length < 2) return alert("CSV is empty or missing headers.");
-    const headers = lines[0].toLowerCase().split(',');
-    const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('title'));
-    const descIdx = headers.findIndex(h => h.includes('desc'));
-    if (nameIdx === -1) return alert("Could not find a 'Name' column.");
-    bulkItems = [];
+  
+  const formData = new FormData();
+  formData.append("file", file);
+  
+  try {
+    const res = await fetch('/api/catalog/parse-csv', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + currentToken },
+      body: formData
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
+    
+    bulkItems = data.items;
     const tbody = document.getElementById('bulk-table-body');
     tbody.innerHTML = '';
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',');
-      const name = cols[nameIdx];
-      const desc = descIdx !== -1 ? cols[descIdx] : '';
-      if (!name) continue;
-      bulkItems.push({ name, desc, status: 'Ready' });
+    
+    for (let i = 0; i < bulkItems.length; i++) {
+      const item = bulkItems[i];
+      item.status = 'Ready';
       const tr = document.createElement('tr');
       tr.style.borderBottom = '1px solid var(--border)';
-      tr.id = `bulk-row-${i-1}`;
-      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${name}</td><td style="padding:12px 8px; color:var(--muted);">${desc.substring(0, 50)}...</td>`;
+      tr.id = `bulk-row-${i}`;
+      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;font-weight:bold;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${item.name}</td><td style="padding:12px 8px; color:var(--muted);">${item.desc.substring(0, 80)}...</td>`;
       tbody.appendChild(tr);
     }
     document.getElementById('bulk-preview-area').classList.remove('hidden');
-  };
-  reader.readAsText(file);
+    
+    alert(`AI successfully mapped columns:\nName = '${data.mapping_used.name_col}'\nDescription = '${data.mapping_used.desc_col}'\n\nFound ${bulkItems.length} products.`);
+  } catch (err) {
+    alert("Error parsing CSV: " + err.message);
+  }
 }
 async function startBulkSyndication() {
   const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);

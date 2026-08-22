@@ -12,7 +12,7 @@ from typing import Optional
 import bleach
 from fastapi import (
     FastAPI, Depends, HTTPException, Request, Header,
-    BackgroundTasks, status
+    BackgroundTasks, status, File, UploadFile
 )
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -819,6 +819,53 @@ async def api_public_demo(
     except Exception as e:
         logger.error(f"Public demo failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Demo generation failed due to an internal error.")
+
+
+@app.post("/api/catalog/parse-csv", tags=["Campaigns"])
+async def api_parse_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    auth: tuple = Depends(get_current_user_apikey)
+):
+    import csv, io
+    from .ai_engine import analyze_csv_mapping
+    
+    content = await file.read()
+    text = content.decode("utf-8")
+    
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    if len(rows) < 2:
+        raise HTTPException(status_code=400, detail="CSV is empty or missing headers.")
+        
+    headers = rows[0]
+    sample_row = rows[1]
+    
+    # Use AI to semantically map headers
+    mapping = await analyze_csv_mapping(headers, sample_row)
+    name_col = mapping.get("name_col", "")
+    desc_col = mapping.get("desc_col", "")
+    
+    if not name_col:
+        raise HTTPException(status_code=400, detail="AI could not identify a Product Name column.")
+        
+    try:
+        name_idx = headers.index(name_col)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"AI returned invalid name column: {name_col}")
+        
+    desc_idx = headers.index(desc_col) if desc_col in headers else -1
+    
+    results = []
+    # Skip header
+    for r in rows[1:]:
+        if len(r) <= name_idx: continue
+        name = r[name_idx]
+        if not name.strip(): continue
+        desc = r[desc_idx] if desc_idx != -1 and len(r) > desc_idx else ""
+        results.append({"name": name, "desc": desc})
+        
+    return {"items": results[:100], "mapping_used": mapping}
 
 @app.post("/api/campaign/generate", tags=["Campaigns"])
 @limiter.limit("5/minute")
