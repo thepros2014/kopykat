@@ -133,6 +133,22 @@ def sanitize_html(raw: str) -> str:
 async def startup():
     logger.info("🚀 KopyKat starting up...")
     init_db()
+    
+    # Auto-upgrade the founder account
+    try:
+        from .database import SessionLocal
+        db = SessionLocal()
+        user = db.query(User).filter(User.email == "thepros2014@gmail.com").first()
+        if user and user.plan != "megastore":
+            user.plan = "megastore"
+            user.generations = 5000
+            user.monthly_limit = 5000
+            db.commit()
+            logger.info("✅ Automatically upgraded thepros2014@gmail.com to megastore")
+        db.close()
+    except Exception as e:
+        logger.error(f"Failed to auto-upgrade thepros2014: {e}")
+        
     logger.info("✅ Database initialized")
     logger.info(f"🟢 KopyKat v{APP_VERSION} is live and running")
     # Note: Background tasks (APScheduler) are now run separately via worker.py
