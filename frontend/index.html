@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.0.1";
+    const APP_VERSION = "1.0.2";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -123,33 +123,48 @@
 </section>
 
 <!-- ── HOW IT WORKS ─────────────────────────────────────────────────────── -->
-<section class="section section-dark" id="how">
-  <div class="container">
-    <div class="section-header">
-      <h2>Up and running in 3 steps</h2>
-      <p>No setup complexity. No prompt engineering needed.</p>
+
+  <!-- FEATURES / HOW IT WORKS -->
+  <section class="section" id="features" style="background: var(--bg2); padding: 80px 20px;">
+    <div style="max-width: 1000px; margin: 0 auto; text-align: center;">
+      <h2 style="font-size: 36px; margin-bottom: 16px;">Hire an Autonomous Marketing Employee</h2>
+      <p style="font-size: 18px; color: var(--muted); margin-bottom: 60px; max-width: 600px; margin-left: auto; margin-right: auto;">
+        Don't pay an agency $4,000/mo. Don't waste hours copying and pasting into ChatGPT. KopyKat connects directly to your store and runs your campaigns on autopilot.
+      </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; text-align: left;">
+        
+        <!-- Feature 1 -->
+        <div style="background: var(--bg); padding: 32px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+          <div style="background: var(--purple); color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">1</div>
+          <h3 style="font-size: 20px; margin-bottom: 12px;">Connect Your Platforms</h3>
+          <p style="color: var(--muted); line-height: 1.6; font-size: 15px;">
+            Link KopyKat to your Shopify, WordPress, Mailchimp, or HubSpot accounts with a single click. No complex developer API setups required.
+          </p>
+        </div>
+
+        <!-- Feature 2 -->
+        <div style="background: var(--bg); padding: 32px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+          <div style="background: var(--purple); color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">2</div>
+          <h3 style="font-size: 20px; margin-bottom: 12px;">Train on a Keyword</h3>
+          <p style="color: var(--muted); line-height: 1.6; font-size: 15px;">
+            Just type what you're selling. KopyKat's engine instantly scrapes the market, analyzes pain points, and generates an entire Omni-Campaign (SEO Blog, 3 Emails, 3 Social Posts) in 30 seconds.
+          </p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div style="background: var(--bg); padding: 32px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+          <div style="background: var(--purple); color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">3</div>
+          <h3 style="font-size: 20px; margin-bottom: 12px;">1-Click Deploy</h3>
+          <p style="color: var(--muted); line-height: 1.6; font-size: 15px;">
+            Review the generated copy and click "Deploy." KopyKat automatically formats and publishes the content natively to all your connected platforms simultaneously.
+          </p>
+        </div>
+
+      </div>
     </div>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <h3>Create free account</h3>
-        <p>Sign up below — no credit card required. Get 50 free generations instantly.</p>
-      </div>
-      <div class="step-arrow">→</div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <h3>Get your API key</h3>
-        <p>Generate an API key from your dashboard. Copy it. You're ready.</p>
-      </div>
-      <div class="step-arrow">→</div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <h3>Make your first call</h3>
-        <p>One POST request. Get back polished, professional copy ready to use.</p>
-      </div>
-    </div>
-  </div>
-</section>
+  </section>
+
 
 <!-- ── PRICING ──────────────────────────────────────────────────────────── -->
 <section class="section" id="pricing" style="padding: 80px 20px; background: var(--bg);">
