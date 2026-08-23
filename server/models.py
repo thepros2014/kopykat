@@ -243,3 +243,26 @@ class CustomerReviewResponse(BaseModel):
     status: str
     draft_reply: Optional[str] = None
     created_at: datetime
+
+
+class PriceMarginItemCreate(BaseModel):
+    sku: str = Field(min_length=1, max_length=100)
+    product_name: str = Field(min_length=1, max_length=255)
+    cogs_usd: float = Field(ge=0.0)
+    selling_price_usd: float = Field(gt=0.0)
+    competitor_price_usd: Optional[float] = None
+    target_margin_pct: Optional[float] = 40.0
+
+class PriceMarginItemResponse(BaseModel):
+    id: str
+    sku: str
+    product_name: str
+    cogs_usd: float
+    selling_price_usd: float
+    competitor_price_usd: Optional[float] = None
+    target_margin_pct: float
+    current_margin_pct: float
+    profit_per_unit_usd: float
+    status: str
+    recommendation: str
+    updated_at: datetime

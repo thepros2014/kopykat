@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest, CustomerReviewResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest, CustomerReviewResponse, PriceMarginItemCreate, PriceMarginItemResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -847,3 +847,76 @@ async def list_customer_reviews(auth: tuple = Depends(get_current_user_apikey), 
             created_at=r.created_at
         ) for r in reviews
     ]
+
+
+# --- PRICE & MARGIN MONITOR ROUTES ---
+@app.get("/api/pricing/items", response_model=list[PriceMarginItemResponse], tags=["Price & Margin Monitor"])
+async def list_price_margin_items(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import PriceMarginItem
+    user, _ = auth
+    items = db.query(PriceMarginItem).filter(PriceMarginItem.user_id == user.id).order_by(PriceMarginItem.updated_at.desc()).all()
+    return items
+
+@app.post("/api/pricing/item", response_model=PriceMarginItemResponse, tags=["Price & Margin Monitor"])
+async def create_or_update_price_item(
+    body: PriceMarginItemCreate,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import PriceMarginItem
+    from .pricing_monitor import compute_pricing_analysis
+    import uuid
+
+    user, _ = auth
+    clean_sku = body.sku.strip().upper()
+    analysis = compute_pricing_analysis(
+        cogs=body.cogs_usd,
+        selling_price=body.selling_price_usd,
+        competitor_price=body.competitor_price_usd,
+        target_margin=body.target_margin_pct or 40.0
+    )
+
+    item = db.query(PriceMarginItem).filter(PriceMarginItem.user_id == user.id, PriceMarginItem.sku == clean_sku).first()
+    if item:
+        item.product_name = body.product_name.strip()
+        item.cogs_usd = body.cogs_usd
+        item.selling_price_usd = body.selling_price_usd
+        item.competitor_price_usd = body.competitor_price_usd
+        item.target_margin_pct = body.target_margin_pct or 40.0
+        item.current_margin_pct = analysis["current_margin_pct"]
+        item.profit_per_unit_usd = analysis["profit_per_unit_usd"]
+        item.status = analysis["status"]
+        item.recommendation = analysis["recommendation"]
+        item.updated_at = datetime.utcnow()
+    else:
+        item = PriceMarginItem(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            sku=clean_sku,
+            product_name=body.product_name.strip(),
+            cogs_usd=body.cogs_usd,
+            selling_price_usd=body.selling_price_usd,
+            competitor_price_usd=body.competitor_price_usd,
+            target_margin_pct=body.target_margin_pct or 40.0,
+            current_margin_pct=analysis["current_margin_pct"],
+            profit_per_unit_usd=analysis["profit_per_unit_usd"],
+            status=analysis["status"],
+            recommendation=analysis["recommendation"],
+            updated_at=datetime.utcnow()
+        )
+        db.add(item)
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+@app.delete("/api/pricing/item/{item_id}", tags=["Price & Margin Monitor"])
+async def delete_price_item(item_id: str, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import PriceMarginItem
+    user, _ = auth
+    item = db.query(PriceMarginItem).filter(PriceMarginItem.id == item_id, PriceMarginItem.user_id == user.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    db.delete(item)
+    db.commit()
+    return {"success": True, "message": "Item deleted"}

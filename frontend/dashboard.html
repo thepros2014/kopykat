@@ -64,6 +64,7 @@
     <button class="sidebar-link" onclick="showSection('miner', this)">Review Miner</button>
     <button class="sidebar-link" onclick="showSection('inventory', this)">Inventory Balancer</button>
     <button class="sidebar-link" onclick="showSection('ugc', this)">Reviews & UGC Drips</button>
+    <button class="sidebar-link" onclick="showSection('pricing-monitor', this)">Price & Margin Monitor</button>
  <div style="flex:1;"></div>
  <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
  </aside>
@@ -1348,6 +1349,130 @@ document.addEventListener('DOMContentLoaded', () => {
   loadKeys();
   loadInventory();
   loadCustomerReviews();
+  loadPriceItems();
+
+async function loadPriceItems() {
+  const tbody = document.getElementById('pm-table-body');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch('/api/pricing/items', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (!res.ok) throw new Error("Failed to load price items");
+    const items = await res.json();
+
+    tbody.innerHTML = '';
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; text-align:center; color:var(--muted);">No products tracked yet. Add your first product above.</td></tr>';
+      return;
+    }
+
+    items.forEach(it => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+
+      const statusColor = it.status === 'healthy' ? '#22c55e' : (it.status === 'critical' ? '#ef4444' : '#eab308');
+
+      const tdSku = document.createElement('td');
+      tdSku.style.padding = '10px 8px';
+      tdSku.style.fontWeight = 'bold';
+      tdSku.textContent = it.sku;
+
+      const tdProd = document.createElement('td');
+      tdProd.style.padding = '10px 8px';
+      tdProd.textContent = it.product_name;
+
+      const tdPrices = document.createElement('td');
+      tdPrices.style.padding = '10px 8px';
+      tdPrices.innerHTML = '<span style="color:var(--muted);">$ ' + it.cogs_usd.toFixed(2) + '</span> / <strong>$ ' + it.selling_price_usd.toFixed(2) + '</strong>' + (it.competitor_price_usd ? ' / <span style="color:var(--purple);">$ ' + it.competitor_price_usd.toFixed(2) + '</span>' : '');
+
+      const tdMargin = document.createElement('td');
+      tdMargin.style.padding = '10px 8px';
+      tdMargin.innerHTML = '<span style="font-weight:bold; color:' + statusColor + ';">' + it.current_margin_pct.toFixed(1) + '%</span>';
+
+      const tdProfit = document.createElement('td');
+      tdProfit.style.padding = '10px 8px';
+      tdProfit.style.fontWeight = 'bold';
+      tdProfit.style.color = '#22c55e';
+      tdProfit.textContent = '$ ' + it.profit_per_unit_usd.toFixed(2);
+
+      const tdRec = document.createElement('td');
+      tdRec.style.padding = '10px 8px';
+      tdRec.style.fontSize = '12px';
+      tdRec.style.lineHeight = '1.4';
+      tdRec.textContent = it.recommendation;
+
+      const tdAct = document.createElement('td');
+      tdAct.style.padding = '10px 8px';
+      tdAct.style.textAlign = 'right';
+      tdAct.innerHTML = '<button class="btn btn-outline btn-sm" onclick="deletePriceItem(\'' + it.id + '\')">&times;</button>';
+
+      tr.appendChild(tdSku);
+      tr.appendChild(tdProd);
+      tr.appendChild(tdPrices);
+      tr.appendChild(tdMargin);
+      tr.appendChild(tdProfit);
+      tr.appendChild(tdRec);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; text-align:center; color:#ff6b6b;">Failed to load margin matrix.</td></tr>';
+  }
+}
+
+async function savePriceItem() {
+  const sku = document.getElementById('pm-sku').value.trim();
+  const name = document.getElementById('pm-title').value.trim();
+  const cogs = parseFloat(document.getElementById('pm-cogs').value);
+  const retail = parseFloat(document.getElementById('pm-retail').value);
+  const compStr = document.getElementById('pm-comp').value.trim();
+  const comp = compStr ? parseFloat(compStr) : null;
+  const target = parseFloat(document.getElementById('pm-target').value) || 40.0;
+
+  if (!sku) return alert("Please enter an SKU.");
+  if (!name) return alert("Please enter a product title.");
+  if (isNaN(cogs) || cogs < 0) return alert("Please enter a valid COGS amount.");
+  if (isNaN(retail) || retail <= 0) return alert("Please enter a valid retail price.");
+
+  try {
+    const res = await fetch('/api/pricing/item', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({
+        sku: sku,
+        product_name: name,
+        cogs_usd: cogs,
+        selling_price_usd: retail,
+        competitor_price_usd: comp,
+        target_margin_pct: target
+      })
+    });
+    if (!res.ok) throw new Error("Failed to save price item");
+    alert("Pricing analysis saved for " + sku);
+    document.getElementById('pm-sku').value = '';
+    document.getElementById('pm-title').value = '';
+    document.getElementById('pm-cogs').value = '';
+    document.getElementById('pm-retail').value = '';
+    document.getElementById('pm-comp').value = '';
+    loadPriceItems();
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+}
+
+async function deletePriceItem(id) {
+  if (!confirm("Stop tracking this product's margin?")) return;
+  try {
+    await fetch('/api/pricing/item/' + id, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    });
+    loadPriceItems();
+  } catch (err) {
+    alert("Failed to delete item.");
+  }
+}
+
 
 async function generateUGCDrip() {
   const prod = document.getElementById('ugc-prod').value.trim();

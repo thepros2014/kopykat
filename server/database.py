@@ -233,6 +233,23 @@ class CustomerReview(Base):
     draft_reply = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class PriceMarginItem(Base):
+    __tablename__ = "price_margin_items"
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    sku = Column(String(100), nullable=False)
+    product_name = Column(String(255), nullable=False)
+    cogs_usd = Column(Float, default=0.0, nullable=False)
+    selling_price_usd = Column(Float, default=0.0, nullable=False)
+    competitor_price_usd = Column(Float, nullable=True)
+    target_margin_pct = Column(Float, default=40.0, nullable=False)
+    current_margin_pct = Column(Float, default=0.0, nullable=False)
+    profit_per_unit_usd = Column(Float, default=0.0, nullable=False)
+    status = Column(String(20), default="healthy", nullable=False)  # healthy, warning, critical
+    recommendation = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class OpportunityLog(Base):
     __tablename__ = "opportunity_logs"
     id = Column(String(36), primary_key=True)
