@@ -8,6 +8,157 @@ Bring the IDE-side AI fully up to speed without repeating completed work.
 This file is the single source of truth for project state and next steps.
 
 ============================================================
+MANDATORY ENGINEERING PROTOCOL — ALL AI SESSIONS
+============================================================
+This protocol applies to every AI working on this project regardless of model.
+It is not optional. It is not a suggestion.
+
+CORE PRINCIPLE
+Never confuse:
+- knowing a best practice
+- mentioning a best practice
+- implementing a best practice
+- proving that the implementation actually satisfies it
+
+Default posture: "Assume there is a defect until the implementation provides
+evidence otherwise."
+
+IMPLEMENTATION MODE — follow in order for every feature:
+1. Understand the complete execution path.
+2. Identify affected components.
+3. Identify existing contracts and invariants.
+4. Identify dependencies between files/services.
+5. Identify security and economic consequences.
+6. Implement the smallest correct change.
+7. Inspect surrounding code for compatibility.
+8. Verify all callers and consumers of changed interfaces.
+9. Generate or update tests.
+10. Perform adversarial review AFTER implementation.
+
+Do not stop when the code "looks right."
+
+GLOBAL INVARIANT CHECKING
+Before declaring a feature complete, explicitly verify its invariants:
+- A value written by one component must be interpreted identically by every consumer.
+- A successful payment must produce exactly one entitlement.
+- A failed payment must not produce an entitlement.
+- A successful generation must consume the correct amount of usage.
+- A failed generation must not permanently consume usage.
+- Concurrent requests must not bypass limits.
+- Authorization must be enforced consistently across equivalent endpoints.
+- Secrets must never be exposed through logs, errors, responses, or source.
+- Frontend claims must correspond to actual backend behavior.
+- Database state must remain consistent after partial failure.
+
+CROSS-FILE REASONING
+Never review a changed function in isolation.
+When changing any API field, model, enum, billing identifier, auth mechanism,
+response, or config variable — find every producer AND consumer.
+Check: PRODUCER -> STORAGE -> TRANSPORT -> CONSUMER
+Check: FRONTEND -> API -> SERVICE -> DATABASE -> EXTERNAL PROVIDER
+
+SECURITY REVIEW — assume an attacker controls everything:
+request params, headers, cookies, API keys, JWTs, uploaded files,
+webhook payloads, IDs, timing, concurrency, repeated requests.
+For any vulnerability found, identify: attack / code path / consequence / fix / test.
+
+FINANCIAL REVIEW — assume the customer will:
+click twice, retry, send concurrent requests, receive duplicate webhooks,
+cancel immediately, dispute, manipulate client-side values.
+Verify: payment -> webhook -> entitlement -> usage -> expiration -> cancellation -> refund.
+Never trust the frontend for price, entitlement, balance, or authorization.
+
+FAILURE-FIRST ENGINEERING
+Ask not only "what happens when everything works?" but also
+"what happens when every component fails?"
+A graceful failure is preferable to silent corruption.
+
+SECRETS
+Never silently invent security-sensitive defaults.
+If a required secret is missing: fail startup with an explicit error.
+Never expose keys, tokens, or credentials in logs, exceptions, responses, or source.
+
+ADVERSARIAL REVIEW — after implementing, switch roles:
+A) SECURITY AUDITOR: "How can I break this?"
+B) FINANCIAL AUDITOR: "How can I obtain value without paying?"
+C) MALICIOUS USER: "How can I abuse the intended workflow?"
+D) QA ENGINEER: "What edge case did the developer forget?"
+E) SYSTEM ARCHITECT: "What happens when this scales?"
+F) MAINTAINER: "What happens when someone changes this in six months?"
+G) CUSTOMER: "What does the product promise that the backend cannot deliver?"
+
+NO FALSE CONFIDENCE
+Never say "This is secure" / "This is production-ready" / "Everything looks good"
+without evidence. Use precise language:
+"Verified:" / "Not verified:" / "Potential vulnerability:" / "Requires testing:"
+
+PRIORITY CLASSIFICATION
+P0 — catastrophic: security breach, payment corruption, data loss, auth bypass
+P1 — serious: reliability issue, exploitable business logic, incorrect billing
+P2 — engineering defect: maintainability, performance, incomplete edge cases
+P3 — improvement: optimization, UX, refactoring, documentation
+Never bury a P0/P1 beneath cosmetic recommendations.
+
+FINAL REVIEW FORMAT (required before declaring any task complete)
+IMPLEMENTED: what changed.
+VERIFIED: what was actually verified.
+NOT VERIFIED: what could not be proven.
+INVARIANTS: important system rules identified.
+SECURITY: vulnerabilities found or ruled out.
+BILLING/ECONOMICS: financial risks found or ruled out.
+RELIABILITY: failure and concurrency risks.
+CONTRACT CONSISTENCY: frontend/backend/API/database consistency.
+TESTS: tests created or executed.
+REMAINING RISKS: anything still requiring attention.
+FINAL VERDICT: READY / READY WITH WARNINGS / NOT READY / BLOCKED
+
+MOST IMPORTANT RULE
+Do not optimize for agreeing with the user.
+Do not defend previous code merely because you wrote it.
+If the requirement is flawed, say so.
+If the architecture is wrong, say so.
+The goal is not "make the code work."
+The goal is "make the system difficult to break."
+
+============================================================
+LIVING INVARIANT LEDGER
+============================================================
+Every time billing, authentication, integrations, credits, or permissions
+are touched, update this ledger and verify the entire codebase against it.
+
+BILLING INVARIANTS
+- Plan keys in billing.py PLANS dict must exactly match frontend checkout button values.
+  Current valid plan keys: boutique, standard, megastore
+- Campaign deduction uses atomic SQL: UPDATE users SET generations = generations - 1
+  WHERE id = :uid AND generations >= 1. Never use ORM read-modify-write.
+- Stripe webhook idempotency enforced via StripeEvent.event_id unique constraint.
+- Entitlement is granted only after Stripe confirms payment (webhook, not frontend).
+
+AUTHENTICATION INVARIANTS
+- All protected endpoints use Depends(get_current_user_apikey).
+- JWT secret must be set via SECRET_KEY env var. Never fall back to a generated default.
+- Credentials encrypted with Fernet key from ENCRYPTION_KEY env var.
+- Founder account (thepros2014@gmail.com) has no special startup bypass — use DB directly.
+
+GENERATION INVARIANTS
+- A failed generation must not permanently consume a credit.
+- A successful generation must consume exactly 1 credit.
+- Concurrent generation requests cannot bypass the credit check (atomic SQL enforces this).
+
+INTEGRATION INVARIANTS
+- No push function may report success unless the destination API returns 2xx.
+- All integration credentials are encrypted at rest (auth.encrypt_credentials).
+- No credential value is ever logged or returned in an API response.
+- SSRF protection: integrations may only call HTTPS external URLs.
+
+FRONTEND/BACKEND CONTRACT
+- PushRequest.platform Literal must include every platform shown in the UI.
+  Current valid values: wordpress, mailchimp, hubspot, shopify, webflow,
+                        amazon, ebay, walmart, temu
+- APP_VERSION in both HTML files must be incremented on every frontend deploy
+  to trigger client-side cache wipe. Current version: 1.0.8
+
+============================================================
 PROJECT VISION
 ============================================================
 KopyKat is a full-stack e-commerce automation system for small business owners.
