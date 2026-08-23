@@ -14,7 +14,7 @@ This file is the single source of truth for project state and next steps.
 ============================================================
 EXECUTIVE SUMMARY & RECOMMENDED NEXT STEPS (START HERE)
 ============================================================
-Current Build Status: 100% Stable, 57/57 Pytest Suite Passing.
+Current Build Status: 100% Stable, 62/62 Pytest Suite Passing.
 Live Deployment: https://kopykat.onrender.com
 Current Version: 1.0.0 (Semantic Release Tags: v0.1.0, v0.2.0, v0.3.0, v0.4.0, v1.0.0)
 
@@ -56,7 +56,7 @@ PRICING & COST OF SERVICES (STRICT TIER ALLOCATION):
 INVESTOR & SOFTWARE ASSET VALUATION DOSSIER (COMPLETED):
 - [x] Technical Asset Dossier: docs/ACQUISITION_DOSSIER.md detailing IP, 6 autonomous engines, 5 modules, and financial unit economics
 - [x] Automated MRR & Valuation Telemetry: GET /admin/mrr-metrics computing live ARR, MRR, active subscriber counts, and software valuation range
-- [x] Test Suite Maturity: 57 / 57 tests passing with 100% green status across all subsystems
+- [x] Test Suite Maturity: 62 / 62 tests passing with 100% green status across all subsystems
 
 
 ENTERPRISE HARDENING & GOVERNANCE LAYER (COMPLETED):
@@ -66,6 +66,14 @@ ENTERPRISE HARDENING & GOVERNANCE LAYER (COMPLETED):
 - [x] Generation Reservation & Instant Refund: Automatic compensation rollback on AI provider failure
 - [x] Modern Security Headers & CSP: Strict Content-Security-Policy enabled, obsolete headers removed
 
+
+ADVERSARIAL HARDENING & DEFECT CORRECTIONS (COMPLETED & VERIFIED):
+- [x] DEF-01: Centralized Generation Ledger with Row Locking: reserve_user_generations() and refund_user_generations() eliminate race conditions on credit consumption.
+- [x] DEF-02: Strict Entitlement Enforcement: Brand Voice Training, Marketplace Optimizer, and Bulk Import strictly enforce 403 Forbidden for unauthorized accounts.
+- [x] DEF-03: Unified Campaign Ledger: /api/campaign/generate and /api/campaign/generate-vision synchronize monthly & purchased buckets with atomic compensation.
+- [x] DEF-04: Inventory Webhook Deduplication: InventoryWebhookEvent unique constraint prevents duplicate stock decrements on retried deliveries.
+- [x] DEF-05: Resilient LLM JSON Extraction: _extract_json_block() parses structured JSON safely despite conversational preambles or formatting flaws.
+- [x] 62 / 62 Automated Tests Passing with 100% Green Status.
 
 ECONOMIC INTEGRITY & ENTITLEMENT GOVERNANCE (COMPLETED & VERIFIED):
 - [x] Elimination of Purchased-Generation Double-Counting Bug: User.monthly_generations and User.purchased_generations maintain independent remaining balances. Consumed purchased credits are never re-granted on subscription renewal.
@@ -78,7 +86,7 @@ PRODUCTION HARDENING & ADVERSARIAL AUDIT (COMPLETED & VERIFIED):
 - [x] Renewal & Cancellation Balance Protection: Monthly invoice resets never wipe purchased generation balances
 - [x] Webhook Replay & Idempotency: StripeEvent deduplication protects against duplicate credit grant attacks
 - [x] IDOR Cross-Tenant Boundary Enforcement: Strict user_id ownership verified across all database mutations
-- [x] Test Matrix Expansion: 57 / 57 tests passing with 100% green status
+- [x] Test Matrix Expansion: 62 / 62 tests passing with 100% green status
 
 30-DAY MASTER ROADMAP (FOUNDER EXECUTION PLAN)
 ============================================================

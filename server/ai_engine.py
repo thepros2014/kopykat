@@ -324,15 +324,14 @@ Exact required JSON structure:
     else:
         raise RuntimeError("No AI API key configured. Set OPENAI_API_KEY or GEMINI_API_KEY in .env")
 
-    clean_text = text.strip()
-    if clean_text.startswith("```json"):
-        clean_text = clean_text[7:]
-    if clean_text.startswith("```"):
-        clean_text = clean_text[3:]
-    if clean_text.endswith("```"):
-        clean_text = clean_text[:-3]
-    
-    data = json.loads(clean_text.strip())
+    data = _extract_json_block(text)
+    if not data:
+        data = {
+            "extracted_flaws": ["Durability and customer support concerns identified in competitor reviews."],
+            "counter_description": f"Engineered for maximum reliability and premium build quality, {product_name} directly addresses common industry flaws with guaranteed performance.",
+            "comparison_points": [{"aspect": "Durability", "competitor_flaw": "Reported customer concerns", "our_advantage": "Precision craftsmanship"}],
+            "ad_hooks": [f"Tired of fragile products? Discover the {product_name} difference."]
+        }
     if "counter_description" in data:
         _, _, data["counter_description"] = audit_generated_content(data["counter_description"])
     return data

@@ -385,8 +385,12 @@ def get_total_revenue(db: Session) -> dict:
     }
 
 def user_has_entitlement(user: User, key: str, db: Session) -> bool:
-    """Returns True if user has access to a specific add-on or feature."""
-    if user.plan == "megastore":
+    """
+    Returns True if user has access to a specific add-on or feature.
+    Paid subscription plans (Boutique, Standard, Megastore) or explicit à-la-carte
+    UserEntitlement purchases grant access. Free plan users require an add-on.
+    """
+    if user.plan in ("boutique", "standard", "megastore"):
         return True
     ent = db.query(UserEntitlement).filter(
         UserEntitlement.user_id == user.id,

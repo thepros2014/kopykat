@@ -206,6 +206,14 @@ class InventoryItem(Base):
     platform_stock = Column(Text, default="{}", nullable=False)  # JSON string of {platform: qty}
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class InventoryWebhookEvent(Base):
+    __tablename__ = "inventory_webhook_events"
+    id = Column(String(36), primary_key=True)
+    platform = Column(String(50), nullable=False)
+    event_id = Column(String(100), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("platform", "event_id", name="uq_platform_event_id"),)
+
 class InventorySyncLog(Base):
     __tablename__ = "inventory_sync_logs"
     id = Column(String(36), primary_key=True)

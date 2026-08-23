@@ -9,7 +9,7 @@ import logging
 import uuid
 from datetime import datetime
 from sqlalchemy.orm import Session
-from .database import InventoryItem, InventorySyncLog, UserIntegration
+from .database import InventoryItem, InventorySyncLog, UserIntegration, InventoryWebhookEvent
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +22,39 @@ def sync_inventory_across_platforms(
     delta: int,
     trigger_platform: str,
     db: Session,
-    title: str = ""
+    title: str = "",
+    event_id: str = ""
 ) -> dict:
+    clean_sku = sku.strip().upper()
+    trigger_normalized = trigger_platform.lower().strip()
+
+    # Idempotency deduplication
+    if event_id:
+        existing_evt = db.query(InventoryWebhookEvent).filter(
+            InventoryWebhookEvent.platform == trigger_normalized,
+            InventoryWebhookEvent.event_id == event_id
+        ).first()
+        if existing_evt:
+            logger.info("Duplicate inventory webhook event ignored: %s/%s", trigger_normalized, event_id)
+            return {"status": "already_processed", "sku": clean_sku, "event_id": event_id}
+        
+        db.add(InventoryWebhookEvent(
+            id=str(uuid.uuid4()),
+            platform=trigger_normalized,
+            event_id=event_id
+        ))
+        db.flush()
     """
     Atomically updates SKU stock and fans out sync updates to all connected channels
     except the trigger platform to prevent echo loops.
     """
-    clean_sku = sku.strip().upper()
-    item = db.query(InventoryItem).filter(
+    query = db.query(InventoryItem).filter(
         InventoryItem.user_id == user_id,
         InventoryItem.sku == clean_sku
-    ).first()
+    )
+    if getattr(db.bind, "dialect", None) and db.bind.dialect.name != "sqlite":
+        query = query.with_for_update()
+    item = query.first()
 
     if not item:
         initial_stock = max(0, delta)
@@ -129,10 +151,13 @@ def reconcile_inventory_sku(
     and re-synchronizing all connected sales channels.
     """
     clean_sku = sku.strip().upper()
-    item = db.query(InventoryItem).filter(
+    query = db.query(InventoryItem).filter(
         InventoryItem.user_id == user_id,
         InventoryItem.sku == clean_sku
-    ).first()
+    )
+    if getattr(db.bind, "dialect", None) and db.bind.dialect.name != "sqlite":
+        query = query.with_for_update()
+    item = query.first()
 
     if not item:
         item = InventoryItem(

@@ -1,7 +1,7 @@
 # KopyKat — Autonomous E-Commerce Operating System
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/thepros2014/kopykat/ci.yml?branch=main&label=Build&style=flat-square)](https://github.com/thepros2014/kopykat/actions)
-[![Test Suite](https://img.shields.io/badge/Tests-57%20Passing-brightgreen?style=flat-square)](https://github.com/thepros2014/kopykat)
+[![Test Suite](https://img.shields.io/badge/Tests-62%20Passing-brightgreen?style=flat-square)](https://github.com/thepros2014/kopykat)
 [![Python Version](https://img.shields.io/badge/Python-3.11-blue?style=flat-square&logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Stripe](https://img.shields.io/badge/Stripe-Billing%20Live-635BFF?style=flat-square&logo=stripe)](https://stripe.com)

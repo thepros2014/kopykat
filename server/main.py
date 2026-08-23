@@ -317,16 +317,20 @@ async def list_api_keys(current_user:User=Depends(get_current_user_jwt),db:Sessi
 async def delete_api_key(key_id:str,current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)):
     if not revoke_api_key(key_id,current_user,db): raise HTTPException(status_code=404,detail="Key not found")
     return {"status":"revoked"}
-@app.post("/api/generate", response_model=GenerateResponse, tags=["Generate"])
-@limiter.limit("60/minute")
-async def generate(request: Request, body: GenerateRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
-    user, api_key = auth
-    cost = body.variations
-
-    db_user = db.query(User).filter(User.id == user.id).first()
+def reserve_user_generations(user_id: str, cost: int, db: Session) -> tuple[int, int]:
+    """
+    Atomically reserves generations from user's balance with row locking where supported.
+    Prioritizes monthly bucket before purchased bucket.
+    Returns (monthly_used, purchased_used).
+    """
+    query = db.query(User).filter(User.id == user_id)
+    if getattr(db.bind, "dialect", None) and db.bind.dialect.name != "sqlite":
+        query = query.with_for_update()
+    db_user = query.first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Reconcile bucket state if total was altered directly
     current_total = (db_user.monthly_generations or 0) + (db_user.purchased_generations or 0)
     if db_user.generations != current_total:
         if db_user.generations > (db_user.purchased_generations or 0):
@@ -340,7 +344,7 @@ async def generate(request: Request, body: GenerateRequest, auth: tuple = Depend
     total_avail = monthly_avail + purchased_avail
 
     if total_avail < cost:
-        raise HTTPException(status_code=402, detail="No generations remaining. Upgrade your plan or buy a generation pack at /dashboard")
+        raise HTTPException(status_code=402, detail="Insufficient campaigns or generation credits remaining. Please upgrade your plan.")
 
     monthly_used = min(monthly_avail, cost)
     purchased_used = cost - monthly_used
@@ -349,6 +353,24 @@ async def generate(request: Request, body: GenerateRequest, auth: tuple = Depend
     db_user.purchased_generations = purchased_avail - purchased_used
     db_user.generations = db_user.monthly_generations + db_user.purchased_generations
     db.commit()
+    return monthly_used, purchased_used
+
+def refund_user_generations(user_id: str, monthly_refund: int, purchased_refund: int, db: Session):
+    """Atomically restores previously reserved generations to the user's balance."""
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if db_user:
+        db_user.monthly_generations = (db_user.monthly_generations or 0) + monthly_refund
+        db_user.purchased_generations = (db_user.purchased_generations or 0) + purchased_refund
+        db_user.generations = db_user.monthly_generations + db_user.purchased_generations
+        db.commit()
+
+@app.post("/api/generate", response_model=GenerateResponse, tags=["Generate"])
+@limiter.limit("60/minute")
+async def generate(request: Request, body: GenerateRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    user, api_key = auth
+    cost = body.variations
+
+    monthly_used, purchased_used = reserve_user_generations(user.id, cost, db)
 
     try:
         result = await generate_copy(
@@ -361,26 +383,17 @@ async def generate(request: Request, body: GenerateRequest, auth: tuple = Depend
             db=db
         )
     except Exception as e:
-        db_user = db.query(User).filter(User.id == user.id).first()
-        if db_user:
-            db_user.monthly_generations = (db_user.monthly_generations or 0) + monthly_used
-            db_user.purchased_generations = (db_user.purchased_generations or 0) + purchased_used
-            db_user.generations = db_user.monthly_generations + db_user.purchased_generations
-            db.commit()
+        refund_user_generations(user.id, monthly_used, purchased_used, db)
         raise HTTPException(status_code=500, detail="AI generation failed. Your credits have been refunded.")
 
-    db.refresh(db_user)
     actual = result.get("generations_used", body.variations)
-
     if actual < cost:
         refund = cost - actual
         refund_purchased = min(purchased_used, refund)
         refund_monthly = refund - refund_purchased
-        db_user.purchased_generations = (db_user.purchased_generations or 0) + refund_purchased
-        db_user.monthly_generations = (db_user.monthly_generations or 0) + refund_monthly
-        db_user.generations = db_user.monthly_generations + db_user.purchased_generations
-        db.commit()
+        refund_user_generations(user.id, refund_monthly, refund_purchased, db)
 
+    db_user = db.query(User).filter(User.id == user.id).first()
     return GenerateResponse(
         type=body.type,
         variations=result["variations"],
@@ -562,15 +575,29 @@ async def api_parse_csv(request:Request,file:UploadFile=File(...),auth:tuple=Dep
         if len(r)<=name_idx or not r[name_idx].strip(): continue
         results.append({"name":r[name_idx],"desc":r[desc_idx] if desc_idx!=-1 and len(r)>desc_idx else ""})
     return {"items":results[:100],"mapping_used":mapping}
-@app.post("/api/campaign/generate",tags=["Campaigns"])
+@app.post("/api/campaign/generate", tags=["Campaigns"])
 @limiter.limit("5/minute")
-async def api_campaign_generate(request:Request,body:CampaignGenerateRequest,auth:tuple=Depends(get_current_user_apikey),db:Session=Depends(get_db)):
-    from .database import Campaign; from .campaigns import generate_omni_campaign; import uuid,json; user,_=auth; updated=db.execute(text("UPDATE users SET generations = generations - 1 WHERE id = :uid AND generations >= 1"),{"uid":user.id}).rowcount
-    if updated==0: raise HTTPException(status_code=402,detail="Insufficient campaigns remaining. Please upgrade your plan.")
+async def api_campaign_generate(request: Request, body: CampaignGenerateRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import Campaign
+    from .campaigns import generate_omni_campaign
+    import uuid, json
+    user, _ = auth
+
+    monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
+
     try:
-        data=generate_omni_campaign(body.keyword,body.product_desc); cid=str(uuid.uuid4()); name=f"Campaign: {body.keyword.title()}"; db.add(Campaign(id=cid,user_id=user.id,name=name,assets=json.dumps(data))); db.commit(); return {"id":cid,"name":name,"assets":data}
-    except ValueError as e: db.rollback(); raise HTTPException(status_code=400,detail=str(e))
-    except Exception: db.rollback(); raise HTTPException(status_code=500,detail="Generation failed due to an internal error. Your balance was not charged.")
+        data = generate_omni_campaign(body.keyword, body.product_desc)
+        cid = str(uuid.uuid4())
+        name = f"Campaign: {body.keyword.title()}"
+        db.add(Campaign(id=cid, user_id=user.id, name=name, assets=json.dumps(data)))
+        db.commit()
+        return {"id": cid, "name": name, "assets": data}
+    except ValueError as e:
+        refund_user_generations(user.id, monthly_used, purchased_used, db)
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        refund_user_generations(user.id, monthly_used, purchased_used, db)
+        raise HTTPException(status_code=500, detail="Generation failed due to an internal error. Your balance was not charged.")
 
 @app.post("/api/campaign/generate-vision", tags=["Campaigns"])
 @limiter.limit("5/minute")
@@ -972,12 +999,14 @@ async def inventory_webhook(
 ):
     from .inventory import sync_inventory_across_platforms
     user, _ = auth
+    event_id = body.order_id or request.headers.get("X-Event-ID", "")
     res = sync_inventory_across_platforms(
         user_id=user.id,
         sku=body.sku,
         delta=body.quantity_delta,
         trigger_platform=platform,
-        db=db
+        db=db,
+        event_id=event_id
     )
     return res
 
@@ -1351,6 +1380,9 @@ async def get_brand_persona(auth: tuple = Depends(get_current_user_apikey), db: 
 @app.post("/api/brand-persona", response_model=BrandPersonaResponse, tags=["Brand Persona"])
 async def save_brand_persona(body: BrandPersonaRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
     user = auth[0]
+    from .billing import user_has_entitlement
+    if not user_has_entitlement(user, "brand_voice_training", db):
+        raise HTTPException(status_code=403, detail="Brand Voice Training add-on or Megastore plan required")
     from .database import BrandPersona
     persona = db.query(BrandPersona).filter(BrandPersona.user_id == user.id).first()
     if persona:
@@ -1390,6 +1422,9 @@ async def save_brand_persona(body: BrandPersonaRequest, auth: tuple = Depends(ge
 @app.post("/api/optimizer/marketplace-listing", response_model=MarketplaceOptimizeResponse, tags=["Listing Optimizer"])
 async def optimize_listing_endpoint(body: MarketplaceOptimizeRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
     user = auth[0]
+    from .billing import user_has_entitlement
+    if not user_has_entitlement(user, "marketplace_optimizer_pack", db):
+        raise HTTPException(status_code=403, detail="Marketplace Listing Optimizer Pack add-on or Megastore plan required")
     from .database import BrandPersona
     persona_row = db.query(BrandPersona).filter(BrandPersona.user_id == user.id).first()
     persona_dict = None

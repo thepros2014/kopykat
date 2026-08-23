@@ -145,7 +145,9 @@ def test_purchased_generations_preserved_on_subscription_cancellation(client, db
     assert user.generations == 505
 
 def test_addon_fulfillment_grants_user_entitlement(client, db_session, test_user):
-    # Verify user does not have brand voice training entitlement
+    test_user.plan = "free"
+    db_session.commit()
+    # Verify free user without addon does not have brand voice training entitlement
     assert user_has_entitlement(test_user, "brand_voice_training", db_session) is False
 
     addon_event = {
@@ -243,3 +245,111 @@ def test_idor_cross_tenant_isolation(client, db_session, test_user, auth_headers
 
     db_session.refresh(api_key_b)
     assert api_key_b.is_active is True
+
+def test_entitlement_enforcement_brand_persona_forbidden_for_free_user(client, auth_headers, test_user, db_session):
+    # Free plan without brand voice add-on must return 403 Forbidden
+    db_session.query(UserEntitlement).filter(UserEntitlement.user_id == test_user.id).delete()
+    test_user.plan = "free"
+    db_session.commit()
+    db_session.expire_all()
+
+    res = client.post("/api/brand-persona", json={
+        "brand_name": "Nordic Apparel",
+        "brand_voice_tone": "Minimalist, direct, outdoor-focused"
+    }, headers=auth_headers)
+    assert res.status_code == 403
+    assert "Brand Voice Training add-on or Megastore plan required" in res.json()["detail"]
+
+def test_entitlement_enforcement_marketplace_optimizer_forbidden_for_free_user(client, auth_headers, test_user, db_session):
+    db_session.query(UserEntitlement).filter(UserEntitlement.user_id == test_user.id).delete()
+    test_user.plan = "free"
+    db_session.commit()
+    db_session.expire_all()
+
+    res = client.post("/api/optimizer/marketplace-listing", json={
+        "product_name": "Hiking Boots",
+        "platform": "amazon",
+        "raw_details": "Waterproof leather hiking boots with Vibram rubber lug soles."
+    }, headers=auth_headers)
+    assert res.status_code == 403
+    assert "Marketplace Listing Optimizer Pack add-on or Megastore plan required" in res.json()["detail"]
+
+def test_entitlement_enforcement_allowed_for_user_with_active_addon(client, auth_headers, test_user, db_session):
+    test_user.plan = "free"
+    # Grant active entitlement
+    ent = UserEntitlement(
+        id=str(uuid.uuid4()),
+        user_id=test_user.id,
+        entitlement_key="brand_voice_training",
+        entitlement_type="addon",
+        active=True
+    )
+    db_session.add(ent)
+    db_session.commit()
+
+    res = client.post("/api/brand-persona", json={
+        "brand_name": "Nordic Apparel",
+        "brand_voice_tone": "Minimalist, direct, outdoor-focused"
+    }, headers=auth_headers)
+    assert res.status_code == 200
+    assert res.json()["brand_name"] == "Nordic Apparel"
+
+def test_campaign_generate_deducts_from_centralized_ledger(client, auth_headers, test_user, db_session):
+    test_user.monthly_generations = 5
+    test_user.purchased_generations = 5
+    test_user.generations = 10
+    db_session.commit()
+
+    mock_campaign = {
+        "blog_post": {"title": "Hiking Boots Guide", "content": "<p>Content</p>"},
+        "email_drip": [{"subject": "Welcome", "body": "Body"}],
+        "social_posts": [{"platform": "Instagram", "caption": "Caption"}]
+    }
+
+    with patch("server.campaigns.generate_omni_campaign", return_value=mock_campaign):
+        res = client.post("/api/campaign/generate", json={
+            "keyword": "hiking boots",
+            "product_desc": "Durable all-weather hiking footwear"
+        }, headers=auth_headers)
+        assert res.status_code == 200
+
+    db_session.refresh(test_user)
+    # Monthly bucket decremented by 1, purchased bucket untouched
+    assert test_user.monthly_generations == 4
+    assert test_user.purchased_generations == 5
+    assert test_user.generations == 9
+
+def test_inventory_webhook_idempotency_deduplication(client, auth_headers, test_user, db_session):
+    # Setup inventory item with 10 stock
+    item = InventoryItem(
+        id=str(uuid.uuid4()),
+        user_id=test_user.id,
+        sku="TEST-SKU-IDEMPOTENT",
+        title="Test Product",
+        total_stock=10
+    )
+    db_session.add(item)
+    db_session.commit()
+
+    webhook_payload = {
+        "sku": "TEST-SKU-IDEMPOTENT",
+        "quantity_delta": -2,
+        "order_id": "shopify_order_1234567"
+    }
+
+    # First delivery
+    res1 = client.post("/api/inventory/webhook/shopify", json=webhook_payload, headers=auth_headers)
+    assert res1.status_code == 200
+    assert res1.json()["sku"] == "TEST-SKU-IDEMPOTENT"
+
+    db_session.refresh(item)
+    assert item.total_stock == 8
+
+    # Second duplicate delivery (same order_id)
+    res2 = client.post("/api/inventory/webhook/shopify", json=webhook_payload, headers=auth_headers)
+    assert res2.status_code == 200
+    assert res2.json()["status"] == "already_processed"
+
+    # Stock MUST still be 8, not 6
+    db_session.refresh(item)
+    assert item.total_stock == 8
