@@ -135,3 +135,27 @@ class ConnectorResponse(BaseModel):
     operation_count: int
     authentication_modes: list[str]
     status: str
+
+
+class RequestVerificationRequest(BaseModel):
+    email: EmailStr
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=10, max_length=128)
+
+class ConnectorCredentialsRequest(BaseModel):
+    credentials: dict
+
+class ConnectorTestRequest(BaseModel):
+    operation_name: str
+    headers: Optional[dict] = None
+    query: Optional[dict] = None
+
+class ConnectorToggleRequest(BaseModel):
+    active: bool
+
+class CampaignVisionGenerateRequest(BaseModel):
+    keyword: Optional[str] = ""
+    extra_context: Optional[str] = ""
+    image_base64: str = Field(min_length=10)
+    mime_type: Optional[str] = "image/jpeg"

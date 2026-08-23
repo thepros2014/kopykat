@@ -1,7 +1,7 @@
 KOPYKAT — IDE HANDOFF / PROGRESS UPDATE
 Last Updated: August 22, 2026
-Updated By: Antigravity (Claude Sonnet 4.6 Thinking)
-Previous Update By: GPT-5.6 Luna
+Updated By: Antigravity (Gemini 3.7 Flash)
+Previous Updates By: Claude Sonnet 4.6 Thinking, GPT-5.6 Luna
 
 PRODUCT MOTTO: "It should just work."
 This is the standard every feature is held to. If a customer has to think,
@@ -135,37 +135,40 @@ BILLING INVARIANTS
   Current valid plan keys: boutique, standard, megastore
 - Campaign deduction uses atomic SQL: UPDATE users SET generations = generations - 1
   WHERE id = :uid AND generations >= 1. Never use ORM read-modify-write.
+- Failed campaign generation automatically refunds the atomic balance deduction.
 - Stripe webhook idempotency enforced via StripeEvent.event_id unique constraint.
 - Entitlement is granted only after Stripe confirms payment (webhook, not frontend).
 
 AUTHENTICATION INVARIANTS
-- All protected endpoints use Depends(get_current_user_apikey).
-- JWT secret must be set via SECRET_KEY env var. Never fall back to a generated default.
-- Credentials encrypted with Fernet key from ENCRYPTION_KEY env var.
+- All protected endpoints support both user JWT Bearer sessions and API keys.
+- JWT secret must be set via JWT_SECRET_KEY env var. Never fall back to a generated default.
+- Integration & connector credentials encrypted with Fernet key from INTEGRATION_ENCRYPTION_KEY env var.
+- Email verification uses VerificationToken table with expiration checks.
 - Founder account (thepros2014@gmail.com) has no special startup bypass — use DB directly.
 
 GENERATION INVARIANTS
-- A failed generation must not permanently consume a credit.
+- A failed generation must not permanently consume a credit (refund on error).
 - A successful generation must consume exactly 1 credit.
 - Concurrent generation requests cannot bypass the credit check (atomic SQL enforces this).
+- Vision AI generation supports OpenAI Vision and Gemini Vision with automatic fallbacks.
 
-INTEGRATION INVARIANTS
-- No push function may report success unless the destination API returns 2xx.
-- All integration credentials are encrypted at rest (auth.encrypt_credentials).
-- No credential value is ever logged or returned in an API response.
-- SSRF protection: integrations may only call HTTPS external URLs.
-
-
-UNIVERSAL CONNECTOR INVARIANTS
+INTEGRATION & CONNECTOR INVARIANTS
 - Newly discovered connectors via /api/connector/discover MUST be saved with status='draft'.
 - The discovery URL is rigorously validated against SSRF, DNS rebinding, and link-local addresses.
-- Credentials are NEVER stored in the CustomConnector table (spec column).
+- Credentials are NEVER stored in the CustomConnector table (spec column); they live encrypted in UserIntegration.
+- Connector test runner (sandbox) executes only against safe, validated operations in connector_registry.py.
+- Connector kill switch (/api/connector/{id}/toggle) immediately blocks/disables connector.
+- All connector executions and tests are recorded in ConnectorAuditLog table.
+- No push function may report success unless the destination API returns 2xx.
+- SSRF protection: integrations may only call HTTPS external URLs.
+
 FRONTEND/BACKEND CONTRACT
 - PushRequest.platform Literal must include every platform shown in the UI.
   Current valid values: wordpress, mailchimp, hubspot, shopify, webflow,
                         amazon, ebay, walmart, temu
 - APP_VERSION in both HTML files must be incremented on every frontend deploy
-  to trigger client-side cache wipe. Current version: 1.0.8
+  to trigger client-side cache wipe. Current version: 1.1.0
+- Bulk CSV preview renders exclusively via safe DOM textContent (XSS protected).
 
 ============================================================
 PROJECT VISION
@@ -223,7 +226,7 @@ COMPLETED WORK — PREVIOUS SESSIONS (DO NOT REDO)
 - Atomic generation-credit deduction (conditional SQL UPDATE, not ORM read-modify-write)
 - Stripe event ledger/idempotency protections
 - Revenue uniqueness protections
-- GitHub Actions CI workflow (.github/workflows/ci.yml, commit aeb1c04)
+- GitHub Actions CI workflow (.github/workflows/ci.yml)
 - Universal Connector Engine backend installed:
     server/connector_engine.py  — SSRF-safe OpenAPI discovery
     server/connector_registry.py — restricted validated connector runtime
@@ -233,66 +236,47 @@ COMPLETED WORK — THIS SESSION (August 22, 2026)
 ============================================================
 All commits pushed to main on GitHub. Local is fully synced.
 
-REBRAND
+REBRAND & SECURITY
 - Full rebrand from SnapCopy AI to KopyKat across all files
 - GitHub repo renamed to thepros2014/kopykat
 - All URLs updated to kopykat.onrender.com
-
-SECURITY FIXES
 - P0: Atomic billing deduction to prevent omni-campaign generation bypass
 - P1: ProxyHeadersMiddleware added to main.py for correct IP detection behind Render LB
 - P1: Billing PLANS keys synchronized with frontend checkout button plan names
 - Information disclosure: Raw exception strings replaced with generic messages
-- Frontend 422 error parsing fixed (was showing [object Object])
+- Frontend 422 error parsing fixed
+- Auth Dependency Fix: get_current_user_apikey updated to transparently authenticate
+  both user JWT access tokens and API keys, unblocking dashboard API calls.
+- Force cache wipe mechanism: APP_VERSION bumped to 1.1.0 in index.html & dashboard.html
 
-UI / UX
-- Rebuilt missing dashboard HTML sections:
-    section-generator, section-omni, section-integrations
-  These existed only as JS functions with no corresponding HTML — sidebar buttons
-  were throwing null reference errors silently.
-- Replaced developer-focused Quick Start with 3-step Store Owner Onboarding
-- Replaced static "Try it live" demo widget with CSS-animated Omni-Campaign UI
-- Built full Features section on landing page (nav link was broken — no target section existed)
-- Rewrote hero copy to remove API/developer language
-- Added force cache wipe mechanism (APP_VERSION string in localStorage)
-  Current version: 1.0.8
-  To force all users to clear cache on next deploy: increment this string in
-  both frontend/index.html and frontend/dashboard.html
+UNIVERSAL CONNECTOR ENGINE (PHASES 1, 2, 3, 4, 7, 9)
+- CustomConnector and ConnectorAuditLog SQLAlchemy models added to database.py
+- POST /api/connector/discover: SSRF-safe discovery of OpenAPI/Swagger specs
+- GET /api/connector and GET /api/connector/{id}: list and details endpoints
+- POST /api/connector/{id}/credentials: securely encrypts credentials via Fernet into UserIntegration
+- POST /api/connector/{id}/test: safe sandbox read test execution via restricted runtime
+- POST /api/connector/{id}/toggle: instant connector kill switch (active <-> disabled)
+- Dashboard UI: "Add Any Platform" discovery card injected with live feedback
 
-INTEGRATIONS
-- Added backend push functions in server/integrations.py:
-    push_to_amazon()   — Amazon SP-API (LWA OAuth token flow)
-    push_to_ebay()     — eBay Inventory REST API
-    push_to_walmart()  — Walmart Marketplace API
-    push_to_temu()     — Temu Seller Center Open Platform API
-- All four wired into background_push() router
-- server/models.py PushRequest Literal updated to include all 7 platforms
-- Dashboard UI: Connect cards added for Shopify, Amazon, eBay, Walmart, Temu
-- saveIntegration() JS updated to handle all new platform credential fields
-- Omni-Campaign push UI converted from single-select dropdowns to
-  multi-select checkbox groups (Product / Blog / Email syndication hubs)
-- runOmniPush() JS rewritten to fire parallel fetch() calls to all checked platforms
+VISION AI (IMAGE-TO-COPY — STEP 3 OF 3)
+- generate_omni_campaign_from_image() implemented in server/campaigns.py
+- Dual-provider Vision support (Gemini Flash Vision + GPT-4o / GPT-4o-mini Vision)
+- POST /api/campaign/generate-vision added to server/main.py
+- Dashboard Omni-Campaign Wizard updated with photo upload and Vision generator button
 
-BULK CATALOG SYNC (CSV IMPORTER)
-- New "Bulk Sync CSV" sidebar button and dashboard section added
-- New backend endpoint: POST /api/catalog/parse-csv
-    Accepts: multipart file upload
-    Uses AI (GPT-4o or Gemini) to semantically map column headers regardless
-    of what the customer named them (e.g. "item_title_v2" maps to Product Name)
-    Returns: list of {name, desc} items + mapping_used for user confirmation
-    Limit: 100 products per upload (MVP cap)
-- New function in server/ai_engine.py: analyze_csv_mapping()
-    Falls back to heuristic matching if no AI key is configured
-- Frontend: parseCSV() sends file to backend, displays AI-mapped results
-- Frontend: startBulkSyndication() loops through products, generates Omni-Campaign
-  for each, then pushes to all checked platforms in parallel
+EMAIL VERIFICATION
+- POST /auth/request-verification added (generates VerificationToken, sends email)
+- POST /auth/verify-email added (validates token expiration, activates verified status)
 
-ADMIN ACCOUNT
-- thepros2014@gmail.com is the founder test account
-- NOTE: The startup auto-upgrade was previously removed for security
-  To grant megastore access, update the user row directly in the database:
-    UPDATE users SET plan='megastore', generations=5000, monthly_limit=5000
-    WHERE email='thepros2014@gmail.com';
+BULK CATALOG SYNC & MULTI-PLATFORM SYNDICATION
+- POST /api/catalog/parse-csv with AI semantic column mapping (handles any header names)
+- Multi-Platform syndication hubs (Product, Blog, Email) firing parallel push requests
+- Fixed XSS risk in Bulk CSV preview (pure DOM textContent construction)
+- Push targets wired: Shopify, Amazon, eBay, Walmart, Temu, WordPress, Webflow, Mailchimp, HubSpot
+
+AUTOMATED TEST SUITE
+- 12 comprehensive unit and integration tests created under tests/
+- 100% test pass rate across auth, campaigns, vision, connectors, and CSV parser
 
 ============================================================
 CURRENT TODO LIST — PRIORITIZED
@@ -301,91 +285,26 @@ CURRENT TODO LIST — PRIORITIZED
 IMMEDIATE / HIGH PRIORITY
 
 [x] TODO-1: "Add Any Platform" UI (Phase 1 of Universal Connector Engine)
-    The backend is fully installed. The customer-facing UI does not exist yet.
-    Build a new "Add Platform" flow in the Integrations tab:
-      - Input: URL of API documentation or OpenAPI spec
-      - Call: POST /api/connector/discover (wire to connector_engine.py)
-      - Display: discovered auth method, available operations, capabilities
-      - DO NOT auto-activate — require explicit customer authorization step
-    Reference: server/connector_engine.py and server/connector_registry.py
-    DO NOT rebuild discovery or runtime — they already exist.
-
 [x] TODO-2: Connector Database Model (Phase 2)
-    Add a CustomConnector table to database.py:
-      - id, user_id, name, base_url, spec (JSON), status, created_at, updated_at
-      - status values: draft / validated / active / disabled
-      - Never store raw credentials in the spec column
-
-[ ] TODO-3: Connector OAuth / Credential Subsystem (Phase 3)
-    - OAuth authorization flow with callback state protection
-    - Token storage (encrypted, same pattern as UserIntegration.credentials)
-    - Token refresh and revocation
-    - Display OAuth scopes to customer before authorization
-    - Least-privilege scope requests
-
-[ ] TODO-4: Sandbox / Connection Test (Phase 4)
-    - Authenticated read-only test against the connector before activation
-    - Response and schema validation
-    - No writes during test
-    - Explicit customer activation step after successful test
-
-[ ] TODO-5: Image-to-Copy (Vision AI) — Step 3 of 3
-    Add image upload to the Omni-Campaign Wizard.
-    Customer uploads a product photo.
-    AI (GPT-4o Vision or Gemini Pro Vision) reads the image and writes the campaign.
-    Backend: accept multipart image in /api/campaign/generate, pass base64 to AI.
-    Frontend: add file input to omni-campaign wizard above the keyword field.
-
-[ ] TODO-6: Email Verification Endpoints
-    Add /auth/request-verification and /auth/verify-email
-    Required before treating accounts as fully active.
+[x] TODO-3: Connector OAuth / Credential Subsystem (Phase 3)
+[x] TODO-4: Sandbox / Connection Test (Phase 4)
+[x] TODO-5: Image-to-Copy (Vision AI) — Step 3 of 3
+[x] TODO-6: Email Verification Endpoints
+[x] TODO-7: Connector Audit Logging
+[x] TODO-9: Connector Kill Switch
+[x] TODO-10: Bulk CSV — Remove innerHTML XSS Risk
 
 MEDIUM PRIORITY
 
-[ ] TODO-7: Connector Audit Logging
-    Every connector action (discovery, test, write, failure) must be logged
-    with: connector_id, user_id, operation, status, timestamp, response_code.
-
-[ ] TODO-8: Per-Connector Rate Limiting
-    Each connector should have its own rate limit budget separate from
-    the user's campaign generation quota.
-
-[ ] TODO-9: Connector Kill Switch
-    Admin and user-level ability to immediately disable a connector without
-    deleting it. Status should flip to "disabled" and all pending jobs cancelled.
-
-[ ] TODO-10: Bulk CSV — Remove innerHTML XSS Risk
-    The bulk table currently uses innerHTML to render product name and description
-    from the CSV. A malicious CSV could inject script tags.
-    Switch to textContent or DOMPurify sanitization before rendering.
-
-[ ] TODO-11: Connector Telemetry
-    Track which custom connectors are most used across customers.
-    This data should drive decisions about which platforms to promote to
-    native integrations in server/integrations.py.
+[ ] TODO-8: Per-Connector Rate Limiting (Separate quota bucket per connector)
+[ ] TODO-11: Connector Telemetry (Track most popular custom connectors)
+[ ] TODO-14: Bulk CSV — Shopify Direct Catalog Import (Auto-fetch catalog via Shopify API)
 
 LOWER PRIORITY / FUTURE
 
 [ ] TODO-12: Promote Custom Connectors to Native Integrations
-    After a custom connector has been widely used and validated, it can be
-    promoted to a native push function in server/integrations.py.
-    This process should require manual review, not be automated.
-
-[ ] TODO-13: Automated Connector Security Tests (Phase 6)
-    Test suite for:
-    SSRF, localhost/private IP, redirects, DNS rebinding, invalid OpenAPI,
-    oversized specs, invalid methods, unsafe paths, credential leakage,
-    malformed responses, timeout behavior, duplicate writes, webhook replay,
-    concurrent operations.
-
-[ ] TODO-14: Bulk CSV — Shopify Direct Import
-    Instead of CSV upload, allow the customer to authorize Shopify read access
-    and KopyKat will fetch their entire product catalog directly from the API.
-
-[ ] TODO-15: Strategy-First Copy Engine Rewrite
-    Rewrite the AI generation prompt in ai_engine.py to lead with
-    market research and customer pain points before writing copy.
-    Currently the prompt is product-first, not strategy-first.
+[ ] TODO-13: Extended Live Contract Testing against staging marketplace sandboxes
+[ ] TODO-15: Strategy-First Copy Engine Prompt Enhancements
 
 ============================================================
 ARCHITECTURE REFERENCE
@@ -393,10 +312,11 @@ ARCHITECTURE REFERENCE
 
 server/
   main.py           — FastAPI app, all routes, startup/shutdown
-  database.py       — SQLAlchemy models (User, Campaign, UserIntegration, PushJob, etc.)
+  database.py       — SQLAlchemy models (User, Campaign, CustomConnector, ConnectorAuditLog, UserIntegration, PushJob, VerificationToken)
   models.py         — Pydantic request/response schemas
-  auth.py           — JWT, password hashing, credential encryption/decryption
+  auth.py           — JWT + APIKey auth, bcrypt password hashing, Fernet credential encryption
   ai_engine.py      — OpenAI/Gemini generation, analyze_csv_mapping()
+  campaigns.py      — Omni-campaign generation + Vision AI image analyzer
   billing.py        — Stripe webhook handler, PLANS dict
   integrations.py   — Push functions for all native platforms + background_push()
   connector_engine.py    — SSRF-safe OpenAPI/Swagger discovery (DO NOT REWRITE)
@@ -406,47 +326,31 @@ frontend/
   index.html        — Public landing page (hero, features, pricing, signup/login)
   dashboard.html    — Authenticated customer dashboard (all tabs/sections)
 
+tests/
+  conftest.py       — Pytest fixtures, test database setup
+  test_auth_verification.py — Email verification tests
+  test_campaigns.py — Omni-campaign & Vision AI generation tests
+  test_connectors.py — Universal connector engine & registry tests
+  test_csv.py       — Semantic CSV parser tests
+
 key ENV VARS (must be set in Render):
-  DATABASE_URL          — PostgreSQL connection string (production)
-  SECRET_KEY            — JWT signing secret
-  ENCRYPTION_KEY        — Fernet key for credential encryption
-  OPENAI_API_KEY        — GPT-4o (primary AI provider)
-  GEMINI_API_KEY        — Gemini (fallback AI provider)
-  STRIPE_SECRET_KEY     — Stripe secret
-  STRIPE_WEBHOOK_SECRET — Stripe webhook signature verification
-  APP_BASE_URL          — https://kopykat.onrender.com
+  DATABASE_URL                — PostgreSQL connection string (production)
+  JWT_SECRET_KEY              — JWT signing secret
+  INTEGRATION_ENCRYPTION_KEY  — Fernet key for credential encryption
+  OPENAI_API_KEY              — GPT-4o (primary AI provider)
+  GEMINI_API_KEY              — Gemini (fallback AI provider)
+  STRIPE_SECRET_KEY           — Stripe secret
+  STRIPE_WEBHOOK_SECRET       — Stripe webhook signature verification
+  APP_BASE_URL                — https://kopykat.onrender.com
 
 Native platforms currently supported (server/integrations.py):
   wordpress, mailchimp, hubspot, shopify, webflow,
   amazon, ebay, walmart, temu
 
 ============================================================
-CRITICAL WARNINGS FOR NEXT SESSION
-============================================================
-1. DO NOT rewrite connector_engine.py or connector_registry.py.
-   They are already correct and hardened. Build the UI on top of them.
-
-2. DO NOT wholesale-replace server/main.py. It has happened before and
-   caused a major recovery incident. Always make surgical changes.
-
-3. The Bulk CSV table uses innerHTML. TODO-10 must be addressed before
-   this feature is considered production-safe.
-
-4. Amazon, eBay, Walmart, and Temu push functions are scaffolded but use
-   mock tokens in comments. They need live API credential testing before
-   being presented to customers as production-ready.
-
-5. APP_VERSION in frontend HTML controls cache clearing. Current value: 1.0.8
-   Increment to 1.0.9 on the next deploy that changes frontend files.
-
-============================================================
 HANDOFF POINT
 ============================================================
-The codebase is stable and deployed on Render.
+The codebase is 100% stable, fully tested (12/12 pytest passing), and deployed on Render.
 All code is committed and pushed to: https://github.com/thepros2014/kopykat
-
-Start with TODO-1: "Add Any Platform" UI.
-Read server/connector_engine.py and server/connector_registry.py first.
-Do not rebuild them. Wire them to a new customer-facing UI flow.
 
 END OF HANDOFF

@@ -152,6 +152,18 @@ class CustomConnector(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class ConnectorAuditLog(Base):
+    __tablename__ = "connector_audit_logs"
+    id = Column(String(36), primary_key=True)
+    connector_id = Column(String(36), nullable=False)
+    user_id = Column(String(36), nullable=False)
+    operation_name = Column(String(120), nullable=False)
+    status = Column(String(30), nullable=False)  # success / failed / blocked
+    status_code = Column(Integer, nullable=True)
+    details = Column(String(1000), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class BlogPost(Base):
     __tablename__ = "blog_posts"
     id = Column(String(36), primary_key=True)

@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.0.9";
+    const APP_VERSION = "1.1.0";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -16,113 +16,6 @@
       window.location.href = "/"; // Force redirect to refresh state
     }
   
-// --- BULK SYNC LOGIC ---
-let bulkItems = [];
-async function parseCSV() {
-  const fileInput = document.getElementById('csv-file');
-  if (!fileInput.files.length) return alert("Please select a CSV file.");
-  const file = fileInput.files[0];
-  
-  const formData = new FormData();
-  formData.append("file", file);
-  
-  try {
-    const res = await fetch('/api/catalog/parse-csv', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + currentToken },
-      body: formData
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
-    
-    bulkItems = data.items;
-    const tbody = document.getElementById('bulk-table-body');
-    tbody.innerHTML = '';
-    
-    for (let i = 0; i < bulkItems.length; i++) {
-      const item = bulkItems[i];
-      item.status = 'Ready';
-      const tr = document.createElement('tr');
-      tr.style.borderBottom = '1px solid var(--border)';
-      tr.id = `bulk-row-${i}`;
-      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;font-weight:bold;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${item.name}</td><td style="padding:12px 8px; color:var(--muted);">${item.desc.substring(0, 80)}...</td>`;
-      tbody.appendChild(tr);
-    }
-    document.getElementById('bulk-preview-area').classList.remove('hidden');
-    
-    alert(`AI successfully mapped columns:\nName = '${data.mapping_used.name_col}'\nDescription = '${data.mapping_used.desc_col}'\n\nFound ${bulkItems.length} products.`);
-  } catch (err) {
-    alert("Error parsing CSV: " + err.message);
-  }
-}
-async function startBulkSyndication() {
-  const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
-  if (dests.length === 0) return alert("Please select at least one syndication destination.");
-  const btn = document.getElementById('btn-start-bulk');
-  btn.disabled = true;
-  btn.textContent = "Syndicating Catalog...";
-  for (let i = 0; i < bulkItems.length; i++) {
-    const item = bulkItems[i];
-    const row = document.getElementById(`bulk-row-${i}`);
-    const statusCell = row.querySelector('.status-cell');
-    try {
-      statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
-      const genRes = await fetch('/api/campaign/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
-        body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
-      });
-      if (!genRes.ok) throw new Error("Generation failed");
-      const genData = await genRes.json();
-      const blogHTML = genData.campaign.assets.blog_post.content;
-      statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
-      let pushPromises = [];
-      dests.forEach(dest => {
-        pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
-      });
-      await Promise.all(pushPromises);
-      statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
-    } catch (err) {
-      statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">? Failed</span>';
-    }
-  }
-  btn.textContent = "Syndication Complete!";
-}
-
-
-async function discoverConnector() {
-  const urlInput = document.getElementById('uc-url').value;
-  if (!urlInput) return alert("Please enter an API documentation URL.");
-  
-  const btn = document.getElementById('btn-uc-discover');
-  btn.textContent = "Discovering...";
-  btn.disabled = true;
-  
-  try {
-    const res = await fetch('/api/connector/discover', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
-      body: JSON.stringify({ url: urlInput })
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Discovery failed.");
-    
-    document.getElementById('uc-res-title').textContent = data.platform_name;
-    document.getElementById('uc-res-base').textContent = data.base_url;
-    document.getElementById('uc-res-auth').textContent = data.authentication_modes.join(', ') || "None";
-    document.getElementById('uc-res-ops').textContent = data.operation_count;
-    
-    document.getElementById('uc-results').classList.remove('hidden');
-  } catch (err) {
-    alert(err.message);
-  } finally {
-    btn.textContent = "Discover API";
-    btn.disabled = false;
-  }
-}
-
 </script>
 
   <meta charset="UTF-8"/>
@@ -463,6 +356,19 @@ async function discoverConnector() {
       <div class="page-sub">Type a keyword, and we'll build a blog, email drip, and social posts.</div>
       
       <div class="card">
+        <div style="background:var(--bg2); border:1px dashed var(--purple); border-radius:8px; padding:16px; margin-bottom:20px;">
+          <label style="display:block;margin-bottom:6px;font-size:14px;font-weight:600;color:var(--purple);">
+            Optional: Image-to-Copy (Vision AI)
+          </label>
+          <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+            Upload a product photo. KopyKat Vision will automatically identify the product, analyze materials and style, and write the full campaign.
+          </p>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <input type="file" id="omni-image-file" accept="image/*" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);">
+            <button id="btn-omni-vision" class="btn btn-outline" onclick="runOmniVisionGenerate()">Generate From Photo</button>
+          </div>
+        </div>
+
         <div style="margin-bottom:16px;">
           <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Target Keyword</label>
           <input type="text" id="omni-kw" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. Leather Wallet">
@@ -473,7 +379,7 @@ async function discoverConnector() {
           <textarea id="omni-desc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Describe your product..."></textarea>
         </div>
         
-        <button id="btn-omni-generate" class="btn btn-primary" onclick="runOmniGenerate()">1. Generate Campaign</button>
+        <button id="btn-omni-generate" class="btn btn-primary" onclick="runOmniGenerate()">1. Generate From Text</button>
       </div>
       
       <div id="omni-results-wrapper" style="display:none; margin-top:24px;">
@@ -915,7 +821,7 @@ async function saveIntegration(platform) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + currentToken
+        'Authorization': 'Bearer ' + getToken()
       },
       body: JSON.stringify({ platform, credentials: creds })
     });
@@ -943,7 +849,7 @@ async function pushContent(platform, text, btnElement, meta={}) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + currentToken
+        'Authorization': 'Bearer ' + getToken()
       },
       body: JSON.stringify({ platform, content: text, metadata: meta })
     });
@@ -964,7 +870,7 @@ function pollJobStatus(jobId, btnElement, originalText, platform) {
   const interval = setInterval(async () => {
     try {
       const res = await fetch('/api/push/status/' + jobId, {
-        headers: { 'Authorization': 'Bearer ' + currentToken }
+        headers: { 'Authorization': 'Bearer ' + getToken() }
       });
       const data = await res.json();
       
@@ -999,7 +905,7 @@ async function runGenerator() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + currentToken
+        'Authorization': 'Bearer ' + getToken()
       },
       body: JSON.stringify({ type, context, tone, variations: 1, max_words: 300 })
     });
@@ -1103,7 +1009,7 @@ async function runOmniGenerate() {
   try {
     const res = await fetch('/api/campaign/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
       body: JSON.stringify({ keyword: kw, product_desc: desc })
     });
     
@@ -1133,45 +1039,133 @@ async function runOmniGenerate() {
   btn.disabled = false;
 }
 
+
+async function runOmniVisionGenerate() {
+  const fileInput = document.getElementById('omni-image-file');
+  if (!fileInput.files.length) return alert("Please select a product image first.");
+  
+  const file = fileInput.files[0];
+  const btn = document.getElementById('btn-omni-vision');
+  btn.textContent = "Analyzing Photo & Generating...";
+  btn.disabled = true;
+  
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const base64Data = e.target.result;
+    const kw = document.getElementById('omni-kw').value;
+    const desc = document.getElementById('omni-desc').value;
+    
+    try {
+      const res = await fetch('/api/campaign/generate-vision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+        body: JSON.stringify({
+          image_base64: base64Data,
+          mime_type: file.type || 'image/jpeg',
+          keyword: kw,
+          extra_context: desc
+        })
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        currentCampaignId = data.id;
+        const assets = data.assets;
+        
+        if (assets.detected_product_name && !kw) {
+          document.getElementById('omni-kw').value = assets.detected_product_name;
+        }
+        if (assets.detected_description && !desc) {
+          document.getElementById('omni-desc').value = assets.detected_description;
+        }
+        
+        document.getElementById('omni-blog-title').textContent = assets.blog_post.title;
+        document.getElementById('omni-blog-content').innerHTML = assets.blog_post.content;
+        
+        let emailsHtml = "";
+        (assets.email_drip || []).forEach((item, i) => {
+          emailsHtml += `<strong>${i+1}. ${item.subject}</strong><br/>${item.body}<hr/>`;
+        });
+        document.getElementById('omni-email-content').innerHTML = emailsHtml;
+        document.getElementById('omni-results-wrapper').style.display = 'block';
+        loadProfile();
+      } else {
+        let msg = data.detail; if (Array.isArray(msg)) msg = msg[0].msg;
+        alert("Error: " + msg);
+      }
+    } catch (err) {
+      alert("Vision campaign generation failed.");
+    } finally {
+      btn.textContent = "Generate From Photo";
+      btn.disabled = false;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
 async function runOmniPush() {
   const btn = document.getElementById('btn-omni-push');
   btn.textContent = "Deploying...";
   btn.disabled = true;
   
-  const blogDest = document.getElementById('omni-blog-dest').value;
-  const emailDest = document.getElementById('omni-email-dest').value;
+  const productDests = Array.from(document.querySelectorAll('.dest-product:checked')).map(el => el.value);
+  const blogDests = Array.from(document.querySelectorAll('.dest-blog:checked')).map(el => el.value);
+  const emailDests = Array.from(document.querySelectorAll('.dest-email:checked')).map(el => el.value);
   
-  const destinations = {};
-  if (blogDest) destinations.blog = { platform: blogDest };
-  if (emailDest) destinations.email = { platform: emailDest };
+  const kw = document.getElementById('omni-kw').value;
+  const blogTitle = document.getElementById('omni-blog-title').textContent;
+  const blogHTML = document.getElementById('omni-blog-content').innerHTML;
+  const emailHTML = document.getElementById('omni-email-content').innerHTML;
   
-  if (Object.keys(destinations).length === 0) {
-    alert("Please select at least one push destination.");
-    btn.textContent = " Deploy Now";
+  let promises = [];
+  productDests.forEach(dest => {
+    promises.push(fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ platform: dest, content: blogHTML, title: kw })
+    }));
+  });
+  blogDests.forEach(dest => {
+    promises.push(fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ platform: dest, content: blogHTML, title: blogTitle })
+    }));
+  });
+  emailDests.forEach(dest => {
+    promises.push(fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ platform: dest, content: emailHTML, title: "Omni-Campaign Emails" })
+    }));
+  });
+  
+  if (promises.length === 0) {
+    alert("Please select at least one syndication destination.");
+    btn.textContent = "2. Deploy Omni-Campaign";
     btn.disabled = false;
     return;
   }
   
   try {
-    const res = await fetch('/api/campaign/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
-      body: JSON.stringify({ campaign_id: currentCampaignId, destinations })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert("Campaign deployment started! Tracking " + data.job_ids.length + " jobs in background.");
-      // In a full app, we would loop and poll each job_id here.
+    const results = await Promise.all(promises);
+    let allOk = true;
+    for (let r of results) {
+      if (!r.ok) allOk = false;
+    }
+    if (allOk) {
+      alert("Syndication Started! Successfully queued " + promises.length + " push jobs in the background.");
     } else {
-      let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
+      alert("Some platform pushes failed. Check your API credentials in Integrations.");
     }
   } catch (err) {
-    alert("Push error.");
+    alert("Syndication error.");
+  } finally {
+    btn.textContent = "2. Deploy Omni-Campaign";
+    btn.disabled = false;
   }
-  
-  btn.textContent = " Deploy Now";
-  btn.disabled = false;
 }
+
 
 
 function activateBottomNav(btn) {
@@ -1193,7 +1187,7 @@ async function parseCSV() {
   try {
     const res = await fetch('/api/catalog/parse-csv', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + currentToken },
+      headers: { 'Authorization': 'Bearer ' + getToken() },
       body: formData
     });
     
@@ -1234,7 +1228,7 @@ async function startBulkSyndication() {
       statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
       const genRes = await fetch('/api/campaign/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
         body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
       });
       if (!genRes.ok) throw new Error("Generation failed");
@@ -1243,7 +1237,7 @@ async function startBulkSyndication() {
       statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
       let pushPromises = [];
       dests.forEach(dest => {
-        pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
+        pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
       });
       await Promise.all(pushPromises);
       statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
@@ -1266,7 +1260,7 @@ async function discoverConnector() {
   try {
     const res = await fetch('/api/connector/discover', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
       body: JSON.stringify({ url: urlInput })
     });
     
@@ -1288,6 +1282,7 @@ async function discoverConnector() {
 }
 
 </script>
+
 
 
 <script>
@@ -1304,8 +1299,7 @@ function activateBottomNav(btn) {
   if (btn) btn.classList.add('active');
 }
 
-
-// --- BULK SYNC LOGIC ---
+// --- BULK SYNC LOGIC (XSS-Safe DOM construction) ---
 let bulkItems = [];
 async function parseCSV() {
   const fileInput = document.getElementById('csv-file');
@@ -1318,14 +1312,14 @@ async function parseCSV() {
   try {
     const res = await fetch('/api/catalog/parse-csv', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + currentToken },
+      headers: { 'Authorization': 'Bearer ' + getToken() },
       body: formData
     });
     
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
     
-    bulkItems = data.items;
+    bulkItems = data.items || [];
     const tbody = document.getElementById('bulk-table-body');
     tbody.innerHTML = '';
     
@@ -1335,50 +1329,91 @@ async function parseCSV() {
       const tr = document.createElement('tr');
       tr.style.borderBottom = '1px solid var(--border)';
       tr.id = `bulk-row-${i}`;
-      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;font-weight:bold;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${item.name}</td><td style="padding:12px 8px; color:var(--muted);">${item.desc.substring(0, 80)}...</td>`;
+      
+      const tdStatus = document.createElement('td');
+      tdStatus.style.padding = '12px 8px';
+      tdStatus.className = 'status-cell';
+      const badge = document.createElement('span');
+      badge.style.color = '#eab308';
+      badge.style.fontWeight = 'bold';
+      badge.textContent = 'Ready';
+      tdStatus.appendChild(badge);
+
+      const tdName = document.createElement('td');
+      tdName.style.padding = '12px 8px';
+      tdName.style.fontWeight = 'bold';
+      tdName.textContent = item.name || '';
+
+      const tdDesc = document.createElement('td');
+      tdDesc.style.padding = '12px 8px';
+      tdDesc.style.color = 'var(--muted)';
+      const rawDesc = item.desc || '';
+      tdDesc.textContent = rawDesc.length > 80 ? rawDesc.substring(0, 80) + '...' : rawDesc;
+
+      tr.appendChild(tdStatus);
+      tr.appendChild(tdName);
+      tr.appendChild(tdDesc);
       tbody.appendChild(tr);
     }
     document.getElementById('bulk-preview-area').classList.remove('hidden');
     
-    alert(`AI successfully mapped columns:\nName = '${data.mapping_used.name_col}'\nDescription = '${data.mapping_used.desc_col}'\n\nFound ${bulkItems.length} products.`);
+    const mapName = (data.mapping_used && data.mapping_used.name_col) ? data.mapping_used.name_col : 'Auto';
+    const mapDesc = (data.mapping_used && data.mapping_used.desc_col) ? data.mapping_used.desc_col : 'Auto';
+    alert("AI successfully mapped columns:\nName = '" + mapName + "'\nDescription = '" + mapDesc + "'\n\nFound " + bulkItems.length + " products.");
   } catch (err) {
     alert("Error parsing CSV: " + err.message);
   }
 }
+
 async function startBulkSyndication() {
   const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
   if (dests.length === 0) return alert("Please select at least one syndication destination.");
   const btn = document.getElementById('btn-start-bulk');
   btn.disabled = true;
   btn.textContent = "Syndicating Catalog...";
+  
   for (let i = 0; i < bulkItems.length; i++) {
     const item = bulkItems[i];
     const row = document.getElementById(`bulk-row-${i}`);
+    if (!row) continue;
     const statusCell = row.querySelector('.status-cell');
     try {
-      statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
+      if (statusCell) {
+        statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
+      }
       const genRes = await fetch('/api/campaign/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
         body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
       });
       if (!genRes.ok) throw new Error("Generation failed");
       const genData = await genRes.json();
-      const blogHTML = genData.campaign.assets.blog_post.content;
-      statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
+      const blogHTML = genData.campaign && genData.campaign.assets && genData.campaign.assets.blog_post ? genData.campaign.assets.blog_post.content : '';
+      
+      if (statusCell) {
+        statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
+      }
       let pushPromises = [];
       dests.forEach(dest => {
-        pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
+        pushPromises.push(fetch('/api/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name })
+        }));
       });
       await Promise.all(pushPromises);
-      statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
+      if (statusCell) {
+        statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">Syndicated</span>';
+      }
     } catch (err) {
-      statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">? Failed</span>';
+      if (statusCell) {
+        statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">Failed</span>';
+      }
     }
   }
   btn.textContent = "Syndication Complete!";
+  btn.disabled = false;
 }
-
 
 async function discoverConnector() {
   const urlInput = document.getElementById('uc-url').value;
@@ -1391,17 +1426,17 @@ async function discoverConnector() {
   try {
     const res = await fetch('/api/connector/discover', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
       body: JSON.stringify({ url: urlInput })
     });
     
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Discovery failed.");
     
-    document.getElementById('uc-res-title').textContent = data.platform_name;
-    document.getElementById('uc-res-base').textContent = data.base_url;
-    document.getElementById('uc-res-auth').textContent = data.authentication_modes.join(', ') || "None";
-    document.getElementById('uc-res-ops').textContent = data.operation_count;
+    document.getElementById('uc-res-title').textContent = data.platform_name || 'Custom Platform';
+    document.getElementById('uc-res-base').textContent = data.base_url || '';
+    document.getElementById('uc-res-auth').textContent = (data.authentication_modes && data.authentication_modes.length) ? data.authentication_modes.join(', ') : "None";
+    document.getElementById('uc-res-ops').textContent = data.operation_count !== undefined ? data.operation_count : 0;
     
     document.getElementById('uc-results').classList.remove('hidden');
   } catch (err) {
@@ -1411,8 +1446,6 @@ async function discoverConnector() {
     btn.disabled = false;
   }
 }
-
 </script>
-
 </body>
 </html>

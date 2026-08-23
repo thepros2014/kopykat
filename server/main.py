@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -81,6 +81,59 @@ async def blog_post(slug:str,db:Session=Depends(get_db)):
 async def health_check(): return HealthResponse(status="ok",version=APP_VERSION,timestamp=datetime.utcnow())
 @app.get("/api/plans",tags=["Billing"])
 async def list_plans(): return {"subscriptions":{k:{"name":v["name"],"price_usd":v["price_usd"],"monthly_generations":v["monthly_generations"],"features":v["features"]} for k,v in PLANS.items()},"one_time_generations":{k:{"name":v["name"],"price_usd":v["price_usd"],"generations":v["generations"]} for k,v in ONE_TIME_GENERATIONS.items()}}
+
+
+@app.post("/auth/request-verification", tags=["Auth"])
+@limiter.limit("5/minute")
+async def request_verification(request: Request, body: RequestVerificationRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    from .database import VerificationToken
+    import secrets
+    from datetime import timedelta
+    
+    user = db.query(User).filter(User.email == body.email).first()
+    if not user:
+        # Do not disclose if email exists
+        return {"message": "If this email is registered, a verification link has been sent."}
+    
+    token_str = secrets.token_urlsafe(32)
+    vt = VerificationToken(
+        token=token_str,
+        user_id=user.id,
+        token_type="email_verification",
+        expires_at=datetime.utcnow() + timedelta(hours=24)
+    )
+    db.add(vt)
+    db.commit()
+    
+    from .scheduler import _send_email
+    background_tasks.add_task(
+        _send_email,
+        "Verify your KopyKat email",
+        f"Click the link below to verify your email address:<br><a href='{os.getenv('APP_BASE_URL', 'https://kopykat.onrender.com')}/verify?token={token_str}'>Verify Email</a>",
+        user.email
+    )
+    return {"message": "If this email is registered, a verification link has been sent."}
+
+@app.post("/auth/verify-email", tags=["Auth"])
+@limiter.limit("10/minute")
+async def verify_email(request: Request, body: VerifyEmailRequest, db: Session = Depends(get_db)):
+    from .database import VerificationToken
+    vt = db.query(VerificationToken).filter(
+        VerificationToken.token == body.token,
+        VerificationToken.token_type == "email_verification"
+    ).first()
+    
+    if not vt or vt.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token.")
+    
+    user = db.query(User).filter(User.id == vt.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    
+    user.is_verified = True
+    db.delete(vt)
+    db.commit()
+    return {"status": "success", "message": "Email verified successfully."}
 
 @app.post("/auth/register",response_model=TokenResponse,tags=["Auth"])
 @limiter.limit("5/minute")
@@ -262,6 +315,63 @@ async def api_campaign_generate(request:Request,body:CampaignGenerateRequest,aut
         data=generate_omni_campaign(body.keyword,body.product_desc); cid=str(uuid.uuid4()); name=f"Campaign: {body.keyword.title()}"; db.add(Campaign(id=cid,user_id=user.id,name=name,assets=json.dumps(data))); db.commit(); return {"id":cid,"name":name,"assets":data}
     except ValueError as e: db.rollback(); raise HTTPException(status_code=400,detail=str(e))
     except Exception: db.rollback(); raise HTTPException(status_code=500,detail="Generation failed due to an internal error. Your balance was not charged.")
+
+@app.post("/api/campaign/generate-vision", tags=["Campaigns"])
+@limiter.limit("5/minute")
+async def api_campaign_generate_vision(
+    request: Request,
+    body: CampaignVisionGenerateRequest,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import Campaign
+    from .campaigns import generate_omni_campaign_from_image
+    import uuid
+    import json
+    import base64
+    
+    user, _ = auth
+    
+    # Invariant: Atomic credit deduction before expensive Vision generation
+    updated = db.execute(
+        text("UPDATE users SET generations = generations - 1 WHERE id = :uid AND generations >= 1"),
+        {"uid": user.id}
+    ).rowcount
+    if updated == 0:
+        raise HTTPException(status_code=402, detail="Insufficient campaigns remaining. Please upgrade your plan.")
+        
+    try:
+        raw_b64 = body.image_base64
+        if "," in raw_b64:
+            raw_b64 = raw_b64.split(",", 1)[1]
+        img_bytes = base64.b64decode(raw_b64)
+        
+        data = generate_omni_campaign_from_image(
+            image_bytes=img_bytes,
+            mime_type=body.mime_type or "image/jpeg",
+            keyword=body.keyword or "",
+            extra_context=body.extra_context or ""
+        )
+        
+        cid = str(uuid.uuid4())
+        prod_title = data.get("detected_product_name", body.keyword or "Product")
+        name = f"Vision Campaign: {prod_title}"
+        
+        db.add(Campaign(id=cid, user_id=user.id, name=name, assets=json.dumps(data)))
+        db.commit()
+        return {"id": cid, "name": name, "assets": data}
+    except ValueError as e:
+        db.rollback()
+        # Refund on input/AI parsing failure
+        db.execute(text("UPDATE users SET generations = generations + 1 WHERE id = :uid"), {"uid": user.id})
+        db.commit()
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        db.execute(text("UPDATE users SET generations = generations + 1 WHERE id = :uid"), {"uid": user.id})
+        db.commit()
+        raise HTTPException(status_code=500, detail="Vision generation failed due to an internal error. Your balance was refunded.")
+
 @app.post("/api/campaign/push",tags=["Campaigns"])
 @limiter.limit("5/minute")
 async def api_campaign_push(request:Request,body:CampaignPushRequest,background_tasks:BackgroundTasks,auth:tuple=Depends(get_current_user_apikey),db:Session=Depends(get_db)):
@@ -279,3 +389,162 @@ async def api_campaign_push(request:Request,body:CampaignPushRequest,background_
         if not content: continue
         jid=str(uuid.uuid4()); db.add(PushJob(id=jid,user_id=user.id,platform=platform,status="pending")); jobs.append(jid); background_tasks.add_task(background_push,platform,creds,title,content,meta,integration.id,jid)
     db.commit(); return JSONResponse(status_code=202,content={"message":"Omni-Push accepted","job_ids":jobs})
+
+
+@app.get("/api/connector", tags=["Connectors"])
+async def api_connector_list(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import CustomConnector
+    user, _ = auth
+    connectors = db.query(CustomConnector).filter(CustomConnector.user_id == user.id).order_by(CustomConnector.created_at.desc()).all()
+    return [{
+        "id": c.id,
+        "platform_name": c.platform_name,
+        "source_url": c.source_url,
+        "base_url": c.base_url,
+        "operation_count": c.operation_count,
+        "authentication_modes": c.authentication_modes.split(",") if c.authentication_modes else [],
+        "status": c.status,
+        "created_at": c.created_at
+    } for c in connectors]
+
+@app.get("/api/connector/{connector_id}", tags=["Connectors"])
+async def api_connector_get(connector_id: str, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import CustomConnector
+    user, _ = auth
+    c = db.query(CustomConnector).filter(CustomConnector.id == connector_id, CustomConnector.user_id == user.id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Connector not found.")
+    import json
+    return {
+        "id": c.id,
+        "platform_name": c.platform_name,
+        "source_url": c.source_url,
+        "base_url": c.base_url,
+        "spec": json.loads(c.spec),
+        "authentication_modes": c.authentication_modes.split(",") if c.authentication_modes else [],
+        "status": c.status,
+        "created_at": c.created_at
+    }
+
+@app.post("/api/connector/{connector_id}/credentials", tags=["Connectors"])
+async def api_connector_save_credentials(connector_id: str, body: ConnectorCredentialsRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import CustomConnector, UserIntegration
+    from .auth import encrypt_credentials
+    import json
+    import uuid
+    user, _ = auth
+    
+    c = db.query(CustomConnector).filter(CustomConnector.id == connector_id, CustomConnector.user_id == user.id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Connector not found.")
+        
+    enc_creds = encrypt_credentials(json.dumps(body.credentials))
+    platform_key = f"custom_{c.id}"
+    
+    existing = db.query(UserIntegration).filter(UserIntegration.user_id == user.id, UserIntegration.platform == platform_key).first()
+    if existing:
+        existing.credentials = enc_creds
+        existing.status = "connected"
+    else:
+        db.add(UserIntegration(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            platform=platform_key,
+            credentials=enc_creds,
+            status="connected"
+        ))
+    
+    c.status = "validated"
+    db.commit()
+    return {"message": "Connector credentials securely encrypted and saved.", "status": "validated"}
+
+@app.post("/api/connector/{connector_id}/test", tags=["Connectors"])
+@limiter.limit("10/minute")
+async def api_connector_test(request: Request, connector_id: str, body: ConnectorTestRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import CustomConnector, UserIntegration, ConnectorAuditLog
+    from .connector_registry import execute_operation, ConnectorError
+    from .auth import decrypt_credentials
+    import json
+    import uuid
+    user, _ = auth
+    
+    c = db.query(CustomConnector).filter(CustomConnector.id == connector_id, CustomConnector.user_id == user.id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Connector not found.")
+        
+    spec = json.loads(c.spec)
+    
+    # Retrieve credentials if stored
+    auth_headers = {}
+    platform_key = f"custom_{c.id}"
+    integ = db.query(UserIntegration).filter(UserIntegration.user_id == user.id, UserIntegration.platform == platform_key).first()
+    if integ:
+        try:
+            creds = json.loads(decrypt_credentials(integ.credentials))
+            if "api_key" in creds:
+                auth_headers["Authorization"] = f"Bearer {creds['api_key']}"
+            elif "access_token" in creds:
+                auth_headers["Authorization"] = f"Bearer {creds['access_token']}"
+        except Exception:
+            pass
+            
+    try:
+        res = execute_operation(
+            spec=spec,
+            operation_name=body.operation_name,
+            headers=body.headers,
+            query=body.query,
+            auth_headers=auth_headers
+        )
+        
+        # Audit Log
+        db.add(ConnectorAuditLog(
+            id=str(uuid.uuid4()),
+            connector_id=c.id,
+            user_id=user.id,
+            operation_name=body.operation_name,
+            status="success" if res.get("status_code", 500) < 400 else "failed",
+            status_code=res.get("status_code"),
+            details=f"Test executed against {c.platform_name}"
+        ))
+        db.commit()
+        return res
+    except ConnectorError as e:
+        db.add(ConnectorAuditLog(
+            id=str(uuid.uuid4()),
+            connector_id=c.id,
+            user_id=user.id,
+            operation_name=body.operation_name,
+            status="blocked",
+            status_code=400,
+            details=str(e)[:1000]
+        ))
+        db.commit()
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Connector test execution failed.")
+
+@app.post("/api/connector/{connector_id}/toggle", tags=["Connectors"])
+async def api_connector_toggle(connector_id: str, body: ConnectorToggleRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import CustomConnector, ConnectorAuditLog
+    import uuid
+    user, _ = auth
+    
+    c = db.query(CustomConnector).filter(CustomConnector.id == connector_id, CustomConnector.user_id == user.id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Connector not found.")
+        
+    new_status = "active" if body.active else "disabled"
+    c.status = new_status
+    
+    db.add(ConnectorAuditLog(
+        id=str(uuid.uuid4()),
+        connector_id=c.id,
+        user_id=user.id,
+        operation_name="toggle_status",
+        status="success",
+        status_code=200,
+        details=f"Status set to {new_status}"
+    ))
+    db.commit()
+    return {"id": c.id, "status": c.status}

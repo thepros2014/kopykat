@@ -110,18 +110,27 @@ def get_current_user_jwt(
 def get_current_user_apikey(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
     db: Session = Depends(get_db),
-) -> tuple[User, APIKey]:
+) -> tuple[User, Optional[APIKey]]:
     if not credentials:
-        raise HTTPException(status_code=401, detail="API key required")
+        raise HTTPException(status_code=401, detail="Authentication required")
 
     raw_key = credentials.credentials
+    
+    # 1. Check if token is a valid user JWT session
+    payload = decode_access_token(raw_key)
+    if payload and payload.get("sub"):
+        user = db.query(User).filter(User.id == payload["sub"], User.is_active == True).first()
+        if user:
+            return user, None
+
+    # 2. Check if token is an API key
     key_hash = hash_api_key(raw_key)
     api_key = db.query(APIKey).filter(
         APIKey.key_hash == key_hash,
         APIKey.is_active == True,
     ).first()
     if not api_key:
-        raise HTTPException(status_code=401, detail="Invalid or revoked API key")
+        raise HTTPException(status_code=401, detail="Invalid or revoked authentication credentials")
 
     user = db.query(User).filter(User.id == api_key.user_id, User.is_active == True).first()
     if not user:

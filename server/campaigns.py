@@ -136,3 +136,114 @@ DO NOT include markdown wrappers like ```json.
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse Demo Omni-Campaign JSON: {text}")
         raise ValueError("AI returned invalid formatting. Please try again.")
+
+
+def _extract_clean_json(text: str) -> dict:
+    text = text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return json.loads(text.strip())
+
+
+def generate_omni_campaign_from_image(image_bytes: bytes, mime_type: str, keyword: str = "", extra_context: str = "") -> dict:
+    """
+    Uses Vision AI (Gemini / GPT-4o) to analyze product images and generate a full,
+    multi-channel marketing campaign and product descriptions.
+    """
+    pain_points = scrape_pain_points(keyword or "e-commerce product")
+    
+    prompt = f"""You are an elite direct-response marketer, product catalog specialist, and copywriter.
+Analyze the provided product image in detail. Identify the product type, key visual features, materials/design, target audience, and emotional appeal.
+Additional user context: {extra_context or 'None provided'}
+Target Keyword / Category: {keyword or 'Identified from image'}
+
+Market complaints/pain points: {pain_points}
+
+Generate a comprehensive, cohesive Omni-Channel Marketing Campaign.
+Format output as a STRICT JSON object with no markdown wrappers (do not use ```json).
+Exact structure required:
+{{
+  "detected_product_name": "Accurate, marketable product title (5-10 words)",
+  "detected_description": "Detailed, benefit-rich product description (100-150 words)",
+  "blog_post": {{
+    "title": "A catchy, SEO-optimized title",
+    "content": "Full blog post in clean HTML format with <h2>, <h3>, <p>, <ul>."
+  }},
+  "email_drip": [
+    {{
+      "subject": "Email 1 Subject (Hook & Problem Awareness)",
+      "body": "HTML body for email 1 using PAS framework."
+    }},
+    {{
+      "subject": "Email 2 Subject (Social Proof & Benefits)",
+      "body": "HTML body for email 2."
+    }},
+    {{
+      "subject": "Email 3 Subject (Urgency & Direct Call to Action)",
+      "body": "HTML body for email 3."
+    }}
+  ],
+  "social_posts": [
+    "Engaging Instagram/Facebook product post with hashtags",
+    "Punchy Twitter/X post highlighting key transformation",
+    "Professional LinkedIn/Pinterest product highlight"
+  ]
+}}
+"""
+    
+    gemini_key = os.environ.get('GEMINI_API_KEY', '')
+    openai_key = os.environ.get('OPENAI_API_KEY', '')
+    provider = os.environ.get('AI_PROVIDER', 'openai').lower()
+    
+    # 1. Try Gemini Vision if preferred or available
+    if (provider == 'gemini' and gemini_key) or (gemini_key and not openai_key):
+        try:
+            genai.configure(api_key=gemini_key)
+            model_name = os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash')
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content([
+                {"mime_type": mime_type or "image/jpeg", "data": image_bytes},
+                prompt
+            ])
+            return _extract_clean_json(response.text)
+        except Exception as e:
+            logger.warning(f"Gemini vision failed: {e}. Attempting fallback...")
+            if not openai_key:
+                raise ValueError(f"Vision campaign generation failed: {e}")
+    
+    # 2. Try OpenAI Vision (GPT-4o / GPT-4o-mini)
+    if openai_key:
+        try:
+            import base64
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_key)
+            b64_img = base64.b64encode(image_bytes).decode('utf-8')
+            response = client.chat.completions.create(
+                model=os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type or 'image/jpeg'};base64,{b64_img}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=2500,
+                response_format={"type": "json_object"}
+            )
+            return _extract_clean_json(response.choices[0].message.content)
+        except Exception as e:
+            logger.error(f"OpenAI vision failed: {e}")
+            raise ValueError(f"Vision campaign generation failed: {e}")
+            
+    raise ValueError("No AI API key configured. Set GEMINI_API_KEY or OPENAI_API_KEY in .env")
