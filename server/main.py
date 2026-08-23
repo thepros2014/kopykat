@@ -49,6 +49,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     return response
 
 _ALLOWED_TAGS=["p","h2","h3","h4","ul","ol","li","strong","em","b","i","a","br","blockquote"]; _ALLOWED_ATTRS={"a":["href","title","rel"]}

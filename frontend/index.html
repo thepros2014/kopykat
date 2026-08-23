@@ -5,17 +5,44 @@
  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
  <meta http-equiv="Pragma" content="no-cache" />
  <meta http-equiv="Expires" content="0" />
- <script>
- const APP_VERSION = "1.1.2";
- if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
- localStorage.clear();
- sessionStorage.clear();
- // Clear cookies
- document.cookie.split(";").forEach(function(c) { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
- localStorage.setItem("kopykat_version", APP_VERSION);
- window.location.href = "/"; // Force redirect to refresh state
- }
- </script>
+   <script>
+    const APP_VERSION = "1.2.0";
+    if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Comprehensive Cookie Purge across domains and paths
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+        if (name) {
+          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
+          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + window.location.hostname;
+        }
+      }
+      
+      // Purge all Service Workers and CacheStorage
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (let r of registrations) { r.unregister(); }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let n of names) { caches.delete(n); }
+        });
+      }
+      
+      localStorage.setItem("kopykat_version", APP_VERSION);
+      // Hard reload with cache purge
+      if (window.location.search.indexOf('v=') === -1) {
+        window.location.replace(window.location.pathname + '?v=' + APP_VERSION + window.location.hash);
+      }
+    }
+  </script>
 
  <meta charset="UTF-8" />
  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>

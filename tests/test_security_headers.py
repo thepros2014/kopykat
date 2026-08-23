@@ -8,6 +8,8 @@ def test_security_headers_present(client):
     assert response.headers.get("X-XSS-Protection") == "1; mode=block"
     assert response.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
     assert "geolocation=()" in response.headers.get("Permissions-Policy", "")
+    assert "no-cache" in response.headers.get("Cache-Control", "")
+    assert "no-store" in response.headers.get("Cache-Control", "")
 
 def test_cors_preflight_headers(client):
     response = client.options("/api/generate", headers={
