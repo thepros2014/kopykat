@@ -6,7 +6,7 @@
  <meta http-equiv="Pragma" content="no-cache" />
  <meta http-equiv="Expires" content="0" />
  <script>
- const APP_VERSION = "1.1.1";
+ const APP_VERSION = "1.1.2";
  if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
  localStorage.clear();
  sessionStorage.clear();
@@ -46,6 +46,7 @@
  <button class="sidebar-link" onclick="showSection('docs', this)">API Docs</button>
  <button class="sidebar-link" onclick="showSection('integrations', this)">Integrations</button>
  <button class="sidebar-link" onclick="showSection('bulk', this)" style="font-weight:600; color:var(--purple);">Bulk Sync CSV</button>
+    <button class="sidebar-link" onclick="showSection('miner', this)">Review Miner</button>
  <div style="flex:1;"></div>
  <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
  </aside>
@@ -1485,6 +1486,97 @@ async function discoverConnector() {
  btn.disabled = false;
  }
 }
+
+async function runReviewMiner() {
+  const prod = document.getElementById('miner-product').value.trim();
+  const comp = document.getElementById('miner-competitor').value.trim();
+  const reviews = document.getElementById('miner-reviews').value.trim();
+
+  if (!prod) return alert("Please enter your product name.");
+  if (!reviews || reviews.length < 10) return alert("Please paste at least one detailed competitor review.");
+
+  const btn = document.getElementById('btn-mine-reviews');
+  btn.textContent = "Analyzing Reviews & Crafting Copy...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/competitor/mine-reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ product_name: prod, competitor_name: comp, reviews_text: reviews })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Review mining failed.");
+
+    // Render Flaws (DOM textContent safe)
+    const flawsContainer = document.getElementById('miner-flaws-list');
+    flawsContainer.innerHTML = '';
+    (data.extracted_flaws || []).forEach((flaw, i) => {
+      const div = document.createElement('div');
+      div.style.padding = '8px 12px';
+      div.style.background = 'rgba(239, 68, 68, 0.08)';
+      div.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+      div.style.borderRadius = '6px';
+      div.style.fontSize = '13px';
+      div.textContent = flaw;
+      flawsContainer.appendChild(div);
+    });
+
+    // Render Counter Description
+    document.getElementById('miner-counter-desc').textContent = data.counter_description || '';
+
+    // Render Ad Hooks
+    const hooksText = (data.ad_hooks || []).map((h, i) => `${i+1}. ${h}`).join('\n\n');
+    document.getElementById('miner-ad-hooks').textContent = hooksText;
+
+    // Render Comparison Table (DOM textContent safe)
+    const compBody = document.getElementById('miner-comparison-body');
+    compBody.innerHTML = '';
+    (data.comparison_points || []).forEach(row => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      
+      const tdAspect = document.createElement('td');
+      tdAspect.style.padding = '10px 8px';
+      tdAspect.style.fontWeight = '600';
+      tdAspect.textContent = row.aspect || '';
+
+      const tdFlaw = document.createElement('td');
+      tdFlaw.style.padding = '10px 8px';
+      tdFlaw.style.color = 'var(--muted)';
+      tdFlaw.textContent = row.competitor_flaw || '';
+
+      const tdAdv = document.createElement('td');
+      tdAdv.style.padding = '10px 8px';
+      tdAdv.style.fontWeight = '600';
+      tdAdv.style.color = '#22c55e';
+      tdAdv.textContent = row.our_advantage || '';
+
+      tr.appendChild(tdAspect);
+      tr.appendChild(tdFlaw);
+      tr.appendChild(tdAdv);
+      compBody.appendChild(tr);
+    });
+
+    document.getElementById('miner-results-area').classList.remove('hidden');
+    loadProfile();
+  } catch (err) {
+    alert("Error: " + err.message);
+  } finally {
+    btn.textContent = "Mine Reviews & Generate Angles";
+    btn.disabled = false;
+  }
+}
+
+function copyElementText(elemId) {
+  const el = document.getElementById(elemId);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    alert("Copied to clipboard!");
+  });
+}
+
 </script>
 </body>
 </html>

@@ -159,3 +159,18 @@ class CampaignVisionGenerateRequest(BaseModel):
     extra_context: Optional[str] = ""
     image_base64: str = Field(min_length=10)
     mime_type: Optional[str] = "image/jpeg"
+
+
+class CompetitorMineRequest(BaseModel):
+    product_name: str = Field(min_length=2, max_length=200)
+    competitor_name: Optional[str] = Field(default="Competitor", max_length=200)
+    reviews_text: str = Field(min_length=10, max_length=10000)
+
+class CompetitorMineResponse(BaseModel):
+    id: str
+    product_name: str
+    competitor_name: str
+    extracted_flaws: list[str]
+    counter_description: str
+    comparison_points: list[dict]
+    ad_hooks: list[str]

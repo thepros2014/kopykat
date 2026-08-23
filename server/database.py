@@ -183,6 +183,17 @@ class DripLog(Base):
     step = Column(Integer, nullable=False)
     sent_at = Column(DateTime, default=datetime.utcnow)
 
+
+class CompetitorAudit(Base):
+    __tablename__ = "competitor_audits"
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), nullable=False)
+    product_name = Column(String(255), nullable=False)
+    competitor_name = Column(String(255), nullable=False)
+    extracted_flaws = Column(Text, nullable=False)
+    counter_copy = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class OpportunityLog(Base):
     __tablename__ = "opportunity_logs"
     id = Column(String(36), primary_key=True)

@@ -167,7 +167,7 @@ FRONTEND/BACKEND CONTRACT
   Current valid values: wordpress, mailchimp, hubspot, shopify, webflow,
                         amazon, ebay, walmart, temu
 - APP_VERSION in both HTML files must be incremented on every frontend deploy
-  to trigger client-side cache wipe. Current version: 1.1.0
+  to trigger client-side cache wipe. Current version: 1.1.2
 - Bulk CSV preview renders exclusively via safe DOM textContent (XSS protected).
 
 EMOJI POLICY INVARIANT
@@ -281,6 +281,13 @@ BULK CATALOG SYNC & MULTI-PLATFORM SYNDICATION
 - Fixed XSS risk in Bulk CSV preview (pure DOM textContent construction)
 - Push targets wired: Shopify, Amazon, eBay, Walmart, Temu, WordPress, Webflow, Mailchimp, HubSpot
 
+
+COMPETITOR 1-STAR REVIEW MINER (MODULE 1)
+- CompetitorAudit model added to database.py
+- POST /api/competitor/mine-reviews in server/main.py with atomic credit deduction and rollback refund
+- mine_competitor_reviews() in server/ai_engine.py: extracts top 3-5 competitor flaws, writes counter-positioned descriptions, 'Us vs. Them' comparison matrix, and direct-response ad hooks
+- Dashboard UI: Review Miner section added with full interactive analysis and 1-click copy tools
+
 AUTOMATED TEST SUITE
 - 12 comprehensive unit and integration tests created under tests/
 - 100% test pass rate across auth, campaigns, vision, connectors, and CSV parser
@@ -357,7 +364,7 @@ Native platforms currently supported (server/integrations.py):
 ============================================================
 HANDOFF POINT
 ============================================================
-The codebase is 100% stable, fully tested (12/12 pytest passing), and deployed on Render.
+The codebase is 100% stable, fully tested (16/16 pytest passing), and deployed on Render.
 All code is committed and pushed to: https://github.com/thepros2014/kopykat
 
 END OF HANDOFF

@@ -271,3 +271,62 @@ async def generate_copy(
         "cost_usd":           cost_usd,
         "generation_time_ms": elapsed_ms,
     }
+
+
+async def mine_competitor_reviews(product_name: str, competitor_name: str, reviews_text: str) -> dict:
+    """
+    Ingests negative reviews of competitor products, extracts the top flaws,
+    and produces counter-positioned product descriptions, comparison tables, and ad hooks.
+    """
+    prompt = f"""You are an expert direct-response copywriter and product strategist.
+Our Product: {product_name}
+Competitor Brand/Product: {competitor_name}
+
+Here are real negative 1-star and 2-star reviews from customers who bought the competitor's product:
+---
+{reviews_text}
+---
+
+Your task is to analyze these reviews and generate a complete competitive counter-strategy.
+Output a STRICT JSON object with no markdown wrappers (do not use ```json).
+Exact required JSON structure:
+{{
+  "extracted_flaws": [
+    "Flaw 1: specific complaint from reviews",
+    "Flaw 2: specific complaint from reviews",
+    "Flaw 3: specific complaint from reviews"
+  ],
+  "counter_description": "A compelling, benefit-rich product description (100-150 words) for {product_name} that explicitly neutralizes these flaws and reassures buyers.",
+  "comparison_points": [
+    {{"aspect": "Feature or build quality", "competitor_flaw": "What breaks on competitor", "our_advantage": "How our product solves it"}},
+    {{"aspect": "Durability / Longevity", "competitor_flaw": "What customers complained about", "our_advantage": "Our superior construction"}},
+    {{"aspect": "Customer Experience", "competitor_flaw": "Frustration point", "our_advantage": "Our guarantee / design"}}
+  ],
+  "ad_hooks": [
+    "Hook 1: Call out the exact competitor frustration directly",
+    "Hook 2: Us vs. Them contrast hook",
+    "Hook 3: Problem-awareness question hook"
+  ]
+}}
+"""
+    
+    provider = AI_PROVIDER
+    if provider == "openai" and not OPENAI_API_KEY: provider = "gemini"
+    if provider == "gemini" and not GEMINI_API_KEY: provider = "openai"
+
+    if provider == "openai" and OPENAI_API_KEY:
+        text, _ = await _generate_openai(prompt, 1800)
+    elif provider == "gemini" and GEMINI_API_KEY:
+        text, _ = await _generate_gemini(prompt, 1800)
+    else:
+        raise RuntimeError("No AI API key configured. Set OPENAI_API_KEY or GEMINI_API_KEY in .env")
+
+    clean_text = text.strip()
+    if clean_text.startswith("```json"):
+        clean_text = clean_text[7:]
+    if clean_text.startswith("```"):
+        clean_text = clean_text[3:]
+    if clean_text.endswith("```"):
+        clean_text = clean_text[:-3]
+    
+    return json.loads(clean_text.strip())

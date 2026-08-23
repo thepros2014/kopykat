@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -559,3 +559,63 @@ async def api_connector_toggle(connector_id: str, body: ConnectorToggleRequest, 
     ))
     db.commit()
     return {"id": c.id, "status": c.status}
+
+
+@app.post("/api/competitor/mine-reviews", response_model=CompetitorMineResponse, tags=["Competitor Mining"])
+@limiter.limit("10/minute")
+async def api_mine_competitor_reviews(
+    request: Request,
+    body: CompetitorMineRequest,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .database import CompetitorAudit
+    from .ai_engine import mine_competitor_reviews
+    import uuid
+    import json
+
+    user, _ = auth
+
+    # Atomic credit deduction
+    updated = db.execute(
+        text("UPDATE users SET generations = generations - 1 WHERE id = :uid AND generations >= 1"),
+        {"uid": user.id}
+    ).rowcount
+    if updated == 0:
+        raise HTTPException(status_code=402, detail="Insufficient generation balance. Please upgrade your plan.")
+
+    try:
+        data = await mine_competitor_reviews(
+            product_name=body.product_name,
+            competitor_name=body.competitor_name or "Competitor",
+            reviews_text=body.reviews_text
+        )
+
+        audit_id = str(uuid.uuid4())
+        audit = CompetitorAudit(
+            id=audit_id,
+            user_id=user.id,
+            product_name=body.product_name,
+            competitor_name=body.competitor_name or "Competitor",
+            extracted_flaws=json.dumps(data.get("extracted_flaws", [])),
+            counter_copy=json.dumps(data)
+        )
+        db.add(audit)
+        db.commit()
+
+        return CompetitorMineResponse(
+            id=audit_id,
+            product_name=body.product_name,
+            competitor_name=body.competitor_name or "Competitor",
+            extracted_flaws=data.get("extracted_flaws", []),
+            counter_description=data.get("counter_description", ""),
+            comparison_points=data.get("comparison_points", []),
+            ad_hooks=data.get("ad_hooks", [])
+        )
+    except Exception as e:
+        db.rollback()
+        # Atomic refund on failure
+        db.execute(text("UPDATE users SET generations = generations + 1 WHERE id = :uid"), {"uid": user.id})
+        db.commit()
+        logger.error("Competitor review mining failed: %s", e)
+        raise HTTPException(status_code=500, detail="Review mining analysis failed. Your balance was refunded.")
