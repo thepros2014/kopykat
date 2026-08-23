@@ -218,6 +218,21 @@ class InventorySyncLog(Base):
     fanout_results = Column(Text, default="{}", nullable=False)  # JSON string of {platform: status}
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class CustomerReview(Base):
+    __tablename__ = "customer_reviews"
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    customer_name = Column(String(100), nullable=False)
+    customer_email = Column(String(255), nullable=True)
+    product_name = Column(String(255), nullable=False)
+    rating = Column(Integer, default=5, nullable=False)
+    review_text = Column(Text, nullable=False)
+    sentiment = Column(String(20), default="positive", nullable=False)  # positive, neutral, negative
+    status = Column(String(30), default="published", nullable=False)   # published, action_needed, resolved
+    draft_reply = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class OpportunityLog(Base):
     __tablename__ = "opportunity_logs"
     id = Column(String(36), primary_key=True)

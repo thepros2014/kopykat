@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest, CustomerReviewResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -761,3 +761,89 @@ async def list_inventory_sync_logs(auth: tuple = Depends(get_current_user_apikey
             created_at=l.created_at
         ))
     return results
+
+
+# --- POST-PURCHASE REVIEW & UGC ROUTES ---
+@app.post("/api/reviews/drip-templates", response_model=PostPurchaseDripResponse, tags=["Reviews & UGC"])
+async def generate_drip_sequence(body: PostPurchaseDripRequest, auth: tuple = Depends(get_current_user_apikey)):
+    from .reviews_ugc import generate_post_purchase_drip
+    import uuid
+    emails = generate_post_purchase_drip(
+        product_name=body.product_name,
+        brand_tone=body.brand_tone or "Warm and helpful",
+        incentive=body.incentive_offer or "15% off your next order"
+    )
+    return PostPurchaseDripResponse(
+        id=str(uuid.uuid4()),
+        product_name=body.product_name,
+        drip_emails=emails
+    )
+
+@app.post("/api/reviews/submit", response_model=CustomerReviewResponse, tags=["Reviews & UGC"])
+@limiter.limit("30/minute")
+async def submit_customer_review(
+    request: Request,
+    body: CustomerReviewSubmitRequest,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .reviews_ugc import classify_review_sentiment_and_reply
+    from .database import CustomerReview
+    import uuid
+    user, _ = auth
+    analysis = classify_review_sentiment_and_reply(
+        customer_name=body.customer_name,
+        product_name=body.product_name,
+        rating=body.rating,
+        review_text=body.review_text
+    )
+
+    review_obj = CustomerReview(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        customer_name=body.customer_name.strip(),
+        customer_email=body.customer_email.strip() if body.customer_email else None,
+        product_name=body.product_name.strip(),
+        rating=body.rating,
+        review_text=body.review_text.strip(),
+        sentiment=analysis["sentiment"],
+        status=analysis["status"],
+        draft_reply=analysis["draft_reply"],
+        created_at=datetime.utcnow()
+    )
+    db.add(review_obj)
+    db.commit()
+    db.refresh(review_obj)
+
+    return CustomerReviewResponse(
+        id=review_obj.id,
+        customer_name=review_obj.customer_name,
+        customer_email=review_obj.customer_email,
+        product_name=review_obj.product_name,
+        rating=review_obj.rating,
+        review_text=review_obj.review_text,
+        sentiment=review_obj.sentiment,
+        status=review_obj.status,
+        draft_reply=review_obj.draft_reply,
+        created_at=review_obj.created_at
+    )
+
+@app.get("/api/reviews", response_model=list[CustomerReviewResponse], tags=["Reviews & UGC"])
+async def list_customer_reviews(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import CustomerReview
+    user, _ = auth
+    reviews = db.query(CustomerReview).filter(CustomerReview.user_id == user.id).order_by(CustomerReview.created_at.desc()).limit(100).all()
+    return [
+        CustomerReviewResponse(
+            id=r.id,
+            customer_name=r.customer_name,
+            customer_email=r.customer_email,
+            product_name=r.product_name,
+            rating=r.rating,
+            review_text=r.review_text,
+            sentiment=r.sentiment,
+            status=r.status,
+            draft_reply=r.draft_reply,
+            created_at=r.created_at
+        ) for r in reviews
+    ]

@@ -63,6 +63,7 @@
  <button class="sidebar-link" onclick="showSection('bulk', this)" style="font-weight:600; color:var(--purple);">Bulk Sync CSV</button>
     <button class="sidebar-link" onclick="showSection('miner', this)">Review Miner</button>
     <button class="sidebar-link" onclick="showSection('inventory', this)">Inventory Balancer</button>
+    <button class="sidebar-link" onclick="showSection('ugc', this)">Reviews & UGC Drips</button>
  <div style="flex:1;"></div>
  <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
  </aside>
@@ -1346,6 +1347,98 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProfile();
   loadKeys();
   loadInventory();
+  loadCustomerReviews();
+
+async function generateUGCDrip() {
+  const prod = document.getElementById('ugc-prod').value.trim();
+  const tone = document.getElementById('ugc-tone').value.trim();
+  const incentive = document.getElementById('ugc-incentive').value.trim();
+
+  if (!prod) return alert("Please enter a product name.");
+  const btn = document.getElementById('btn-gen-ugc-drip');
+  btn.textContent = "Generating Sequence...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/reviews/drip-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ product_name: prod, brand_tone: tone, incentive_offer: incentive })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Generation failed");
+
+    const container = document.getElementById('ugc-drip-cards');
+    container.innerHTML = '';
+
+    (data.drip_emails || []).forEach((em, idx) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.background = 'var(--bg2)';
+      card.style.border = '1px solid var(--border)';
+      card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
+        '<span style="font-weight:bold; font-size:14px; color:var(--purple);">Step ' + em.step + ' (Day ' + em.day + '): ' + em.goal + '</span>' +
+        '<button class="btn btn-outline btn-sm" onclick="copyDripStep(' + idx + ')">Copy Email</button>' +
+        '</div>' +
+        '<div style="font-size:13px; font-weight:600; margin-bottom:6px;">Subject: ' + em.subject + '</div>' +
+        '<div id="drip-step-body-' + idx + '" style="font-size:13px; color:var(--muted); white-space:pre-wrap; line-height:1.6; border-top:1px solid var(--border); padding-top:10px;">' + em.body + '</div>';
+      container.appendChild(card);
+    });
+
+    document.getElementById('ugc-drip-results').classList.remove('hidden');
+  } catch (err) {
+    alert("Error: " + err.message);
+  } finally {
+    btn.textContent = "Generate Post-Purchase Sequence";
+    btn.disabled = false;
+  }
+}
+
+function copyDripStep(idx) {
+  const el = document.getElementById('drip-step-body-' + idx);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => alert("Email copy copied to clipboard!"));
+}
+
+async function loadCustomerReviews() {
+  const container = document.getElementById('ugc-reviews-list');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/reviews', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (!res.ok) throw new Error("Failed to load reviews");
+    const reviews = await res.json();
+
+    container.innerHTML = '';
+    if (!reviews.length) {
+      container.innerHTML = '<div style="color:var(--muted); font-size:13px; padding:16px 0;">No customer reviews submitted yet. Connect your store review widget to begin automated classification.</div>';
+      return;
+    }
+
+    reviews.forEach(r => {
+      const div = document.createElement('div');
+      div.style.padding = '14px';
+      div.style.background = 'var(--bg2)';
+      div.style.border = '1px solid var(--border)';
+      div.style.borderRadius = '8px';
+
+      const sentimentColor = r.sentiment === 'positive' ? '#22c55e' : (r.sentiment === 'negative' ? '#ef4444' : '#eab308');
+      const stars = '*'.repeat(r.rating) + ''.repeat(5 - r.rating);
+
+      div.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+        '<div><strong>' + r.customer_name + '</strong> on <em>' + r.product_name + '</em></div>' +
+        '<div><span style="color:#eab308; font-size:14px; margin-right:8px;">' + stars + '</span><span style="font-size:11px; font-weight:bold; padding:3px 8px; border-radius:12px; background:' + sentimentColor + '20; color:' + sentimentColor + ';">' + r.sentiment.toUpperCase() + '</span></div>' +
+        '</div>' +
+        '<div style="font-size:13px; margin-bottom:10px; line-height:1.5;">"' + r.review_text + '"</div>' +
+        (r.draft_reply ? '<div style="padding:10px; background:var(--bg); border-left:3px solid var(--purple); border-radius:4px; font-size:12px; color:var(--muted);"><strong style="color:var(--text);">AI Resolution Reply:</strong><br/>' + r.draft_reply.replace(/\n/g, '<br/>') + '</div>' : '');
+
+      container.appendChild(div);
+    });
+  } catch (err) {
+    container.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Failed to load reviews.</div>';
+  }
+}
+
 
 async function loadInventory() {
   const tbody = document.getElementById('inv-table-body');

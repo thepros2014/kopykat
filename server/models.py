@@ -213,3 +213,33 @@ class InventorySyncLogResponse(BaseModel):
     new_quantity: int
     fanout_results: dict
     created_at: datetime
+
+
+class PostPurchaseDripRequest(BaseModel):
+    product_name: str = Field(min_length=2, max_length=200)
+    brand_tone: Optional[str] = "Warm, grateful, and helpful"
+    incentive_offer: Optional[str] = "15% off your next purchase"
+
+class PostPurchaseDripResponse(BaseModel):
+    id: str
+    product_name: str
+    drip_emails: list[dict]  # list of {step: int, day: int, subject: str, body: str, goal: str}
+
+class CustomerReviewSubmitRequest(BaseModel):
+    customer_name: str = Field(min_length=1, max_length=100)
+    customer_email: Optional[str] = None
+    product_name: str = Field(min_length=2, max_length=255)
+    rating: int = Field(ge=1, le=5)
+    review_text: str = Field(min_length=5, max_length=5000)
+
+class CustomerReviewResponse(BaseModel):
+    id: str
+    customer_name: str
+    customer_email: Optional[str] = None
+    product_name: str
+    rating: int
+    review_text: str
+    sentiment: str
+    status: str
+    draft_reply: Optional[str] = None
+    created_at: datetime
