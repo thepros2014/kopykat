@@ -1,0 +1,308 @@
+KOPYKAT — IDE HANDOFF / PROGRESS UPDATE
+Generated: August 22, 2026
+From: GPT-5.6 Luna
+
+PURPOSE
+Bring the IDE-side GPT/AI fully up to speed without repeating completed work.
+
+PROJECT OVERVIEW
+KopyKat started as an AI product-description writer and has evolved into a commerce/marketing automation platform.
+
+Current direction:
+Product/store inventory
+→ KopyKat AI processing
+→ descriptions, marketing content and SEO assets
+→ inventory loading/synchronization
+→ e-commerce stores and marketplaces
+→ bloggers/publishers/potential customer discovery
+→ distribution across as many commerce/content platforms as practical
+
+The strategic goal is NOT merely “AI copywriting.”
+
+The intended product is closer to:
+“Give KopyKat your product/catalog information once and let it turn that information into a coordinated commerce and marketing operation across your channels.”
+
+A major capability now being built is a UNIVERSAL CONNECTOR ENGINE so KopyKat does not need a hard-coded integration for every platform.
+
+WORKING PRINCIPLES
+1. Security first.
+2. Reliability first.
+3. Surgical code changes instead of unnecessary rewrites.
+4. Never claim something is fixed or verified when it was not.
+5. Small, reversible commits.
+6. Preserve existing working functionality.
+7. Never execute arbitrary AI-generated code.
+8. Never expose customer credentials to the AI model.
+9. Fail closed when authentication, validation or platform behavior is ambiguous.
+10. KopyKat is not being advertised yet, so this is the window for aggressive pre-launch hardening.
+
+The user has backup copies from before our involvement and understands rollback/recovery.
+
+WORK ALREADY COMPLETED
+Previously addressed:
+- Stripe plan/fulfillment synchronization
+- Billing plan-name synchronization
+- Password-reset compatibility
+- JWT/encryption secret handling
+- Removal of stale generations_remaining scheduler references
+- Background worker deployment
+- Production DATABASE_URL enforcement
+- Integration SSRF protections
+- Removal of fake marketplace “success” responses
+- Founder entitlement handling
+- Recovery of server/main.py after an earlier overly broad replacement
+- CSV/dashboard XSS hardening
+- Dashboard status updates moved away from unsafe innerHTML
+- Atomic generation-credit deduction was reviewed and already uses a conditional SQL update:
+  UPDATE users SET generations = generations - :cost
+  WHERE id = :uid AND generations >= :cost
+- Stripe event ledger/idempotency protections were reviewed
+- Revenue uniqueness protections were reviewed
+
+IMPORTANT:
+Do not rewrite these mechanisms just because they look unusual. Some are already correct.
+
+CI
+A GitHub Actions workflow was added:
+.github/workflows/ci.yml
+
+Commit:
+aeb1c0448f0be6042f06af485e1e5ee3d161b6f9
+
+Intent:
+- push to main
+- pull requests to main
+- read-only contents permission
+- Python 3.11
+- Python source compilation
+- frontend/dashboard sanity checks
+
+Do NOT call CI green unless an actual workflow run has been observed and verified.
+
+UNIVERSAL CONNECTOR ENGINE
+The customer workflow is intended to be:
+
+Add Platform
+→ Discover API
+→ Map capabilities
+→ Validate connector
+→ Test connection
+→ Customer authorization
+→ Activate connector
+
+Critical architecture decision:
+DO NOT let AI write arbitrary executable code and immediately execute it against customer accounts.
+
+Instead:
+
+Customer platform
+→ API/OpenAPI discovery
+→ constrained connector specification
+→ validation
+→ restricted HTTP runtime
+→ authorized platform operations
+
+INSTALLED: server/connector_engine.py
+Capabilities:
+- OpenAPI/Swagger discovery
+- API operation extraction
+- OAuth2 detection
+- API-key detection
+- Bearer detection
+- Basic authentication detection
+- HTTPS-only discovery
+- SSRF/private-network protection
+- localhost blocking
+- DNS resolution checks
+- private/loopback/link-local/reserved/multicast/unspecified IP blocking
+- redirect blocking
+- API document size limit
+- constrained connector specification
+- operation limits
+- draft connector state
+- explicit prohibition of arbitrary code execution
+
+Current discovery implementation expects JSON/OpenAPI JSON. Review before production for DNS rebinding, redirects, credentials, request destinations, timeouts and response handling.
+
+INSTALLED: server/connector_registry.py
+Purpose: restricted execution layer for validated connector specifications.
+
+Includes:
+- specification validation
+- version/status validation
+- base URL validation
+- operation validation
+- GET/POST/PUT/PATCH/DELETE
+- path parameters
+- query parameters
+- JSON bodies
+- headers
+- separately supplied authentication headers
+- HTTPS enforcement
+- redirect blocking
+- response-size limits
+- no arbitrary code execution
+- credentials kept outside the connector specification
+
+CURRENT STATUS
+GREEN / INSTALLED:
+- API discovery
+- OpenAPI/Swagger mapping
+- authentication detection
+- SSRF protections
+- constrained connector specification
+- restricted connector runtime
+- connector operation validation
+- CI workflow
+
+NOT FINISHED:
+- customer-facing “Add Any Platform” UI
+- persistent connector registry/database model
+- OAuth authorization flow
+- secure credential vault/storage integration
+- customer connection test
+- sandbox/test mode
+- connector activation/deactivation controls
+- connector kill switch
+- connector audit logging
+- per-connector rate limiting
+- idempotency guarantees for external writes
+- automated connector tests
+- contract testing against real APIs
+- DNS-rebinding hardening/revalidation
+- production OAuth token lifecycle
+- connector telemetry
+- mechanism to promote frequently used custom connectors into native integrations
+
+TARGET CUSTOMER EXPERIENCE
+“My platform isn’t listed.”
+
+→ Add Any Platform
+→ enter platform/store/API documentation URL
+→ KopyKat discovers API
+→ identify authentication and capabilities
+→ create constrained connector specification
+→ automated validation
+→ sandbox/test connection
+→ customer authorizes access
+→ connector activates
+→ connector becomes available to that customer
+
+Potential future enhancement:
+Frequently used, reliable custom connectors can be promoted to native integrations after review.
+
+SECURITY REQUIREMENTS
+1. Never execute arbitrary AI-generated code.
+2. Never expose customer credentials to the AI model.
+3. Strict SSRF protection.
+4. HTTPS required for production connectors.
+5. Least-privilege OAuth scopes.
+6. Encrypt credentials at rest.
+7. Keep secrets separate from connector specs.
+8. Sandbox/test before activation.
+9. Idempotency for external writes.
+10. Safe retry/backoff only.
+11. Never blindly retry non-idempotent writes.
+12. Audit connector actions.
+13. Per-connector/customer kill switch.
+14. Rate limits and quotas.
+15. Contract/schema validation.
+16. CI tests before deployment.
+17. Fail closed on ambiguity.
+18. Never report “published/synchronized” unless destination confirms success.
+19. Prevent connector/customer resource exhaustion.
+20. Treat external API specifications as untrusted input.
+
+NEXT IMPLEMENTATION ORDER
+PHASE 1 — Customer-facing connector entry point
+- Add “Add Any Platform”
+- securely accept documentation URL
+- display discovery results
+- do not auto-activate
+
+PHASE 2 — Persistent connector model
+- connector metadata
+- specification/version
+- status
+- customer ownership
+- validation results
+- timestamps
+- never store raw secrets in connector spec
+
+PHASE 3 — Credential/OAuth subsystem
+- OAuth authorization
+- callback state protection
+- token storage
+- refresh
+- encryption
+- revocation
+- scope display
+- least privilege
+
+PHASE 4 — Sandbox/connection test
+- authenticated read test
+- response/schema validation
+- no writes during initial test
+- explicit activation
+
+PHASE 5 — Controlled execution
+- only validated connector specs
+- idempotency
+- rate limits
+- audit logs
+- safe retries
+- response validation
+
+PHASE 6 — Automated tests
+Test:
+- SSRF
+- localhost/private IP
+- redirects
+- DNS rebinding
+- invalid OpenAPI
+- oversized specs
+- invalid methods
+- unsafe paths
+- credential leakage
+- malformed responses
+- timeout behavior
+- duplicate writes
+- webhook replay
+- concurrent operations
+
+PHASE 7 — Dashboard integration
+Make the connector system native to KopyKat.
+
+IMPORTANT LESSON
+An earlier replacement of server/main.py was too broad and had to be restored.
+
+Therefore:
+FETCH CURRENT FILE → MAKE SURGICAL CHANGE → VERIFY → COMMIT.
+
+Never replace a core file wholesale unless absolutely necessary.
+
+PRODUCT STRATEGY
+Native integrations:
+= fastest, most polished, deeply tested
+
+Universal Connector Engine:
+= broad platform compatibility
+
+Connector telemetry:
+= tells KopyKat which custom platforms deserve native integration
+
+This means actual customer demand can determine future native integrations.
+
+CURRENT HANDOFF POINT
+Work was intentionally paused after installing the backend foundation for the Universal Connector Engine.
+
+The next major task is:
+CUSTOMER-FACING “ADD ANY PLATFORM” WORKFLOW
+
+Do not restart the project.
+Do not repeat the discovery/runtime implementation.
+Review the existing code first, then continue from the installed connector engine and registry.
+
+The user is moving this work into their IDE and wants the IDE-side GPT/AI to continue from this checkpoint as the implementation partner.
+
+END OF HANDOFF
