@@ -40,16 +40,24 @@ app.state.limiter=limiter; app.add_exception_handler(RateLimitExceeded,_rate_lim
 ALLOWED_ORIGINS=[o.strip() for o in os.getenv("ALLOWED_ORIGINS","https://kopykat.onrender.com").split(",") if o.strip()]
 app.add_middleware(CORSMiddleware,allow_origins=ALLOWED_ORIGINS,allow_credentials=True,allow_methods=["GET","POST","DELETE","OPTIONS"],allow_headers=["Authorization","Content-Type","X-Admin-Secret"])
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-app.add_middleware(ProxyHeadersMiddleware,trusted_hosts=["*"])
+trusted_proxies = [p.strip() for p in os.getenv("TRUSTED_PROXIES", "127.0.0.1,localhost").split(",") if p.strip()]
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted_proxies)
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https://api.stripe.com;"
+    )
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -156,16 +164,18 @@ async def list_plans(): return {"subscriptions":{k:{"name":v["name"],"price_usd"
 async def request_verification(request: Request, body: RequestVerificationRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     from .database import VerificationToken
     import secrets
+    import hashlib
     from datetime import timedelta
     
     user = db.query(User).filter(User.email == body.email).first()
     if not user:
-        # Do not disclose if email exists
         return {"message": "If this email is registered, a verification link has been sent."}
     
     token_str = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token_str.encode()).hexdigest()
+    
     vt = VerificationToken(
-        token=token_str,
+        token=token_hash,
         user_id=user.id,
         token_type="email_verification",
         expires_at=datetime.utcnow() + timedelta(hours=24)
@@ -186,8 +196,11 @@ async def request_verification(request: Request, body: RequestVerificationReques
 @limiter.limit("10/minute")
 async def verify_email(request: Request, body: VerifyEmailRequest, db: Session = Depends(get_db)):
     from .database import VerificationToken
+    import hashlib
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+    
     vt = db.query(VerificationToken).filter(
-        VerificationToken.token == body.token,
+        VerificationToken.token == token_hash,
         VerificationToken.token_type == "email_verification"
     ).first()
     
@@ -202,6 +215,64 @@ async def verify_email(request: Request, body: VerifyEmailRequest, db: Session =
     db.delete(vt)
     db.commit()
     return {"status": "success", "message": "Email verified successfully."}
+
+@app.post("/auth/request-password-reset", tags=["Auth"])
+@limiter.limit("5/minute")
+async def request_password_reset(request: Request, body: RequestPasswordReset, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    from .database import VerificationToken
+    import secrets
+    import hashlib
+    from datetime import timedelta
+    
+    user = db.query(User).filter(User.email == body.email).first()
+    if not user:
+        return {"message": "If this email is registered, a password reset link has been sent."}
+    
+    token_str = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token_str.encode()).hexdigest()
+    
+    vt = VerificationToken(
+        token=token_hash,
+        user_id=user.id,
+        token_type="password_reset",
+        expires_at=datetime.utcnow() + timedelta(hours=2)
+    )
+    db.add(vt)
+    db.commit()
+    
+    from .scheduler import _send_email
+    background_tasks.add_task(
+        _send_email,
+        "Reset your KopyKat password",
+        f"Click the link below to reset your password:<br><a href='{os.getenv('APP_BASE_URL', 'https://kopykat.onrender.com')}/reset-password?token={token_str}'>Reset Password</a>",
+        user.email
+    )
+    return {"message": "If this email is registered, a password reset link has been sent."}
+
+@app.post("/auth/reset-password", tags=["Auth"])
+@limiter.limit("10/minute")
+async def reset_password(request: Request, body: ResetPasswordSubmit, db: Session = Depends(get_db)):
+    from .database import VerificationToken
+    from .auth import hash_password
+    import hashlib
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+    
+    vt = db.query(VerificationToken).filter(
+        VerificationToken.token == token_hash,
+        VerificationToken.token_type == "password_reset"
+    ).first()
+    
+    if not vt or vt.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+    
+    user = db.query(User).filter(User.id == vt.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    
+    user.hashed_password = hash_password(body.new_password)
+    db.delete(vt)
+    db.commit()
+    return {"status": "success", "message": "Password reset successfully. You can now log in."}
 
 @app.post("/auth/register",response_model=TokenResponse,tags=["Auth"])
 @limiter.limit("5/minute")
@@ -230,7 +301,10 @@ async def generate(request:Request,body:GenerateRequest,auth:tuple=Depends(get_c
     user,api_key=auth; cost=body.variations; updated=db.execute(text("UPDATE users SET generations = generations - :cost WHERE id = :uid AND generations >= :cost"),{"cost":cost,"uid":user.id}).rowcount; db.commit()
     if updated==0: raise HTTPException(status_code=402,detail="No generations remaining. Upgrade your plan or buy a generation pack at /dashboard")
     try: result=await generate_copy(copy_type=body.type,context=body.context,tone=body.tone or "professional",variations=body.variations,max_tokens=body.max_words,user_id=user.id,db=db)
-    except Exception: db.execute(text("UPDATE users SET generations = generations + :cost WHERE id = :uid"),{"cost":cost,"uid":user.id}); db.commit(); raise
+    except Exception as e:
+        db.execute(text("UPDATE users SET generations = generations + :cost WHERE id = :uid"), {"cost": cost, "uid": user.id})
+        db.commit()
+        raise HTTPException(status_code=500, detail="AI generation failed. Your credits have been refunded.")
     db.refresh(user); actual=result.get("generations_used",body.variations); return GenerateResponse(type=body.type,variations=result["variations"],generations_used=actual,generations=user.generations,generation_time_ms=result["generation_time_ms"])
 @app.post("/billing/subscribe",response_model=CheckoutResponse,tags=["Billing"])
 async def subscribe(body:CheckoutRequest,current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)): return CheckoutResponse(**create_subscription_checkout(plan=body.plan,user=current_user,db=db))
@@ -835,6 +909,23 @@ async def inventory_webhook(
         sku=body.sku,
         delta=body.quantity_delta,
         trigger_platform=platform,
+        db=db
+    )
+    return res
+
+@app.post("/api/inventory/reconcile", tags=["Inventory Balancer"])
+async def reconcile_inventory(
+    sku: str,
+    canonical_stock: int,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .inventory import reconcile_inventory_sku
+    user, _ = auth
+    res = reconcile_inventory_sku(
+        user_id=user.id,
+        sku=sku,
+        canonical_stock=canonical_stock,
         db=db
     )
     return res

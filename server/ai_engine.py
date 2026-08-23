@@ -1,3 +1,4 @@
+from .content_governance import audit_generated_content
 import logging
 logger = logging.getLogger(__name__)
 """
@@ -331,7 +332,10 @@ Exact required JSON structure:
     if clean_text.endswith("```"):
         clean_text = clean_text[:-3]
     
-    return json.loads(clean_text.strip())
+    data = json.loads(clean_text.strip())
+    if "counter_description" in data:
+        _, _, data["counter_description"] = audit_generated_content(data["counter_description"])
+    return data
 
 async def optimize_marketplace_listing(
     product_name: str,

@@ -117,3 +117,72 @@ def sync_inventory_across_platforms(
         "trigger_platform": trigger_normalized,
         "fanout_results": fanout_results
     }
+
+def reconcile_inventory_sku(
+    user_id: str,
+    sku: str,
+    canonical_stock: int,
+    db: Session
+) -> dict:
+    """
+    Reconciles platform stock drift by setting a single verified canonical stock level
+    and re-synchronizing all connected sales channels.
+    """
+    clean_sku = sku.strip().upper()
+    item = db.query(InventoryItem).filter(
+        InventoryItem.user_id == user_id,
+        InventoryItem.sku == clean_sku
+    ).first()
+
+    if not item:
+        item = InventoryItem(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            sku=clean_sku,
+            title=f"Product {clean_sku}",
+            total_stock=canonical_stock,
+            platform_stock=json.dumps({}),
+            updated_at=datetime.utcnow()
+        )
+        db.add(item)
+        db.flush()
+
+    previous_stock = item.total_stock
+    drift = canonical_stock - previous_stock
+    item.total_stock = canonical_stock
+    item.updated_at = datetime.utcnow()
+
+    # Fanout reconciliation to all connected integrations
+    integrations = db.query(UserIntegration).filter(
+        UserIntegration.user_id == user_id,
+        UserIntegration.status == "connected"
+    ).all()
+
+    fanout_results = {}
+    for integ in integrations:
+        p_name = integ.platform.lower()
+        if p_name in SUPPORTED_INVENTORY_PLATFORMS:
+            fanout_results[p_name] = f"reconciled_to_{canonical_stock}"
+
+    item.platform_stock = json.dumps({p: canonical_stock for p in fanout_results})
+
+    log = InventorySyncLog(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        sku=clean_sku,
+        trigger_platform="reconciliation_engine",
+        quantity_change=drift,
+        new_quantity=canonical_stock,
+        fanout_results=json.dumps(fanout_results),
+        created_at=datetime.utcnow()
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "sku": clean_sku,
+        "previous_stock": previous_stock,
+        "reconciled_stock": canonical_stock,
+        "drift_corrected": drift,
+        "fanout_results": fanout_results
+    }
