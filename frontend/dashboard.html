@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.1.0";
+    const APP_VERSION = "1.1.1";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -36,18 +36,18 @@
 
   <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
   <aside class="sidebar">
-    <div class="sidebar-logo"> KopyKat</div>
-    <button class="sidebar-link active" onclick="showSection('overview')"> Overview</button>
-    <button class="sidebar-link" onclick="showSection('generator')"> Copy Generator</button>
-    <button class="sidebar-link" onclick="showSection('omni')"> Omni-Campaigns</button>
-    <button class="sidebar-link" onclick="showSection('apikeys')"> API Keys</button>
-    <button class="sidebar-link" onclick="showSection('usage')"> Usage</button>
-    <button class="sidebar-link" onclick="showSection('billing')"> Billing</button>
-    <button class="sidebar-link" onclick="showSection('docs')"> API Docs</button>
-    <button class="sidebar-link" onclick="showSection('integrations')"> Integrations</button>
-      <button class="sidebar-link" onclick="showSection('bulk')" style="font-weight:bold; color:var(--purple);"> ?? Bulk Sync CSV</button>
+    <div class="sidebar-logo">KopyKat</div>
+    <button class="sidebar-link active" onclick="showSection('overview', this)">Overview</button>
+    <button class="sidebar-link" onclick="showSection('generator', this)">Copy Generator</button>
+    <button class="sidebar-link" onclick="showSection('omni', this)">Omni-Campaigns</button>
+    <button class="sidebar-link" onclick="showSection('apikeys', this)">API Keys</button>
+    <button class="sidebar-link" onclick="showSection('usage', this)">Usage</button>
+    <button class="sidebar-link" onclick="showSection('billing', this)">Billing</button>
+    <button class="sidebar-link" onclick="showSection('docs', this)">API Docs</button>
+    <button class="sidebar-link" onclick="showSection('integrations', this)">Integrations</button>
+    <button class="sidebar-link" onclick="showSection('bulk', this)" style="font-weight:600; color:var(--purple);">Bulk Sync CSV</button>
     <div style="flex:1;"></div>
-    <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;"> Log Out</button>
+    <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
   </aside>
 
   <!-- ── Main ─────────────────────────────────────────────────────────────── -->
@@ -210,7 +210,7 @@
     </section>
 
     <!-- ── BILLING ───────────────────────────────────────────────────────── -->
-    <section id="section-billing" class="dash-section" style="display:none;">
+    <section id="section-billing" class="dash-section hidden">
       <div class="page-title">Billing & Plan</div>
       <div class="page-sub">Manage your subscription and campaign allowance.</div>
 
@@ -623,11 +623,39 @@ function getToken() { return localStorage.getItem('sc_token'); }
 if (!getToken()) window.location.href = '/';
 
 // ── Nav ───────────────────────────────────────────────────────────────────
-function showSection(id) {
-  document.querySelectorAll('.dash-section').forEach(s => s.classList.add('hidden'));
+function showSection(id, btnElement) {
+  const target = document.getElementById(`section-${id}`);
+  if (!target) {
+    console.error(`Section not found: section-${id}`);
+    return;
+  }
+
+  // Hide all sections
+  document.querySelectorAll('.dash-section').forEach(s => {
+    s.classList.add('hidden');
+    s.style.display = 'none';
+  });
+
+  // Display selected section
+  target.classList.remove('hidden');
+  target.style.display = 'block';
+
+  // Update active state on navigation buttons
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-  document.getElementById(`section-${id}`).classList.remove('hidden');
-  event.target.classList.add('active');
+  document.querySelectorAll('.bottom-nav-link').forEach(l => l.classList.remove('active'));
+
+  if (btnElement && btnElement.classList) {
+    btnElement.classList.add('active');
+  }
+
+  const matchingSidebar = document.querySelector(`.sidebar-link[onclick*="'${id}'"]`);
+  if (matchingSidebar) matchingSidebar.classList.add('active');
+  const matchingBottom = document.querySelector(`.bottom-nav-link[onclick*="'${id}'"]`);
+  if (matchingBottom) matchingBottom.classList.add('active');
+
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState(null, null, `#${id}`);
+  }
 }
 
 function logout() {
@@ -789,6 +817,17 @@ async function buyGenerations(tier) {
 // ── Init ──────────────────────────────────────────────────────────────────
 loadProfile();
 loadKeys();
+
+// Check initial URL hash
+window.addEventListener('DOMContentLoaded', () => {
+  const hash = window.location.hash.replace('#', '');
+  if (hash && document.getElementById(`section-${hash}`)) {
+    showSection(hash);
+  } else {
+    showSection('overview');
+  }
+});
+
 
 // Show success banner from Stripe redirect
 if (new URLSearchParams(window.location.search).get('success')) {

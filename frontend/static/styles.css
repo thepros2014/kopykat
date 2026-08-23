@@ -637,3 +637,10 @@ code { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
   color: var(--primary);
   transform: translateY(-2px);
 }
+
+
+/* ── General utility & Dashboard sections ─────────────────────────────────── */
+.hidden { display: none !important; }
+.dash-section.hidden { display: none !important; }
+.dash-section { display: block; animation: fadeIn 0.15s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
