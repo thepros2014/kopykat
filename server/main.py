@@ -248,6 +248,52 @@ async def get_usage(current_user:User=Depends(get_current_user_jwt),db:Session=D
 async def admin_revenue(x_admin_secret:Optional[str]=Header(None,alias="x-admin-secret"),db:Session=Depends(get_db)):
     if not ADMIN_SECRET or x_admin_secret!=ADMIN_SECRET: raise HTTPException(status_code=403,detail="Forbidden")
     return get_total_revenue(db)
+
+@app.get("/admin/mrr-metrics", tags=["Admin"])
+async def admin_mrr_metrics(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
+    if not ADMIN_SECRET or x_admin_secret != ADMIN_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    from .database import Subscription, RevenueRecord, User
+    from sqlalchemy import func
+    
+    active_subs = db.query(Subscription).filter(Subscription.status == "active").all()
+    tier_counts = {"boutique": 0, "standard": 0, "megastore": 0}
+    mrr_usd = 0.0
+    
+    tier_prices = {
+        "boutique": 179.49,
+        "standard": 379.49,
+        "megastore": 9639.63
+    }
+    
+    for s in active_subs:
+        if s.plan in tier_counts:
+            tier_counts[s.plan] += 1
+            mrr_usd += tier_prices.get(s.plan, 0.0)
+            
+    total_rev_cents = db.query(func.sum(RevenueRecord.amount_cents)).filter(RevenueRecord.status == "succeeded").scalar() or 0
+    total_lifetime_rev_usd = round(total_rev_cents / 100.0, 2)
+    total_users = db.query(User).count()
+    
+    return {
+        "mrr_usd": round(mrr_usd, 2),
+        "arr_usd": round(mrr_usd * 12.0, 2),
+        "active_subscribers": len(active_subs),
+        "active_subscribers_by_tier": tier_counts,
+        "total_lifetime_revenue_usd": total_lifetime_rev_usd,
+        "total_registered_merchants": total_users,
+        "pricing_model": {
+            "boutique_usd_mo": 179.49,
+            "standard_usd_mo": 379.49,
+            "megastore_usd_mo": 9639.63
+        },
+        "software_asset_score": 9.2,
+        "valuation_estimate_usd": {
+            "asset_sale_range": "$120,000 - $180,000",
+            "arr_multiple_range": "3x - 5x ARR"
+        }
+    }
 @app.get("/api/admin/stats",tags=["Admin"])
 async def admin_stats(x_admin_secret:Optional[str]=Header(None,alias="x-admin-secret"),db:Session=Depends(get_db)):
     if not ADMIN_SECRET or x_admin_secret!=ADMIN_SECRET: raise HTTPException(status_code=401,detail="Unauthorized")

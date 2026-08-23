@@ -1,5 +1,6 @@
 import pytest
-from server.database import User, BlogPost, OpportunityLog, DripLog
+from unittest.mock import patch
+from server.database import User, BlogPost, OpportunityLog, DripLog, Subscription, RevenueRecord
 
 def test_seo_analytics_endpoint(client, auth_headers, db_session):
     # Seed a published blog post
@@ -72,3 +73,40 @@ def test_opportunity_leads_with_score(client, auth_headers, db_session):
     target = next((l for l in leads if l["id"] == "opp_scored_001"), None)
     assert target is not None
     assert target["score"] == 98
+
+def test_admin_mrr_metrics_endpoint(client, db_session, test_user):
+    # Seed a subscription and revenue record
+    sub = Subscription(
+        id="sub_mrr_test",
+        user_id=test_user.id,
+        stripe_subscription_id="sub_stripe_123",
+        plan="standard",
+        status="active"
+    )
+    rev = RevenueRecord(
+        id="rev_mrr_test",
+        stripe_payment_id="pay_stripe_123",
+        user_id=test_user.id,
+        amount_cents=37949,
+        plan="standard",
+        type="subscription",
+        status="succeeded"
+    )
+    db_session.add(sub)
+    db_session.add(rev)
+    db_session.commit()
+
+    with patch("server.main.ADMIN_SECRET", "test_admin_secret_key"):
+        # Without secret header -> 403
+        res_fail = client.get("/admin/mrr-metrics")
+        assert res_fail.status_code == 403
+
+        # With secret header -> 200
+        res_ok = client.get("/admin/mrr-metrics", headers={"X-Admin-Secret": "test_admin_secret_key"})
+        assert res_ok.status_code == 200
+        data = res_ok.json()
+        assert data["mrr_usd"] >= 379.49
+        assert data["arr_usd"] >= 4553.88
+        assert data["active_subscribers"] >= 1
+        assert data["software_asset_score"] == 9.2
+        assert "$120,000" in data["valuation_estimate_usd"]["asset_sale_range"]
