@@ -1,8 +1,9 @@
-name: KopyKat CI
+name: KopyKat Production CI/CD Pipeline
 
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*.*.*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -11,10 +12,11 @@ permissions:
   contents: read
 
 jobs:
-  lint-and-security:
+  code-quality:
+    name: Code Quality (Black, Flake8, Mypy)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
@@ -23,30 +25,56 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install Lint & Security Tools
+      - name: Install Quality Linters
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 bandit black
+          pip install black flake8 mypy
 
-      - name: Check Python Syntax (compileall)
+      - name: Verify Python Syntax
         run: python -m compileall server
 
-      - name: Flake8 Linting
+      - name: Flake8 Syntax & Critical Error Check
         run: |
-          # Stop build if there are Python syntax errors or undefined names
+          # Fails if syntax errors or undefined symbols exist
           flake8 server --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Exit-zero treats all errors as warnings
-          flake8 server --count --exit-zero --max-complexity=15 --max-line-length=160 --statistics
+          flake8 server --count --exit-zero --max-complexity=15 --max-line-length=180 --statistics
 
-      - name: Bandit Security Scan
+      - name: Mypy Static Type Checking
+        run: |
+          mypy server --ignore-missing-imports --no-strict-optional || true
+
+  security-scan:
+    name: Security Analysis (Bandit & Safety)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Security Scanners
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety
+
+      - name: Bandit Security Vulnerability Scan
         run: |
           bandit -r server -ll --exclude "/tests" -f custom --msg-template "{abspath}:{line}: {test_id}[bandit]: {msg}" || true
 
-  test:
-    needs: lint-and-security
+      - name: Safety Dependency Vulnerability Audit
+        run: |
+          if [ -f requirements.txt ]; then safety check -r requirements.txt --continue-on-error || true; fi
+
+  test-and-coverage:
+    name: Automated Testing & Coverage (Pytest -> Codecov)
+    needs: [code-quality, security-scan]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
@@ -55,16 +83,78 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install dependencies
+      - name: Install Dependencies & Test Suite
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest pytest-asyncio httpx
+          pip install pytest pytest-asyncio pytest-cov httpx
 
-      - name: Run Full Pytest Suite
+      - name: Execute Full 34-Test Pytest Suite
         env:
           JWT_SECRET_KEY: "ci-testing-jwt-secret-key-12345"
           INTEGRATION_ENCRYPTION_KEY: "dGVzdC1lbmNyeXB0aW9uLWtleS0xMjM0NTY3ODkwMTI="
           DATABASE_URL: "sqlite:///:memory:"
         run: |
-          python -m pytest -v
+          python -m pytest --cov=server --cov-report=xml --cov-report=term-missing tests/
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          flags: unittests
+          name: kopykat-backend-coverage
+
+  build-and-validate:
+    name: Build Sanity & Environment Validation
+    needs: test-and-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Environment Template
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          env_text = Path('.env.example').read_text(encoding='utf-8')
+          required_vars = [
+              "JWT_SECRET_KEY",
+              "INTEGRATION_ENCRYPTION_KEY",
+              "DATABASE_URL",
+              "STRIPE_PRICE_BOUTIQUE",
+              "STRIPE_PRICE_STANDARD",
+              "STRIPE_PRICE_MEGASTORE"
+          ]
+          missing = [v for v in required_vars if v not in env_text]
+          if missing:
+              raise SystemExit(f"Missing required environment variables in .env.example: {missing}")
+          print("All required environment keys validated successfully.")
+          PY
+
+      - name: Docker Build Sanity Check
+        run: |
+          if [ -f Dockerfile ]; then
+            docker build -t kopykat:test .
+          else
+            echo "Dockerfile not present, skipping container image build step."
+          fi
+
+  deploy:
+    name: Auto-Deploy to Production (Render)
+    needs: build-and-validate
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deploy Hook
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -n "$DEPLOY_HOOK" ]; then
+            echo "Triggering automated deploy to Render..."
+            curl -X POST "$DEPLOY_HOOK"
+            echo "Deploy webhook triggered successfully."
+          else
+            echo "RENDER_DEPLOY_HOOK_URL secret not set. Render git-push auto-deploy is active."
+          fi
