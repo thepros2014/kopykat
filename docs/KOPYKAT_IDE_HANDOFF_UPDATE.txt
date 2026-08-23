@@ -51,15 +51,16 @@ PRICING & COST OF SERVICES (STRICT TIER ALLOCATION):
   * Dedicated High-Throughput Cluster & 24/7 VIP Support
 
 RECOMMENDED NEXT STEPS FOR NEXT AI SESSION (IN PRIORITY ORDER):
-1. [ ] MODULE 2: Cross-Platform Inventory & Stock Balancer
-   - Create order webhook listener in server/integrations.py
-   - When a sale happens on Shopify, automatically decrement quantity on eBay, Amazon, and Walmart in real time.
-2. [ ] MODULE 3: Post-Purchase Review & UGC Drip
+1. [ ] MODULE 3: Post-Purchase Review & UGC Drip
    - Automated post-delivery follow-up emails asking buyers for reviews and photo submissions with sentiment analysis.
-3. [ ] MODULE 4: Automated Price & Margin Monitor
+2. [ ] MODULE 4: Automated Price & Margin Monitor
    - Competitor pricing tracker with profit margin optimization alerts.
-4. [ ] MODULE 5: Shopify Direct Catalog Import
+3. [ ] MODULE 5: Shopify Direct Catalog Import
    - 1-click catalog sync that pulls all products directly from Shopify API into KopyKat without needing a CSV file.
+
+COMPLETED FLAGSHIP MODULES:
+- [x] MODULE 1: Competitor 1-Star Review Miner (Flaw extraction, counter-copy, comparison matrix, ad hooks)
+- [x] MODULE 2: Cross-Platform Inventory & Stock Balancer (Real-time webhook listener, atomic stock updates, loop-free multi-channel fanout, SKU matrix UI)
 
 ============================================================
 MANDATORY ENGINEERING PROTOCOL — ALL AI SESSIONS

@@ -196,6 +196,28 @@ class CompetitorAudit(Base):
     counter_copy = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class InventoryItem(Base):
+    __tablename__ = "inventory_items"
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    sku = Column(String(100), nullable=False)
+    title = Column(String(255), nullable=False)
+    total_stock = Column(Integer, default=0, nullable=False)
+    platform_stock = Column(Text, default="{}", nullable=False)  # JSON string of {platform: qty}
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class InventorySyncLog(Base):
+    __tablename__ = "inventory_sync_logs"
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    sku = Column(String(100), nullable=False)
+    trigger_platform = Column(String(50), nullable=False)
+    quantity_change = Column(Integer, nullable=False)
+    new_quantity = Column(Integer, nullable=False)
+    fanout_results = Column(Text, default="{}", nullable=False)  # JSON string of {platform: status}
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class OpportunityLog(Base):
     __tablename__ = "opportunity_logs"
     id = Column(String(36), primary_key=True)

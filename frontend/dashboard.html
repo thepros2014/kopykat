@@ -62,6 +62,7 @@
  <button class="sidebar-link" onclick="showSection('integrations', this)">Integrations</button>
  <button class="sidebar-link" onclick="showSection('bulk', this)" style="font-weight:600; color:var(--purple);">Bulk Sync CSV</button>
     <button class="sidebar-link" onclick="showSection('miner', this)">Review Miner</button>
+    <button class="sidebar-link" onclick="showSection('inventory', this)">Inventory Balancer</button>
  <div style="flex:1;"></div>
  <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
  </aside>
@@ -1344,6 +1345,140 @@ async function runReviewMiner() {
 document.addEventListener('DOMContentLoaded', () => {
   loadProfile();
   loadKeys();
+  loadInventory();
+
+async function loadInventory() {
+  const tbody = document.getElementById('inv-table-body');
+  if (!tbody) return;
+
+  const hookUrlEl = document.getElementById('inv-webhook-url');
+  if (hookUrlEl) {
+    hookUrlEl.textContent = window.location.origin + '/api/inventory/webhook/shopify';
+  }
+
+  try {
+    const [invRes, logsRes] = await Promise.all([
+      fetch('/api/inventory', { headers: { 'Authorization': 'Bearer ' + getToken() } }),
+      fetch('/api/inventory/logs', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+    ]);
+
+    if (!invRes.ok) throw new Error("Failed to load inventory");
+    const items = await invRes.json();
+    const logs = logsRes.ok ? await logsRes.json() : [];
+
+    // Render Table
+    tbody.innerHTML = '';
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; color:var(--muted);">No SKUs registered yet. Add your first SKU above.</td></tr>';
+    } else {
+      items.forEach(it => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        
+        const tdSku = document.createElement('td');
+        tdSku.style.padding = '10px 8px';
+        tdSku.style.fontWeight = 'bold';
+        tdSku.textContent = it.sku;
+
+        const tdTitle = document.createElement('td');
+        tdTitle.style.padding = '10px 8px';
+        tdTitle.textContent = it.title;
+
+        const tdStock = document.createElement('td');
+        tdStock.style.padding = '10px 8px';
+        tdStock.innerHTML = '<span style="font-weight:bold; color:' + (it.total_stock > 10 ? '#22c55e' : (it.total_stock > 0 ? '#eab308' : '#ef4444')) + ';">' + it.total_stock + ' units</span>';
+
+        const tdDate = document.createElement('td');
+        tdDate.style.padding = '10px 8px';
+        tdDate.style.color = 'var(--muted)';
+        tdDate.textContent = new Date(it.updated_at).toLocaleTimeString() + ' ' + new Date(it.updated_at).toLocaleDateString();
+
+        const tdAction = document.createElement('td');
+        tdAction.style.padding = '10px 8px';
+        tdAction.style.textAlign = 'right';
+        tdAction.innerHTML = '<button class="btn btn-outline btn-sm" onclick="quickAdjustStock(\'' + it.sku + '\', \'' + it.title.replace(/'/g, "\\'") + '\', ' + it.total_stock + ')">Adjust</button>';
+
+        tr.appendChild(tdSku);
+        tr.appendChild(tdTitle);
+        tr.appendChild(tdStock);
+        tr.appendChild(tdDate);
+        tr.appendChild(tdAction);
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Render Logs
+    const logsList = document.getElementById('inv-logs-list');
+    if (logsList) {
+      logsList.innerHTML = '';
+      if (!logs.length) {
+        logsList.innerHTML = '<div style="color:var(--muted); font-size:13px;">No recent sync events.</div>';
+      } else {
+        logs.forEach(l => {
+          const div = document.createElement('div');
+          div.style.padding = '8px 12px';
+          div.style.background = 'var(--bg2)';
+          div.style.border = '1px solid var(--border)';
+          div.style.borderRadius = '6px';
+          div.style.fontSize = '12px';
+          div.style.display = 'flex';
+          div.style.justifyContent = 'space-between';
+          div.innerHTML = '<span><strong>' + l.sku + '</strong> (' + l.trigger_platform.toUpperCase() + ' event: <span style="color:' + (l.quantity_change < 0 ? '#ef4444' : '#22c55e') + ';">' + (l.quantity_change > 0 ? '+' : '') + l.quantity_change + '</span>) &rarr; New stock: <strong>' + l.new_quantity + '</strong></span><span style="color:var(--muted);">' + new Date(l.created_at).toLocaleTimeString() + '</span>';
+          logsList.appendChild(div);
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load inventory", err);
+  }
+}
+
+async function saveInventoryItem() {
+  const sku = document.getElementById('inv-sku').value.trim();
+  const title = document.getElementById('inv-title').value.trim();
+  const qty = parseInt(document.getElementById('inv-qty').value, 10);
+
+  if (!sku) return alert("Please enter an SKU.");
+  if (!title) return alert("Please enter a product title.");
+  if (isNaN(qty) || qty < 0) return alert("Please enter a valid stock quantity.");
+
+  try {
+    const res = await fetch('/api/inventory/item', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ sku, title, total_stock: qty })
+    });
+    if (!res.ok) throw new Error("Failed to save inventory item");
+    alert("Stock level saved for SKU: " + sku);
+    document.getElementById('inv-sku').value = '';
+    document.getElementById('inv-title').value = '';
+    document.getElementById('inv-qty').value = '';
+    loadInventory();
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+}
+
+function quickAdjustStock(sku, title, currentQty) {
+  const newQtyStr = prompt("Enter new total stock quantity for " + sku + ":", currentQty);
+  if (newQtyStr === null) return;
+  const newQty = parseInt(newQtyStr, 10);
+  if (isNaN(newQty) || newQty < 0) return alert("Invalid stock quantity.");
+
+  fetch('/api/inventory/item', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+    body: JSON.stringify({ sku, title, total_stock: newQty })
+  }).then(r => {
+    if (r.ok) {
+      alert("Updated " + sku + " to " + newQty + " units.");
+      loadInventory();
+    } else {
+      alert("Failed to update stock.");
+    }
+  });
+}
+
   loadCustomAIKeyStatus();
 
 async function loadCustomAIKeyStatus() {

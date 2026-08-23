@@ -184,3 +184,32 @@ class CustomAIKeyResponse(BaseModel):
     has_custom_key: bool
     provider: Optional[str] = None
     unlimited_active: bool
+
+
+class InventoryItemCreate(BaseModel):
+    sku: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=255)
+    total_stock: int = Field(ge=0)
+
+class InventoryItemResponse(BaseModel):
+    id: str
+    sku: str
+    title: str
+    total_stock: int
+    platform_stock: dict
+    updated_at: datetime
+
+class InventoryWebhookPayload(BaseModel):
+    sku: str
+    quantity_delta: int  # e.g. -1 for a sale, +10 for a restock
+    order_id: Optional[str] = None
+    customer_email: Optional[str] = None
+
+class InventorySyncLogResponse(BaseModel):
+    id: str
+    sku: str
+    trigger_platform: str
+    quantity_change: int
+    new_quantity: int
+    fanout_results: dict
+    created_at: datetime

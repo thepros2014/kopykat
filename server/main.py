@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -656,3 +656,108 @@ async def delete_custom_ai_key(auth: tuple = Depends(get_current_user_apikey), d
     user.custom_ai_provider = None
     db.commit()
     return {"success": True, "message": "Custom AI Key removed. Reverted to standard plan quota."}
+
+
+# -- INVENTORY BALANCER ROUTES ------------------------------------------------
+@app.get("/api/inventory", response_model=list[InventoryItemResponse], tags=["Inventory Balancer"])
+async def list_inventory_items(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import InventoryItem
+    import json
+    user, _ = auth
+    items = db.query(InventoryItem).filter(InventoryItem.user_id == user.id).order_by(InventoryItem.updated_at.desc()).all()
+    results = []
+    for it in items:
+        try:
+            p_stock = json.loads(it.platform_stock or "{}")
+        except Exception:
+            p_stock = {}
+        results.append(InventoryItemResponse(
+            id=it.id,
+            sku=it.sku,
+            title=it.title,
+            total_stock=it.total_stock,
+            platform_stock=p_stock,
+            updated_at=it.updated_at
+        ))
+    return results
+
+@app.post("/api/inventory/item", response_model=InventoryItemResponse, tags=["Inventory Balancer"])
+async def create_or_update_inventory_item(body: InventoryItemCreate, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import InventoryItem
+    import uuid
+    import json
+    user, _ = auth
+    clean_sku = body.sku.strip().upper()
+    item = db.query(InventoryItem).filter(InventoryItem.user_id == user.id, InventoryItem.sku == clean_sku).first()
+    if item:
+        item.title = body.title.strip()
+        item.total_stock = body.total_stock
+        item.updated_at = datetime.utcnow()
+    else:
+        item = InventoryItem(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            sku=clean_sku,
+            title=body.title.strip(),
+            total_stock=body.total_stock,
+            platform_stock="{}",
+            updated_at=datetime.utcnow()
+        )
+        db.add(item)
+    db.commit()
+    db.refresh(item)
+    try:
+        p_stock = json.loads(item.platform_stock or "{}")
+    except Exception:
+        p_stock = {}
+    return InventoryItemResponse(
+        id=item.id,
+        sku=item.sku,
+        title=item.title,
+        total_stock=item.total_stock,
+        platform_stock=p_stock,
+        updated_at=item.updated_at
+    )
+
+@app.post("/api/inventory/webhook/{platform}", tags=["Inventory Balancer"])
+@limiter.limit("60/minute")
+async def inventory_webhook(
+    request: Request,
+    platform: str,
+    body: InventoryWebhookPayload,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .inventory import sync_inventory_across_platforms
+    user, _ = auth
+    res = sync_inventory_across_platforms(
+        user_id=user.id,
+        sku=body.sku,
+        delta=body.quantity_delta,
+        trigger_platform=platform,
+        db=db
+    )
+    return res
+
+@app.get("/api/inventory/logs", response_model=list[InventorySyncLogResponse], tags=["Inventory Balancer"])
+async def list_inventory_sync_logs(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import InventorySyncLog
+    import json
+    user, _ = auth
+    logs = db.query(InventorySyncLog).filter(InventorySyncLog.user_id == user.id).order_by(InventorySyncLog.created_at.desc()).limit(50).all()
+    results = []
+    for l in logs:
+        try:
+            fanout = json.loads(l.fanout_results or "{}")
+        except Exception:
+            fanout = {}
+        results.append(InventorySyncLogResponse(
+            id=l.id,
+            sku=l.sku,
+            trigger_platform=l.trigger_platform,
+            quantity_change=l.quantity_change,
+            new_quantity=l.new_quantity,
+            fanout_results=fanout,
+            created_at=l.created_at
+        ))
+    return results
