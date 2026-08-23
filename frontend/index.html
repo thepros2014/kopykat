@@ -1,485 +1,700 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <!-- Force Cache & State Wipe on Update -->
- <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
- <meta http-equiv="Pragma" content="no-cache" />
- <meta http-equiv="Expires" content="0" />
-   <script>
-    const APP_VERSION = "1.2.0";
-    if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
-      localStorage.clear();
-      sessionStorage.clear();
-      
-      // Comprehensive Cookie Purge across domains and paths
-      const cookies = document.cookie.split(";");
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i];
-        const eqPos = cookie.indexOf("=");
-        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-        if (name) {
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + window.location.hostname;
-        }
-      }
-      
-      // Purge all Service Workers and CacheStorage
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (let r of registrations) { r.unregister(); }
-        });
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (let n of names) { caches.delete(n); }
-        });
-      }
-      
-      localStorage.setItem("kopykat_version", APP_VERSION);
-      // Hard reload with cache purge
-      if (window.location.search.indexOf('v=') === -1) {
-        window.location.replace(window.location.pathname + '?v=' + APP_VERSION + window.location.hash);
-      }
-    }
-  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KopyKat — Run Your Entire E-Commerce Store on Autopilot</title>
 
- <meta charset="UTF-8" />
- <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
- <title>KopyKat — Instant Marketing Copy, Powered by AI</title>
+  <meta name="description" content="Turn 1 product photo into ready-to-sell listings on Amazon, Shopify, Etsy, TikTok Shop, and eBay in 30 seconds. Automatic inventory sync, Google blogs, and review replies."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/styles.css"/>
 
- <link rel="manifest" href="/manifest.json"/>
- <meta name="theme-color" content="#8e44ad"/>
- <link rel="apple-touch-icon" href="/static/icon.png"/>
-
- <meta name="description" content="Generate high-converting marketing copy in seconds. Product descriptions, emails, ads, social posts — all powered by AI."/>
- <link rel="preconnect" href="https://fonts.googleapis.com"/>
- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
- <link rel="stylesheet" href="/static/styles.css"/>
-
- <style>
- /* Dashboard Animation Styles */
- .anim-window {
- max-width: 800px; margin: 60px auto 0 auto;
- background: #0f172a; border: 1px solid #334155; border-radius: 12px;
- box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); overflow: hidden;
- position: relative; text-align: left;
- }
- .anim-header {
- height: 24px; background: #1e293b; display: flex; align-items: center; padding: 0 12px; gap: 6px;
- }
- .anim-dot { width: 10px; height: 10px; border-radius: 50%; background: #475569; }
- .anim-dot.r { background: #ef4444; } .anim-dot.y { background: #eab308; } .anim-dot.g { background: #22c55e; }
- 
- .anim-body { padding: 30px; display: flex; gap: 30px; }
- .anim-input-area { flex: 1; }
- .anim-results-area { flex: 1.5; opacity: 0; animation: fadeInResults 8s infinite; }
- 
- .anim-label { font-size: 12px; color: #94a3b8; margin-bottom: 8px; display: block; font-weight: 600; }
- .anim-input { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 12px; color: #f8fafc; font-size: 14px; margin-bottom: 20px; font-family: monospace; position: relative; }
- 
- .anim-typewriter::after {
- content: '|'; animation: typewrite 8s infinite; color: #a855f7;
- }
- 
- .anim-btn { background: #a855f7; color: white; padding: 10px; border-radius: 6px; text-align: center; font-size: 14px; font-weight: 600; position: relative; overflow: hidden;}
- .anim-btn::after {
- content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
- background: rgba(255,255,255,0.2); animation: btnFlash 8s infinite;
- }
- 
- .anim-skeleton { background: #1e293b; height: 12px; border-radius: 4px; margin-bottom: 10px; width: 100%; }
- .anim-skeleton.short { width: 60%; }
- .anim-skeleton.title { height: 18px; width: 40%; margin-bottom: 16px; background: #334155; }
- 
- .anim-cursor {
- position: absolute; width: 20px; height: 20px;
- background-image: url('data:image/svg+xml;utf8,<svg width="24" height="24" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M4 4L11.5312 21.196L14.7797 14.7797L21.196 11.5312L4 4Z" stroke="black" stroke-width="2"/></svg>');
- background-size: contain; z-index: 10;
- animation: cursorMove 8s infinite; pointer-events: none;
- }
-
- @keyframes typewrite {
- 0%, 10% { content: ''; }
- 15% { content: 'W'; }
- 20% { content: 'Win'; }
- 25% { content: 'Winter'; }
- 30% { content: 'Winter C'; }
- 35% { content: 'Winter Coat'; }
- 40%, 100% { content: 'Winter Coat|'; }
- }
- 
- @keyframes cursorMove {
- 0%, 35% { top: 70%; left: 80%; opacity: 0; }
- 40% { top: 70%; left: 80%; opacity: 1; }
- 50% { top: 60%; left: 30%; opacity: 1; transform: scale(1); }
- 52% { top: 60%; left: 30%; opacity: 1; transform: scale(0.9); }
- 54% { top: 60%; left: 30%; opacity: 1; transform: scale(1); }
- 60%, 100% { top: 90%; left: 10%; opacity: 0; }
- }
- 
- @keyframes btnFlash {
- 0%, 50% { left: -100%; }
- 52% { left: 100%; }
- 100% { left: 100%; }
- }
- 
- @keyframes fadeInResults {
- 0%, 55% { opacity: 0; transform: translateY(10px); }
- 60%, 90% { opacity: 1; transform: translateY(0); }
- 95%, 100% { opacity: 0; transform: translateY(-10px); }
- }
- </style>
-
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#7c3aed"/>
 </head>
 <body>
 
-<!-- NAV -->
+<!-- NAVIGATION -->
 <nav class="nav">
- <div class="nav-inner">
- <a class="logo" href="/"> KopyKat</a>
- <div class="nav-links">
- <a href="#features">Features</a>
- <a href="#pricing">Pricing</a>
- <a href="/api/docs" target="_blank">API Docs</a>
- <a href="/dashboard" class="btn btn-outline">Dashboard</a>
- <a href="#pricing" class="btn btn-primary">Get Started Free</a>
- </div>
- </div>
+  <div class="nav-inner">
+    <a class="logo" href="/">
+      <span>KopyKat</span>
+      <span class="logo-badge">All-In-One</span>
+    </a>
+    <div class="nav-links">
+      <a href="#services">What We Do</a>
+      <a href="#demo">Live Demo</a>
+      <a href="#comparison">Why Us</a>
+      <a href="#calculator">Savings Calculator</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="nav-actions">
+      <a href="/dashboard" class="btn btn-outline btn-sm">Log In</a>
+      <a href="#signup" class="btn btn-primary btn-sm">Try Free (50 Free Uses)</a>
+    </div>
+  </div>
 </nav>
 
-<!-- HERO -->
-<section class="hero">
- <div class="badge">The E-Commerce Marketing Engine</div>
- <h1>Your Autonomous Marketing Employee.<br/>Ready to work 24/7.</h1>
- <p class="hero-sub">
- KopyKat generates high-performing product descriptions, email sequences, 
- ad copy, and social posts — via simple API call or web dashboard. 
- Start free. Scale instantly.
- </p>
- <div class="hero-cta">
- <a href="#signup" class="btn btn-primary btn-lg">Start for Free →</a>
- <a href="/api/docs" class="btn btn-outline btn-lg" target="_blank">View API Docs</a>
- </div>
- 
- 
- <!-- Animated UI Video/Placeholder -->
- <div class="anim-window">
- <div class="anim-header">
- <div class="anim-dot r"></div><div class="anim-dot y"></div><div class="anim-dot g"></div>
- <div style="margin-left:auto; font-size:11px; color:#64748b; font-family:sans-serif;">KopyKat Omni-Campaign</div>
- </div>
- <div class="anim-body">
- <div class="anim-input-area">
- <span class="anim-label">Target Keyword</span>
- <div class="anim-input anim-typewriter"></div>
- <span class="anim-label">Product Description</span>
- <div class="anim-input" style="height: 60px; color:#64748b;">(Auto-scraped from store...)</div>
- <div class="anim-btn">Generate Campaign</div>
- </div>
- <div class="anim-results-area">
- <div style="background:#1e293b; padding:16px; border-radius:8px; border:1px solid #334155; margin-bottom:16px;">
- <div class="anim-skeleton title"></div>
- <div class="anim-skeleton"></div>
- <div class="anim-skeleton"></div>
- <div class="anim-skeleton short"></div>
- </div>
- <div style="background:#1e293b; padding:16px; border-radius:8px; border:1px solid #334155; position:relative; overflow:hidden;">
- <div style="position:absolute; top:0; right:0; background:#22c55e; color:white; font-size:10px; font-weight:bold; padding:4px 8px; border-bottom-left-radius:8px;">DEPLOYED TO SHOPIFY</div>
- <div class="anim-skeleton title"></div>
- <div class="anim-skeleton"></div>
- <div class="anim-skeleton short"></div>
- </div>
- </div>
- <div class="anim-cursor"></div>
- </div>
- </div>
+<!-- HERO SECTION -->
+<header class="hero">
+  <div class="hero-badge">
+    <span>Instant Multi-Store Growth Platform</span>
+  </div>
+  <h1>
+    Turn 1 Product Photo Into<br/>
+    <span class="gradient-text">Selling Everywhere in 30 Seconds.</span>
+  </h1>
+  <p class="hero-sub">
+    KopyKat automatically writes high-converting listings for Amazon, Shopify, Etsy, TikTok Shop, and eBay. 
+    It syncs your inventory between stores, brings you free buyers from Google, and handles customer reviews on autopilot.
+  </p>
+  
+  <div class="hero-cta-group">
+    <a href="#signup" class="btn btn-primary btn-lg">Start for Free — No Credit Card Needed</a>
+    <a href="#demo" class="btn btn-secondary btn-lg">See Live Examples</a>
+  </div>
 
+  <div class="hero-guarantee">
+    <span>[+] 50 Free Product Campaigns</span>
+    <span>[+] 1-Click Store Connection</span>
+    <span>[+] 100% Platform Compliant</span>
+  </div>
+</header>
 
- <!-- FEATURES / HOW IT WORKS -->
- <section class="section" id="features" style="background: var(--bg2); padding: 80px 20px;">
- <div style="max-width: 1000px; margin: 0 auto; text-align: center;">
- <h2 style="font-size: 36px; margin-bottom: 16px;">Hire an Autonomous Marketing Employee</h2>
- <p style="font-size: 18px; color: var(--muted); margin-bottom: 60px; max-width: 600px; margin-left: auto; margin-right: auto;">
- Don't pay an agency $4,000/mo. Don't waste hours copying and pasting into ChatGPT. KopyKat connects directly to your store and runs your campaigns on autopilot.
- </p>
-
- <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; text-align: left;">
- 
- <!-- Feature 1 -->
- <div style="background: var(--bg); padding: 32px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
- <div style="background: var(--purple); color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">1</div>
- <h3 style="font-size: 20px; margin-bottom: 12px;">Connect Your Platforms</h3>
- <p style="color: var(--muted); line-height: 1.6; font-size: 15px;">
- Link KopyKat to your Shopify, WordPress, Mailchimp, or HubSpot accounts with a single click. No complex developer API setups required.
- </p>
- </div>
-
- <!-- Feature 2 -->
- <div style="background: var(--bg); padding: 32px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
- <div style="background: var(--purple); color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">2</div>
- <h3 style="font-size: 20px; margin-bottom: 12px;">Train on a Keyword</h3>
- <p style="color: var(--muted); line-height: 1.6; font-size: 15px;">
- Just type what you're selling. KopyKat's engine instantly scrapes the market, analyzes pain points, and generates an entire Omni-Campaign (SEO Blog, 3 Emails, 3 Social Posts) in 30 seconds.
- </p>
- </div>
-
- <!-- Feature 3 -->
- <div style="background: var(--bg); padding: 32px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
- <div style="background: var(--purple); color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">3</div>
- <h3 style="font-size: 20px; margin-bottom: 12px;">1-Click Deploy</h3>
- <p style="color: var(--muted); line-height: 1.6; font-size: 15px;">
- Review the generated copy and click "Deploy." KopyKat automatically formats and publishes the content natively to all your connected platforms simultaneously.
- </p>
- </div>
-
- </div>
- </div>
- </section>
-
-
-<!-- PRICING -->
-<section class="section" id="pricing" style="padding: 80px 20px; background: var(--bg);">
- <div style="max-width: 1200px; margin: 0 auto;">
- <div style="text-align: center; margin-bottom: 60px;">
- <h2 style="font-size: 36px; margin-bottom: 16px;">Pricing that actually makes sense.</h2>
- <p style="color: var(--muted); font-size: 18px; max-width: 600px; margin: 0 auto;">No abstract "credits". Pick the plan that fits your catalog size and save tens of thousands of dollars on human copywriting.</p>
- </div>
- 
- <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
- <!-- Free Tier -->
- <div class="card" style="border: 1px solid var(--border); padding: 32px; display: flex; flex-direction: column;">
- <h3 style="font-size: 24px; margin-bottom: 8px;">Test Drive</h3>
- <p style="color: var(--muted); font-size: 14px; margin-bottom: 16px; min-height: 40px;">Test the engine on your 5 best-selling products.</p>
- <div style="font-size: 48px; font-weight: 800; margin-bottom: 24px;">$0<span style="font-size: 16px; color: var(--muted); font-weight: 500;">/mo</span></div>
- <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: var(--text); line-height: 2;">
- <li><strong>5 Omni-Campaigns</strong></li>
- <li>1-Click Multi-Platform Push</li>
- </ul>
- <div style="margin-top: auto;">
- <div style="font-size: 13px; color: var(--muted); margin-bottom: 12px; text-align: center;">Human Cost: <span style="text-decoration: line-through;">$50</span></div>
- <a href="#signup" class="btn btn-outline" style="width: 100%; text-align: center; display: block;">Start for Free</a>
- </div>
- </div>
-
- <!-- Boutique Tier -->
- <div class="card" style="border: 1px solid var(--border); padding: 32px; display: flex; flex-direction: column;">
- <h3 style="font-size: 24px; margin-bottom: 8px;">Boutique Store</h3>
- <p style="color: var(--muted); font-size: 14px; margin-bottom: 16px; min-height: 40px;">Perfect for small catalogs. Rewrite your entire store instantly.</p>
- <div style="font-size: 48px; font-weight: 800; margin-bottom: 24px;">$97<span style="font-size: 16px; color: var(--muted); font-weight: 500;">/mo</span></div>
- <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: var(--text); line-height: 2;">
- <li><strong>250 Omni-Campaigns / mo</strong></li>
- <li>Top 5 Native Integrations</li>
- </ul>
- <div style="margin-top: auto;">
- <div style="font-size: 13px; color: var(--muted); margin-bottom: 12px; text-align: center;">Human Cost: <span style="text-decoration: line-through; color: #ff6b6b;">$2,500</span> <span style="color: #22c55e; font-weight: bold;">(Save $2,403)</span></div>
- <a href="#signup" class="btn btn-outline" style="width: 100%; text-align: center; display: block;">Select Boutique</a>
- </div>
- </div>
- 
- <!-- Standard Tier -->
- <div class="card" style="border: 2px solid var(--primary); padding: 32px; position: relative; transform: scale(1.05); z-index: 1; display: flex; flex-direction: column;">
- <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;">Most Popular</div>
- <h3 style="font-size: 24px; margin-bottom: 8px;">Standard Store</h3>
- <p style="color: var(--muted); font-size: 14px; margin-bottom: 16px; min-height: 40px;">For growing Shopify brands launching new collections.</p>
- <div style="font-size: 48px; font-weight: 800; margin-bottom: 24px;">$297<span style="font-size: 16px; color: var(--muted); font-weight: 500;">/mo</span></div>
- <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: var(--text); line-height: 2;">
- <li><strong>1,000 Omni-Campaigns / mo</strong></li>
- <li>Top 5 Native Integrations</li>
- <li>Priority Generation Speed</li>
- </ul>
- <div style="margin-top: auto;">
- <div style="font-size: 13px; color: var(--muted); margin-bottom: 12px; text-align: center;">Human Cost: <span style="text-decoration: line-through; color: #ff6b6b;">$10,000</span> <span style="color: #22c55e; font-weight: bold;">(Save $9,703)</span></div>
- <a href="#signup" class="btn btn-primary" style="width: 100%; text-align: center; display: block;">Select Standard</a>
- </div>
- </div>
-
- <!-- Megastore Tier -->
- <div class="card" style="border: 1px solid var(--border); padding: 32px; display: flex; flex-direction: column;">
- <h3 style="font-size: 24px; margin-bottom: 8px;">Megastore</h3>
- <p style="color: var(--muted); font-size: 14px; margin-bottom: 16px; min-height: 40px;">For massive catalogs and marketing agencies.</p>
- <div style="font-size: 48px; font-weight: 800; margin-bottom: 24px;">$897<span style="font-size: 16px; color: var(--muted); font-weight: 500;">/mo</span></div>
- <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: var(--text); line-height: 2;">
- <li><strong>5,000 Omni-Campaigns / mo</strong></li>
- <li>Top 5 Native Integrations</li>
- <li>Unlimited Webhooks</li>
- </ul>
- <div style="margin-top: auto;">
- <div style="font-size: 13px; color: var(--muted); margin-bottom: 12px; text-align: center;">Human Cost: <span style="text-decoration: line-through; color: #ff6b6b;">$50,000+</span> <span style="color: #22c55e; font-weight: bold;">(Save $49,103)</span></div>
- <a href="#signup" class="btn btn-outline" style="width: 100%; text-align: center; display: block;">Select Megastore</a>
- </div>
- </div>
- </div>
- 
- <!-- The Objection Handler -->
- <div style="max-width: 800px; margin: 80px auto 0 auto; background: var(--bg2); padding: 40px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
- <h3 style="font-size: 24px; margin-bottom: 16px;">The Elephant in the Room: Why does this cost more than a $20 AI subscription?</h3>
- <p style="color: var(--muted); font-size: 16px; line-height: 1.8; margin-bottom: 16px;">Because basic AI is just a blank text box. You still have to pay an employee $700+ a month to write the prompts, format the HTML, log into WordPress, log into Mailchimp, and manually publish everything.</p>
- <p style="color: var(--muted); font-size: 16px; line-height: 1.8; margin-bottom: 0;">KopyKat isn't a writing tool. It is an <strong>Autonomous Marketing Employee</strong>. You aren't paying for words&#8212;you are paying for the live market scraping, the orchestration, and the 1-click omnichannel deployment that physically replaces human labor.</p>
- </div>
-
- </div>
+<!-- PLATFORM COMPATIBILITY BANNER -->
+<section class="platform-banner">
+  <div class="platform-banner-title">Works seamlessly with your favorite selling platforms</div>
+  <div class="platform-badges">
+    <div class="platform-tag">Amazon</div>
+    <div class="platform-tag">Shopify</div>
+    <div class="platform-tag">Etsy</div>
+    <div class="platform-tag">TikTok Shop</div>
+    <div class="platform-tag">eBay</div>
+    <div class="platform-tag">WordPress / WooCommerce</div>
+    <div class="platform-tag">Mailchimp & Email</div>
+  </div>
 </section>
 
-<!-- SIGNUP -->
-<section class="section section-dark" id="signup">
- <div class="container">
- <div class="auth-box">
- <h2>Create your free account</h2>
- <p>50 free generations. No credit card required.</p>
- <div class="auth-tabs">
- <button class="auth-tab active" onclick="switchTab('register')">Sign Up</button>
- <button class="auth-tab" onclick="switchTab('login')">Log In</button>
- </div>
+<!-- INTERACTIVE DEMO SHOWCASE -->
+<section class="section" id="demo">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Interactive Preview</span>
+      <h2 class="section-title">See How KopyKat Works in Real Life</h2>
+      <p class="section-desc">Click through the tabs below to see how ordinary store owners save 20+ hours every single week.</p>
+    </div>
 
- <form id="register-form" class="auth-form" onsubmit="handleRegister(event)">
- <input type="text" id="reg-name" placeholder="Full name (optional)" class="input"/>
- <input type="email" id="reg-email" placeholder="Email address" class="input" required/>
- <input type="password" id="reg-password" placeholder="Password (min 8 chars)" class="input" required minlength="8"/>
- <button type="submit" class="btn btn-primary btn-full">Create Free Account →</button>
- <div id="reg-error" class="form-error"></div>
- </form>
+    <div class="demo-showcase">
+      <div class="demo-tabs">
+        <button class="demo-tab-btn active" onclick="switchDemoTab('listings')">1. Photo to 5 Store Listings</button>
+        <button class="demo-tab-btn" onclick="switchDemoTab('sync')">2. Instant Stock Sync</button>
+        <button class="demo-tab-btn" onclick="switchDemoTab('seo')">3. Hands-Free Google Traffic</button>
+        <button class="demo-tab-btn" onclick="switchDemoTab('reviews')">4. Smart Review Reply Bot</button>
+      </div>
 
- <form id="login-form" class="auth-form hidden" onsubmit="handleLogin(event)">
- <input type="email" id="login-email" placeholder="Email address" class="input" required/>
- <input type="password" id="login-password" placeholder="Password" class="input" required/>
- <button type="submit" class="btn btn-primary btn-full">Log In →</button>
- <div id="login-error" class="form-error"></div>
- </form>
- </div>
- </div>
+      <div class="demo-content">
+        <!-- Tab 1: Listings -->
+        <div id="demo-tab-listings" class="demo-panel active">
+          <div class="demo-grid-2">
+            <div class="demo-box">
+              <div class="demo-box-header">
+                <span class="demo-box-title">What You Provide (In 5 Seconds)</span>
+                <span class="demo-badge badge-purple">Input</span>
+              </div>
+              <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;"><strong>Product:</strong> Wireless Noise-Cancelling Headphones</p>
+              <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;"><strong>Image:</strong> Uploaded product box photo</p>
+              <p style="color: var(--text-muted); font-size: 14px;"><strong>Target Tone:</strong> Modern & High Energy</p>
+              <div style="margin-top: 20px; padding: 14px; background: rgba(124,58,237,0.1); border-radius: 8px; border: 1px dashed var(--primary); font-size: 13px; color: #c4b5fd;">
+                Clicking "Generate" formats 5 perfect versions instantly...
+              </div>
+            </div>
+            <div class="demo-box">
+              <div class="demo-box-header">
+                <span class="demo-box-title">What KopyKat Delivers Instantly</span>
+                <span class="demo-badge badge-green">5 Tailored Formats</span>
+              </div>
+              <div style="font-size: 13px; line-height: 1.6; color: var(--text);">
+                <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border);">
+                  <strong style="color: #38bdf8;">[Amazon]</strong> 5 search-indexed benefit bullet points + keyword-rich title.
+                </div>
+                <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border);">
+                  <strong style="color: #10b981;">[Shopify]</strong> Engaging brand story, objection-crushing layout & SEO meta tags.
+                </div>
+                <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border);">
+                  <strong style="color: #f59e0b;">[Etsy]</strong> Artisan materials, 13 search tags & gift-ready description.
+                </div>
+                <div>
+                  <strong style="color: #ec4899;">[TikTok Shop]</strong> 3 viral video hook scripts + high-converting mobile copy.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Sync -->
+        <div id="demo-tab-sync" class="demo-panel">
+          <div class="demo-grid-2">
+            <div class="demo-box">
+              <div class="demo-box-header">
+                <span class="demo-box-title">The Nightmare Scenario (Without KopyKat)</span>
+                <span class="demo-badge" style="background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid #ef4444;">Before</span>
+              </div>
+              <p style="color: var(--text-muted); font-size: 14px; line-height: 1.6;">
+                You have 1 item left in stock. A customer buys it on TikTok Shop. You forget to log into Amazon and Etsy to update inventory.
+                Another buyer purchases it on Amazon 10 minutes later. You are forced to cancel, get hit with account penalties, and lose a customer.
+              </p>
+            </div>
+            <div class="demo-box">
+              <div class="demo-box-header">
+                <span class="demo-box-title">The KopyKat Solution (Real-Time Sync)</span>
+                <span class="demo-badge badge-green">Automated</span>
+              </div>
+              <p style="color: var(--text); font-size: 14px; line-height: 1.6;">
+                A customer buys the last item on TikTok Shop. KopyKat's sync engine immediately notifies Amazon, Shopify, Etsy, and eBay in under 1 second.
+                All stores show "Sold Out" instantly. Zero overselling, zero manual work, zero account health warnings.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: SEO -->
+        <div id="demo-tab-seo" class="demo-panel">
+          <div class="demo-grid-2">
+            <div class="demo-box">
+              <div class="demo-box-header">
+                <span class="demo-box-title">What Agencies Charge $2,000/mo For</span>
+                <span class="demo-badge badge-purple">Automated 24/7</span>
+              </div>
+              <p style="color: var(--text-muted); font-size: 14px; line-height: 1.6;">
+                KopyKat researches high-intent search queries that potential buyers type into Google (e.g., "how to choose the best noise-cancelling headphones for travel").
+              </p>
+            </div>
+            <div class="demo-box">
+              <div class="demo-box-header">
+                <span class="demo-box-title">Direct Store Publishing</span>
+                <span class="demo-badge badge-green">1-Click Live</span>
+              </div>
+              <p style="color: var(--text); font-size: 14px; line-height: 1.6;">
+                KopyKat writes a complete, educational 1,200-word article, cleans all HTML code, inserts links directly back to your product page, and posts it straight to your store blog.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Reviews -->
+        <div id="demo-tab-reviews" class="demo-panel">
+          <div class="demo-grid-2">
+            <div class="demo-box">
+              <div class="demo-box-header">
+                <span class="demo-box-title">Customer Feedback Analysis</span>
+                <span class="demo-badge badge-purple">Sentiment Detection</span>
+              </div>
+              <p style="color: var(--text-muted); font-size: 14px; line-height: 1.6;">
+                KopyKat reads incoming reviews. It spots negative mentions (like "charging cable was too short") and immediately alerts you while drafting a respectful, helpful solution for the buyer.
+              </p>
+            </div>
+            <div class="demo-box">
+              <div class="demo-box-header">
+                <span class="demo-box-title">Competitor Counter-Copy</span>
+                <span class="demo-badge badge-green">Sales Booster</span>
+              </div>
+              <p style="color: var(--text); font-size: 14px; line-height: 1.6;">
+                It scans 1-star reviews on your competitors' items to see what shoppers hate about them, then writes headlines highlighting why your product solves that exact problem.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CORE SERVICES GRID -->
+<section class="section section-alt" id="services">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">All-In-One Toolkit</span>
+      <h2 class="section-title">Everything You Need to Run & Scale Your Store</h2>
+      <p class="section-desc">No complicated tech setup. Just simple tools that make you more money and save you hours every day.</p>
+    </div>
+
+    <div class="services-grid">
+      <!-- Service 1 -->
+      <div class="service-card">
+        <div class="service-icon-box">01</div>
+        <h3>1-Click Multi-Channel Listing Creator</h3>
+        <p class="service-benefit">
+          Stop writing product descriptions from scratch. Upload a picture or title, and get complete listings formatted perfectly for Amazon, Shopify, Etsy, TikTok Shop, and eBay in under 30 seconds.
+        </p>
+        <div class="service-pill">Saves 5+ hours per product launch</div>
+      </div>
+
+      <!-- Service 2 -->
+      <div class="service-card">
+        <div class="service-icon-box">02</div>
+        <h3>Automatic Inventory & Stock Sync</h3>
+        <p class="service-benefit">
+          Never worry about accidentally selling items you ran out of. When an item sells on one platform, your stock levels update across all your other stores automatically in real time.
+        </p>
+        <div class="service-pill">Eliminates overselling penalties</div>
+      </div>
+
+      <!-- Service 3 -->
+      <div class="service-card">
+        <div class="service-icon-box">03</div>
+        <h3>Hands-Free Google Traffic (SEO Blogs)</h3>
+        <p class="service-benefit">
+          Get free buyers from Google search. KopyKat discovers what people are searching for in your niche, writes helpful articles, and publishes them straight to your store blog.
+        </p>
+        <div class="service-pill">Replaces $2,000/mo SEO agencies</div>
+      </div>
+
+      <!-- Service 4 -->
+      <div class="service-card">
+        <div class="service-icon-box">04</div>
+        <h3>Smart Review Miner & Reply Bot</h3>
+        <p class="service-benefit">
+          Turn unhappy reviewers into repeat buyers. KopyKat reads customer feedback, drafts polite responses, and writes sales copy that proves your product beats competitor alternatives.
+        </p>
+        <div class="service-pill">Protects your store reputation</div>
+      </div>
+
+      <!-- Service 5 -->
+      <div class="service-card">
+        <div class="service-icon-box">05</div>
+        <h3>24/7 Social Media Customer Finder</h3>
+        <p class="service-benefit">
+          Find ready-to-buy customers while you sleep. KopyKat scouts forums and online communities for people asking for product recommendations and drafts genuine, helpful answers.
+        </p>
+        <div class="service-pill">Free customer leads without ads</div>
+      </div>
+
+      <!-- Service 6 -->
+      <div class="service-card">
+        <div class="service-icon-box">06</div>
+        <h3>Automated Email Follow-Up Sequences</h3>
+        <p class="service-benefit">
+          Turn one-time shoppers into lifelong repeat buyers. Automatically send thank-you notes, review requests, and personalized repeat-buyer discount offers after every purchase.
+        </p>
+        <div class="service-pill">Boosts customer value by 30%</div>
+      </div>
+
+      <!-- Service 7 -->
+      <div class="service-card">
+        <div class="service-icon-box">07</div>
+        <h3>Profit Margin & Fee Guard</h3>
+        <p class="service-benefit">
+          Know your exact profit down to the penny. Automatically factors in marketplace fees, shipping costs, and advertising spend so you never accidentally sell at a loss.
+        </p>
+        <div class="service-pill">Guarantees profitable sales</div>
+      </div>
+
+      <!-- Service 8 -->
+      <div class="service-card">
+        <div class="service-icon-box">08</div>
+        <h3>Brand Voice Clone</h3>
+        <p class="service-benefit">
+          Whether your tone is fun and casual, luxurious and elegant, or bold and direct—KopyKat learns your unique style so every piece of writing sounds like you wrote it yourself.
+        </p>
+        <div class="service-pill">100% authentic brand consistency</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON TABLE: OLD WAY VS KOPYKAT -->
+<section class="section" id="comparison">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Direct Comparison</span>
+      <h2 class="section-title">The Old Way vs. The KopyKat Way</h2>
+      <p class="section-desc">See why hundreds of store owners are replacing expensive agencies and clunky manual tools with KopyKat.</p>
+    </div>
+
+    <div class="comparison-table-wrap">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Feature & Capability</th>
+            <th>Hiring Copywriters & Agencies</th>
+            <th>Basic ChatGPT / AI Text Boxes</th>
+            <th class="highlight-col">KopyKat Platform</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Monthly Cost</strong></td>
+            <td><span class="cross-red">$2,500 - $5,000 / mo</span></td>
+            <td>$20 / mo (Plus your time)</td>
+            <td class="highlight-col"><span class="check-green">From $0 - $97 / mo</span></td>
+          </tr>
+          <tr>
+            <td><strong>Time to Launch New Products</strong></td>
+            <td><span class="cross-red">7 to 14 days waiting</span></td>
+            <td>1 - 2 hours manual work</td>
+            <td class="highlight-col"><span class="check-green">Under 30 seconds</span></td>
+          </tr>
+          <tr>
+            <td><strong>Multi-Store Formatting</strong></td>
+            <td>Manual for each platform</td>
+            <td><span class="cross-red">No marketplace rules</span></td>
+            <td class="highlight-col"><span class="check-green">Amazon, Shopify, Etsy, TikTok, eBay</span></td>
+          </tr>
+          <tr>
+            <td><strong>Store-to-Store Stock Sync</strong></td>
+            <td><span class="cross-red">Not included</span></td>
+            <td><span class="cross-red">Not included</span></td>
+            <td class="highlight-col"><span class="check-green">Automatic real-time sync</span></td>
+          </tr>
+          <tr>
+            <td><strong>Automated SEO Blog Publishing</strong></td>
+            <td>$150 per article</td>
+            <td>Manual copy-pasting</td>
+            <td class="highlight-col"><span class="check-green">Fully automated 1-click publishing</span></td>
+          </tr>
+          <tr>
+            <td><strong>Review Mining & Replies</strong></td>
+            <td>Manual customer service</td>
+            <td><span class="cross-red">None</span></td>
+            <td class="highlight-col"><span class="check-green">Automatic sentiment reply bot</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- SAVINGS CALCULATOR -->
+<section class="section section-alt" id="calculator">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">ROI & Value</span>
+      <h2 class="section-title">How Much Will You Save?</h2>
+      <p class="section-desc">Move the slider to see your estimated monthly time and dollar savings.</p>
+    </div>
+
+    <div class="demo-box" style="max-width: 700px; margin: 0 auto; padding: 40px; text-align: center;">
+      <label style="font-size: 16px; font-weight: 600; color: #fff; display: block; margin-bottom: 16px;">
+        Products launched or updated per month: <span id="calc-count-label" style="color: #a78bfa; font-size: 22px; font-weight: 800;">25</span>
+      </label>
+      <input type="range" id="calc-slider" min="5" max="250" value="25" step="5" style="width: 100%; accent-color: var(--primary); margin-bottom: 30px;" oninput="updateCalculator(this.value)"/>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px;">
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 20px;">
+          <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase;">Hours Saved Monthly</div>
+          <div id="calc-hours" style="font-size: 36px; font-weight: 800; color: #38bdf8; margin-top: 6px;">38 Hours</div>
+        </div>
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 20px;">
+          <div style="font-size: 13px; color: var(--text-muted); text-transform: uppercase;">Agency Cost Saved</div>
+          <div id="calc-dollars" style="font-size: 36px; font-weight: 800; color: var(--green); margin-top: 6px;">$1,875</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING SECTION -->
+<section class="section" id="pricing">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Transparent Pricing</span>
+      <h2 class="section-title">Simple Plans That Grow With Your Store</h2>
+      <p class="section-desc">Pick the plan that matches your catalog size. No complicated credit systems or hidden fees.</p>
+    </div>
+
+    <div class="pricing-grid">
+      <!-- Plan 1: Free -->
+      <div class="pricing-card">
+        <h3>Test Drive</h3>
+        <div class="price-val">$0<span class="price-period">/mo</span></div>
+        <div class="price-sub">Test on your 5 best-selling products. No credit card required.</div>
+        
+        <ul class="pricing-features">
+          <li><strong>50 Free Generations</strong></li>
+          <li>All 5 Marketplaces Supported</li>
+          <li>Basic Product Listing Generator</li>
+          <li>Web Dashboard Access</li>
+        </ul>
+
+        <div class="human-cost-box">
+          Human Copywriter Cost: <span class="human-strike">$100</span>
+        </div>
+        <a href="#signup" class="btn btn-outline btn-full">Start for Free</a>
+      </div>
+
+      <!-- Plan 2: Boutique -->
+      <div class="pricing-card">
+        <h3>Boutique Store</h3>
+        <div class="price-val">$97<span class="price-period">/mo</span></div>
+        <div class="price-sub">Perfect for solo entrepreneurs and growing boutiques.</div>
+        
+        <ul class="pricing-features">
+          <li><strong>250 Campaigns / Month</strong></li>
+          <li>Amazon, Shopify, Etsy & eBay Sync</li>
+          <li>Automated Stock Reconciliation</li>
+          <li>SEO Blog Generator</li>
+          <li>Review Sentiment Classifier</li>
+        </ul>
+
+        <div class="human-cost-box">
+          Agency Cost: <span class="human-strike">$2,500</span> <span class="human-save">(Save $2,403)</span>
+        </div>
+        <button onclick="startCheckout('boutique')" class="btn btn-outline btn-full">Select Boutique</button>
+      </div>
+
+      <!-- Plan 3: Standard -->
+      <div class="pricing-card featured">
+        <div class="pricing-badge">Most Popular</div>
+        <h3>Standard Brand</h3>
+        <div class="price-val">$297<span class="price-period">/mo</span></div>
+        <div class="price-sub">For established brands launching new collections regularly.</div>
+        
+        <ul class="pricing-features">
+          <li><strong>1,000 Campaigns / Month</strong></li>
+          <li>All 5 Platform Connectors</li>
+          <li>Real-Time Multi-Store Stock Sync</li>
+          <li>Full SEO Traffic & Blog Machine</li>
+          <li>Social Lead Scout & Review Bot</li>
+          <li>Priority Generation Speed</li>
+        </ul>
+
+        <div class="human-cost-box">
+          Agency Cost: <span class="human-strike">$10,000</span> <span class="human-save">(Save $9,703)</span>
+        </div>
+        <button onclick="startCheckout('standard')" class="btn btn-primary btn-full">Select Standard Brand</button>
+      </div>
+
+      <!-- Plan 4: Megastore -->
+      <div class="pricing-card">
+        <h3>Megastore & Agency</h3>
+        <div class="price-val">$897<span class="price-period">/mo</span></div>
+        <div class="price-sub">For massive catalogs, wholesale stores, and marketing agencies.</div>
+        
+        <ul class="pricing-features">
+          <li><strong>5,000 Campaigns / Month</strong></li>
+          <li>Unlimited Store Webhooks</li>
+          <li>Custom AI Key Support (BYOK)</li>
+          <li>Dedicated High-Speed Processing</li>
+          <li>Full Multi-Tenant API Access</li>
+        </ul>
+
+        <div class="human-cost-box">
+          Agency Cost: <span class="human-strike">$50,000+</span> <span class="human-save">(Save $49,103)</span>
+        </div>
+        <button onclick="startCheckout('megastore')" class="btn btn-outline btn-full">Select Megastore</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FREQUENTLY ASKED QUESTIONS -->
+<section class="section section-alt" id="faq">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Got Questions?</span>
+      <h2 class="section-title">Frequently Asked Questions</h2>
+      <p class="section-desc">Clear answers with zero technical jargon.</p>
+    </div>
+
+    <div class="faq-grid">
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">
+          <span>Do I need any coding or technical skills to use KopyKat?</span>
+          <span>+</span>
+        </div>
+        <div class="faq-a">
+          Not at all. If you can upload a photo and click a button, you can use KopyKat. Connecting your store takes less than 60 seconds with simple guided steps.
+        </div>
+      </div>
+
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">
+          <span>Will using AI copy get my store banned on Amazon or Etsy?</span>
+          <span>+</span>
+        </div>
+        <div class="faq-a">
+          No. KopyKat is built specifically to strictly obey each platform's character limits, formatting guidelines, search indexing rules, and prohibited claims policies.
+        </div>
+      </div>
+
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">
+          <span>How does the inventory stock sync work?</span>
+          <span>+</span>
+        </div>
+        <div class="faq-a">
+          When a customer buys an item on TikTok Shop, KopyKat automatically deducts that item from your Amazon, Shopify, and Etsy stores in under a second. You never have to manually update spreadsheets again.
+        </div>
+      </div>
+
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">
+          <span>Can I cancel or change my plan anytime?</span>
+          <span>+</span>
+        </div>
+        <div class="faq-a">
+          Yes. There are zero long-term contracts. You can upgrade, downgrade, or cancel with 1 click directly from your dashboard whenever you want.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SIGN UP SECTION -->
+<section class="section" id="signup">
+  <div class="container">
+    <div class="auth-box">
+      <h2>Create Your Free Account</h2>
+      <p style="color: var(--text-muted); font-size: 14px; margin-top: 6px;">50 free product generations. No credit card required.</p>
+      
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('register')">Create Account</button>
+        <button class="auth-tab" onclick="switchAuthTab('login')">Log In</button>
+      </div>
+
+      <form id="register-form" class="auth-form" onsubmit="handleRegister(event)">
+        <input type="text" id="reg-name" placeholder="Full name (optional)" class="input"/>
+        <input type="email" id="reg-email" placeholder="Email address" class="input" required/>
+        <input type="password" id="reg-password" placeholder="Password (min 8 chars)" class="input" required minlength="8"/>
+        <button type="submit" class="btn btn-primary btn-full">Create Free Account</button>
+        <div id="reg-error" class="form-error"></div>
+      </form>
+
+      <form id="login-form" class="auth-form hidden" onsubmit="handleLogin(event)">
+        <input type="email" id="login-email" placeholder="Email address" class="input" required/>
+        <input type="password" id="login-password" placeholder="Password" class="input" required/>
+        <button type="submit" class="btn btn-primary btn-full">Log In</button>
+        <div id="login-error" class="form-error"></div>
+      </form>
+    </div>
+  </div>
 </section>
 
 <!-- FOOTER -->
 <footer class="footer">
- <div class="footer-inner">
- <span> KopyKat — &copy; 2026</span>
- <div class="footer-links">
- <a href="/api/docs" target="_blank">API Docs</a>
- <a href="mailto:support@kopykat.ai">Support</a>
- </div>
- </div>
+  <div class="footer-inner">
+    <span>KopyKat — Automated E-Commerce Growth &copy; 2026</span>
+    <div class="footer-links">
+      <a href="#services">Services</a>
+      <a href="#pricing">Pricing</a>
+      <a href="/api/docs" target="_blank">API Documentation</a>
+      <a href="mailto:support@kopykat.ai">Customer Support</a>
+    </div>
+  </div>
 </footer>
 
 <script>
-const API = ''; // same origin
+const API = '';
 
 function getToken() {
- return localStorage.getItem('sc_token');
-}
-function setToken(t) {
- localStorage.setItem('sc_token', t);
+  return localStorage.getItem('sc_token');
 }
 
-// Auth 
+function setToken(t) {
+  localStorage.setItem('sc_token', t);
+}
+
+function switchDemoTab(tabKey) {
+  document.querySelectorAll('.demo-tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.demo-panel').forEach(panel => panel.classList.remove('active'));
+
+  event.target.classList.add('active');
+  const targetPanel = document.getElementById('demo-tab-' + tabKey);
+  if (targetPanel) targetPanel.classList.add('active');
+}
+
+function updateCalculator(val) {
+  document.getElementById('calc-count-label').textContent = val;
+  const hours = Math.round(val * 1.5);
+  const dollars = Math.round(val * 75);
+  document.getElementById('calc-hours').textContent = hours + " Hours";
+  document.getElementById('calc-dollars').textContent = "$" + dollars.toLocaleString();
+}
+
+function toggleFaq(el) {
+  const answer = el.querySelector('.faq-a');
+  const isHidden = answer.style.display === 'none';
+  answer.style.display = isHidden ? 'block' : 'none';
+  el.querySelector('.faq-q span:last-child').textContent = isHidden ? '-' : '+';
+}
+
+function switchAuthTab(tab) {
+  document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
+  document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+  document.querySelectorAll('.auth-tab').forEach((t, i) => {
+    t.classList.toggle('active', (i === 0 && tab === 'register') || (i === 1 && tab === 'login'));
+  });
+}
+
 async function handleRegister(e) {
- e.preventDefault();
- const err = document.getElementById('reg-error');
- err.textContent = '';
- try {
- const res = await fetch(`${API}/auth/register`, {
- method: 'POST',
- headers: {'Content-Type':'application/json'},
- body: JSON.stringify({
- full_name: document.getElementById('reg-name').value || null,
- email: document.getElementById('reg-email').value,
- password: document.getElementById('reg-password').value,
- })
- });
- const data = await res.json();
- if (!res.ok) { err.textContent = data.detail || 'Registration failed'; return; }
- setToken(data.access_token);
- window.location.href = '/dashboard';
- } catch(ex) {
- err.textContent = 'Network error. Please try again.';
- }
+  e.preventDefault();
+  const err = document.getElementById('reg-error');
+  err.textContent = '';
+  try {
+    const res = await fetch(`${API}/auth/register`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        full_name: document.getElementById('reg-name').value || null,
+        email: document.getElementById('reg-email').value,
+        password: document.getElementById('reg-password').value,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.detail || 'Registration failed'; return; }
+    setToken(data.access_token);
+    window.location.href = '/dashboard';
+  } catch(ex) {
+    err.textContent = 'Network error. Please try again.';
+  }
 }
 
 async function handleLogin(e) {
- e.preventDefault();
- const err = document.getElementById('login-error');
- err.textContent = '';
- try {
- const res = await fetch(`${API}/auth/login`, {
- method: 'POST',
- headers: {'Content-Type':'application/json'},
- body: JSON.stringify({
- email: document.getElementById('login-email').value,
- password: document.getElementById('login-password').value,
- })
- });
- const data = await res.json();
- if (!res.ok) { err.textContent = data.detail || 'Login failed'; return; }
- setToken(data.access_token);
- window.location.href = '/dashboard';
- } catch(ex) {
- err.textContent = 'Network error. Please try again.';
- }
+  e.preventDefault();
+  const err = document.getElementById('login-error');
+  err.textContent = '';
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        email: document.getElementById('login-email').value,
+        password: document.getElementById('login-password').value,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.detail || 'Login failed'; return; }
+    setToken(data.access_token);
+    window.location.href = '/dashboard';
+  } catch(ex) {
+    err.textContent = 'Network error. Please try again.';
+  }
 }
 
-function switchTab(tab) {
- document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
- document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
- document.querySelectorAll('.auth-tab').forEach((t, i) => {
- t.classList.toggle('active', (i===0 && tab==='register') || (i===1 && tab==='login'));
- });
-}
-
-// Billing 
 async function startCheckout(plan) {
- const token = getToken();
- if (!token) { document.getElementById('signup').scrollIntoView({behavior:'smooth'}); return; }
- try {
- const res = await fetch(`${API}/billing/subscribe`, {
- method: 'POST',
- headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${token}`},
- body: JSON.stringify({
- plan,
- success_url: window.location.origin + '/dashboard?success=1',
- cancel_url: window.location.origin + '/#pricing',
- })
- });
- const data = await res.json();
- if (data.checkout_url) window.location.href = data.checkout_url;
- } catch(ex) {
- alert('Could not start checkout. Please try again.');
- }
+  const token = getToken();
+  if (!token) {
+    document.getElementById('signup').scrollIntoView({behavior: 'smooth'});
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/billing/subscribe`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
+      body: JSON.stringify({
+        plan,
+        success_url: window.location.origin + '/dashboard?success=1',
+        cancel_url: window.location.origin + '/#pricing',
+      })
+    });
+    const data = await res.json();
+    if (data.checkout_url) window.location.href = data.checkout_url;
+  } catch(ex) {
+    alert('Could not start checkout. Please try again.');
+  }
 }
-
-async function buyGenerations(tier) {
- const token = getToken();
- if (!token) { document.getElementById('signup').scrollIntoView({behavior:'smooth'}); return; }
- try {
- const res = await fetch(`${API}/billing/one-time`, {
- method: 'POST',
- headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${token}`},
- body: JSON.stringify({
- tier,
- success_url: window.location.origin + '/dashboard?success=1',
- cancel_url: window.location.origin + '/#pricing',
- })
- });
- const data = await res.json();
- if (data.checkout_url) window.location.href = data.checkout_url;
- } catch(ex) {
- alert('Could not start checkout. Please try again.');
- }
-}
-
-// Redirect to dashboard if already logged in
-if (getToken()) {
- const alreadyLoggedIn = document.createElement('div');
-}
-</script>
-
-<script>
- if ('serviceWorker' in navigator) {
- window.addEventListener('load', () => {
- navigator.serviceWorker.register('/sw.js').catch(err => {
- console.log('SW registration failed: ', err);
- });
- });
- }
 </script>
 
 </body>
