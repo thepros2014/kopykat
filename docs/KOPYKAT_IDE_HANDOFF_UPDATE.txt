@@ -3,6 +3,10 @@ Last Updated: August 22, 2026
 Updated By: Antigravity (Claude Sonnet 4.6 Thinking)
 Previous Update By: GPT-5.6 Luna
 
+PRODUCT MOTTO: "It should just work."
+This is the standard every feature is held to. If a customer has to think,
+read a tutorial, or contact support to use a feature — it is not finished.
+
 PURPOSE
 Bring the IDE-side AI fully up to speed without repeating completed work.
 This file is the single source of truth for project state and next steps.
