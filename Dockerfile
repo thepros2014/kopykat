@@ -13,7 +13,7 @@ COPY . .
 RUN mkdir -p /app/data
 
 # Expose default port
-EXPOSE 8000
+EXPOSE 10000
 
 # Start the server with dynamic port fallback for Render ($PORT)
-CMD sh -c "uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"
+CMD sh -c "uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1"

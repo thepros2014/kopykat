@@ -291,26 +291,35 @@ def get_db():
         db.close()
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
-    inspector = inspect(engine)
-    if "users" in inspector.get_table_names():
-        columns = {c["name"] for c in inspector.get_columns("users")}
-        with engine.begin() as conn:
-            if "generations" not in columns and "generations_remaining" in columns:
-                conn.execute(text("ALTER TABLE users RENAME COLUMN generations_remaining TO generations"))
-            elif "generations" not in columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN generations INTEGER DEFAULT 5"))
-            if "purchased_generations" not in columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN purchased_generations INTEGER DEFAULT 0"))
-            if "monthly_generations" not in columns:
-                conn.execute(text("ALTER TABLE users ADD COLUMN monthly_generations INTEGER DEFAULT 5"))
-    if "usage_records" in inspector.get_table_names():
-        columns = {c["name"] for c in inspector.get_columns("usage_records")}
-        if "generations_used" not in columns:
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("create_all notice: %s", e)
+
+    try:
+        inspector = inspect(engine)
+        if "users" in inspector.get_table_names():
+            columns = {c["name"] for c in inspector.get_columns("users")}
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE usage_records ADD COLUMN generations_used INTEGER DEFAULT 1"))
-    if "opportunity_logs" in inspector.get_table_names():
-        columns = {c["name"] for c in inspector.get_columns("opportunity_logs")}
-        if "score" not in columns:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE opportunity_logs ADD COLUMN score INTEGER DEFAULT 85"))
+                if "generations" not in columns and "generations_remaining" in columns:
+                    conn.execute(text("ALTER TABLE users RENAME COLUMN generations_remaining TO generations"))
+                elif "generations" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN generations INTEGER DEFAULT 5"))
+                if "purchased_generations" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN purchased_generations INTEGER DEFAULT 0"))
+                if "monthly_generations" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN monthly_generations INTEGER DEFAULT 5"))
+        if "usage_records" in inspector.get_table_names():
+            columns = {c["name"] for c in inspector.get_columns("usage_records")}
+            if "generations_used" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE usage_records ADD COLUMN generations_used INTEGER DEFAULT 1"))
+        if "opportunity_logs" in inspector.get_table_names():
+            columns = {c["name"] for c in inspector.get_columns("opportunity_logs")}
+            if "score" not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE opportunity_logs ADD COLUMN score INTEGER DEFAULT 85"))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Schema column inspection notice: %s", e)
