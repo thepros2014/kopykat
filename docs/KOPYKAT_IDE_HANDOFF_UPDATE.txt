@@ -14,7 +14,7 @@ This file is the single source of truth for project state and next steps.
 ============================================================
 EXECUTIVE SUMMARY & RECOMMENDED NEXT STEPS (START HERE)
 ============================================================
-Current Build Status: 100% Stable, 38/38 Pytest Suite Passing.
+Current Build Status: 100% Stable, 44/44 Pytest Suite Passing.
 Live Deployment: https://kopykat.onrender.com
 Current Version: 1.0.0 (Semantic Release Tags: v0.1.0, v0.2.0, v0.3.0, v0.4.0, v1.0.0)
 
@@ -87,6 +87,13 @@ WEEK 4 — GROWTH & SEARCH AUTOMATION ENGINES
 - [x] Reddit Lead Intent Scoring: Automated 1-100 buyer intent and budget scoring
 - [x] Drip Campaign Engagement Analytics: Open/click tracking telemetry and conversion logging
 - [x] Automated Test Suite: Expanded to 38+ comprehensive integration tests
+
+
+HIGH-MARGIN À-LA-CARTE REVENUE ADD-ONS (BUILT & ACTIVE):
+- [x] Brand Voice Training (Custom AI Persona): Bespoke tone, audience, guidelines, and style transfer (GET/POST /api/brand-persona)
+- [x] Marketplace Listing Optimizer: Algorithmic title, 5-bullet, 13-tag, and backend search term optimizer for Amazon, Etsy, Shopify (POST /api/optimizer/marketplace-listing)
+- [x] À-La-Carte Stripe Add-On Checkout: Modular purchases ($19, $29, $49, $149) with 1-click checkout (POST /billing/addon/checkout)
+- [x] In-Dashboard Add-Ons Store: Live catalog viewer and purchase flow in frontend/dashboard.html
 
 ALL 5 ROADMAP FLAGSHIP MODULES COMPLETED & VERIFIED:
 - [x] MODULE 1: Competitor 1-Star Review Miner (Flaw extraction, counter-copy, comparison matrix, ad hooks)

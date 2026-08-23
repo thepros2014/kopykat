@@ -250,6 +250,18 @@ class PriceMarginItem(Base):
     recommendation = Column(Text, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class BrandPersona(Base):
+    __tablename__ = "brand_personas"
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False)
+    brand_name = Column(String(255), nullable=False)
+    brand_voice_tone = Column(String(255), nullable=False)
+    target_audience = Column(String(500), nullable=True)
+    rules_and_guidelines = Column(Text, nullable=True)
+    sample_copy = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class OpportunityLog(Base):
     __tablename__ = "opportunity_logs"
     id = Column(String(36), primary_key=True)

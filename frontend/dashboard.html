@@ -68,6 +68,9 @@
     <button class="sidebar-link" onclick="showSection('pricing-monitor', this)">Price & Margin Monitor</button>
     <button class="sidebar-link" onclick="showSection('leads', this)">Opportunity Leads</button>
     <button class="sidebar-link" onclick="showSection('growth', this)">SEO & Growth Analytics</button>
+    <button class="sidebar-link" onclick="showSection('brand-persona', this)">Brand Voice Persona</button>
+    <button class="sidebar-link" onclick="showSection('listing-optimizer', this)">Marketplace Optimizer</button>
+    <button class="sidebar-link" onclick="showSection('addons-store', this)">À-La-Carte Store</button>
  <div style="flex:1;"></div>
  <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
  </aside>
@@ -1424,6 +1427,183 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPriceItems();
   loadOpportunityLeads();
   loadGrowthAnalytics();
+  loadBrandPersona();
+  loadAddOnsStore();
+
+async function loadBrandPersona() {
+  try {
+    const res = await fetch('/api/brand-persona', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (res.ok) {
+      const data = await res.json();
+      if (data) {
+        document.getElementById('persona-brand-name').value = data.brand_name || '';
+        document.getElementById('persona-voice-tone').value = data.brand_voice_tone || '';
+        document.getElementById('persona-audience').value = data.target_audience || '';
+        document.getElementById('persona-guidelines').value = data.rules_and_guidelines || '';
+        document.getElementById('persona-sample').value = data.sample_copy || '';
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load brand persona:", err);
+  }
+}
+
+async function saveBrandPersona() {
+  const brand_name = document.getElementById('persona-brand-name').value.trim();
+  const brand_voice_tone = document.getElementById('persona-voice-tone').value.trim();
+  const target_audience = document.getElementById('persona-audience').value.trim();
+  const rules_and_guidelines = document.getElementById('persona-guidelines').value.trim();
+  const sample_copy = document.getElementById('persona-sample').value.trim();
+
+  if (!brand_name || !brand_voice_tone) {
+    alert("Please enter a Brand Name and Voice Tone.");
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/brand-persona', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ brand_name, brand_voice_tone, target_audience, rules_and_guidelines, sample_copy })
+    });
+    if (res.ok) {
+      const status = document.getElementById('persona-status');
+      status.textContent = "Brand Persona successfully saved!";
+      setTimeout(() => status.textContent = "", 3000);
+    }
+  } catch (err) {
+    alert("Failed to save brand persona.");
+  }
+}
+
+async function optimizeMarketplaceListing() {
+  const platform = document.getElementById('opt-platform').value;
+  const product_name = document.getElementById('opt-product-name').value.trim();
+  const raw_details = document.getElementById('opt-raw-details').value.trim();
+  const keywords = document.getElementById('opt-keywords').value.trim();
+  const target_audience = document.getElementById('opt-audience').value.trim();
+
+  if (!product_name || !raw_details) {
+    alert("Please enter a Product Name and Raw Product Details.");
+    return;
+  }
+
+  const resultsCard = document.getElementById('optimizer-results-card');
+  const resultsContent = document.getElementById('optimizer-results-content');
+  resultsCard.classList.remove('hidden');
+  resultsContent.innerHTML = '<div style="color:var(--muted); font-size:13px; padding:16px 0;">Algorithmic optimizer processing listing parameters...</div>';
+
+  try {
+    const res = await fetch('/api/optimizer/marketplace-listing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ platform, product_name, raw_details, keywords, target_audience })
+    });
+    const data = await res.json();
+
+    document.getElementById('opt-score-badge').textContent = 'Compliance Score: ' + data.compliance_score + '/100';
+
+    let out = '<div style="margin-bottom:16px;">' +
+      '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Optimized Listing Title</label>' +
+      '<div style="background:var(--bg2); padding:10px; border-radius:6px; font-weight:600; margin-top:4px;">' + data.optimized_title + '</div>' +
+      '</div>';
+
+    if (data.bullet_points && data.bullet_points.length) {
+      out += '<div style="margin-bottom:16px;">' +
+        '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Key Bullet Points / Feature Highlights</label>' +
+        '<ul style="margin:6px 0 0 18px; line-height:1.6; color:var(--text);">';
+      data.bullet_points.forEach(b => { out += '<li>' + b + '</li>'; });
+      out += '</ul></div>';
+    }
+
+    if (data.tags && data.tags.length) {
+      out += '<div style="margin-bottom:16px;">' +
+        '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Etsy 13 Search Tags</label>' +
+        '<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">';
+      data.tags.forEach(t => {
+        out += '<span style="background:var(--bg2); border:1px solid var(--border); padding:3px 8px; border-radius:12px; font-size:12px;">' + t + '</span>';
+      });
+      out += '</div></div>';
+    }
+
+    if (data.backend_search_terms) {
+      out += '<div style="margin-bottom:16px;">' +
+        '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Amazon Backend Search Terms (Under 249 Bytes)</label>' +
+        '<div style="background:var(--bg2); padding:8px; border-radius:6px; font-family:monospace; font-size:12px; margin-top:4px;">' + data.backend_search_terms + '</div>' +
+        '</div>';
+    }
+
+    if (data.meta_description) {
+      out += '<div style="margin-bottom:16px;">' +
+        '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Shopify SEO Meta Description</label>' +
+        '<div style="background:var(--bg2); padding:8px; border-radius:6px; font-size:13px; margin-top:4px;">' + data.meta_description + '</div>' +
+        '</div>';
+    }
+
+    out += '<div>' +
+      '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Structured Product Description</label>' +
+      '<div style="background:var(--bg2); padding:12px; border-radius:6px; font-size:13px; line-height:1.6; margin-top:4px;">' + data.structured_description + '</div>' +
+      '</div>';
+
+    resultsContent.innerHTML = out;
+  } catch (err) {
+    resultsContent.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Optimization failed. Please try again.</div>';
+  }
+}
+
+async function loadAddOnsStore() {
+  const container = document.getElementById('addons-grid');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/billing/addons');
+    const addons = await res.json();
+
+    container.innerHTML = '';
+    addons.forEach(a => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.justifyContent = 'space-between';
+
+      let featHtml = '';
+      a.features.forEach(f => {
+        featHtml += '<li style="margin-bottom:6px; font-size:13px; color:var(--text);">' + f + '</li>';
+      });
+
+      card.innerHTML = '<div>' +
+        '<span style="display:inline-block; font-size:11px; font-weight:bold; text-transform:uppercase; color:var(--purple); background:rgba(142,68,173,0.1); padding:2px 8px; border-radius:10px; margin-bottom:8px;">' + (a.billing_type === 'monthly' ? 'Monthly Add-On' : 'One-Time Upgrade') + '</span>' +
+        '<h3 style="margin:0 0 8px 0; font-size:18px;">' + a.name + '</h3>' +
+        '<div style="font-size:26px; font-weight:800; color:var(--text); margin-bottom:12px;">$' + a.price_usd + (a.billing_type === 'monthly' ? '<span style="font-size:14px; font-weight:normal; color:var(--muted);">/mo</span>' : '') + '</div>' +
+        '<p style="color:var(--muted); font-size:13px; line-height:1.5; margin-bottom:16px;">' + a.description + '</p>' +
+        '<ul style="margin:0 0 20px 16px; padding:0;">' + featHtml + '</ul>' +
+        '</div>' +
+        '<button class="btn btn-primary" style="width:100%;" onclick="buyAddon('' + a.key + '')">Get ' + a.name + '</button>';
+
+      container.appendChild(card);
+    });
+  } catch (err) {
+    container.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Failed to load add-ons store.</div>';
+  }
+}
+
+async function buyAddon(addonKey) {
+  try {
+    const res = await fetch('/billing/addon/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ addon_key: addonKey })
+    });
+    const data = await res.json();
+    if (data.checkout_url) {
+      window.location.href = data.checkout_url;
+    }
+  } catch (err) {
+    alert("Checkout initialization failed.");
+  }
+}
+
 
 async function loadGrowthAnalytics() {
   try {

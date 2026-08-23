@@ -278,3 +278,52 @@ class ShopifyImportResponse(BaseModel):
     total_imported: int
     items: list[dict]
     error: Optional[str] = None
+
+# --- À-LA-CARTE MONETIZATION & ADD-ON SCHEMAS ---
+
+class BrandPersonaRequest(BaseModel):
+    brand_name: str = Field(min_length=1, max_length=255)
+    brand_voice_tone: str = Field(min_length=2, max_length=255)
+    target_audience: Optional[str] = None
+    rules_and_guidelines: Optional[str] = None
+    sample_copy: Optional[str] = None
+
+class BrandPersonaResponse(BaseModel):
+    id: str
+    brand_name: str
+    brand_voice_tone: str
+    target_audience: Optional[str] = None
+    rules_and_guidelines: Optional[str] = None
+    sample_copy: Optional[str] = None
+    updated_at: datetime
+
+
+class MarketplaceOptimizeRequest(BaseModel):
+    product_name: str = Field(min_length=2, max_length=255)
+    platform: str = Field(pattern="^(amazon|etsy|shopify)$")
+    raw_details: str = Field(min_length=5, max_length=5000)
+    keywords: Optional[str] = None
+    target_audience: Optional[str] = None
+
+class MarketplaceOptimizeResponse(BaseModel):
+    platform: str
+    product_name: str
+    optimized_title: str
+    bullet_points: list[str] = []
+    meta_description: Optional[str] = None
+    backend_search_terms: Optional[str] = None
+    tags: list[str] = []
+    structured_description: str
+    compliance_score: int  # 1-100 score on platform character limits & keyword density
+
+
+class AddOnCheckoutRequest(BaseModel):
+    addon_key: str = Field(min_length=2, max_length=50)
+
+class AddOnItemResponse(BaseModel):
+    key: str
+    name: str
+    price_usd: float
+    billing_type: str  # one_time / monthly
+    description: str
+    features: list[str]

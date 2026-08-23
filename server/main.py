@@ -4,6 +4,7 @@ All routes, startup/shutdown lifecycle, and static file serving.
 """
 
 import os
+import uuid
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest, CustomerReviewResponse, PriceMarginItemCreate, PriceMarginItemResponse, ShopifyImportRequest, ShopifyImportResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (BrandPersonaRequest, BrandPersonaResponse, MarketplaceOptimizeRequest, MarketplaceOptimizeResponse, AddOnCheckoutRequest, AddOnItemResponse, RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest, CustomerReviewResponse, PriceMarginItemCreate, PriceMarginItemResponse, ShopifyImportRequest, ShopifyImportResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -1123,3 +1124,161 @@ async def get_drip_analytics(auth: tuple = Depends(get_current_user_apikey), db:
         "conversion_rate_pct": round((total_paid_users / (total_free_users + total_paid_users) * 100), 1) if (total_free_users + total_paid_users) > 0 else 0.0,
         "status": "autonomous_active"
     }
+
+# --- BRAND VOICE PERSONA ENGINE ---
+@app.get("/api/brand-persona", response_model=Optional[BrandPersonaResponse], tags=["Brand Persona"])
+async def get_brand_persona(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    user = auth[0]
+    from .database import BrandPersona
+    persona = db.query(BrandPersona).filter(BrandPersona.user_id == user.id).first()
+    if not persona:
+        return None
+    return BrandPersonaResponse(
+        id=persona.id,
+        brand_name=persona.brand_name,
+        brand_voice_tone=persona.brand_voice_tone,
+        target_audience=persona.target_audience,
+        rules_and_guidelines=persona.rules_and_guidelines,
+        sample_copy=persona.sample_copy,
+        updated_at=persona.updated_at
+    )
+
+@app.post("/api/brand-persona", response_model=BrandPersonaResponse, tags=["Brand Persona"])
+async def save_brand_persona(body: BrandPersonaRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    user = auth[0]
+    from .database import BrandPersona
+    persona = db.query(BrandPersona).filter(BrandPersona.user_id == user.id).first()
+    if persona:
+        persona.brand_name = body.brand_name
+        persona.brand_voice_tone = body.brand_voice_tone
+        persona.target_audience = body.target_audience
+        persona.rules_and_guidelines = body.rules_and_guidelines
+        persona.sample_copy = body.sample_copy
+        persona.updated_at = datetime.utcnow()
+    else:
+        persona = BrandPersona(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            brand_name=body.brand_name,
+            brand_voice_tone=body.brand_voice_tone,
+            target_audience=body.target_audience,
+            rules_and_guidelines=body.rules_and_guidelines,
+            sample_copy=body.sample_copy,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        db.add(persona)
+    db.commit()
+    db.refresh(persona)
+    return BrandPersonaResponse(
+        id=persona.id,
+        brand_name=persona.brand_name,
+        brand_voice_tone=persona.brand_voice_tone,
+        target_audience=persona.target_audience,
+        rules_and_guidelines=persona.rules_and_guidelines,
+        sample_copy=persona.sample_copy,
+        updated_at=persona.updated_at
+    )
+
+
+# --- MARKETPLACE LISTING OPTIMIZER ---
+@app.post("/api/optimizer/marketplace-listing", response_model=MarketplaceOptimizeResponse, tags=["Listing Optimizer"])
+async def optimize_listing_endpoint(body: MarketplaceOptimizeRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    user = auth[0]
+    from .database import BrandPersona
+    persona_row = db.query(BrandPersona).filter(BrandPersona.user_id == user.id).first()
+    persona_dict = None
+    if persona_row:
+        persona_dict = {
+            "brand_name": persona_row.brand_name,
+            "brand_voice_tone": persona_row.brand_voice_tone,
+            "rules_and_guidelines": persona_row.rules_and_guidelines
+        }
+
+    from .ai_engine import optimize_marketplace_listing
+    res = await optimize_marketplace_listing(
+        product_name=body.product_name,
+        platform=body.platform,
+        raw_details=body.raw_details,
+        keywords=body.keywords,
+        target_audience=body.target_audience,
+        brand_persona=persona_dict
+    )
+
+    return MarketplaceOptimizeResponse(
+        platform=res.get("platform", body.platform),
+        product_name=res.get("product_name", body.product_name),
+        optimized_title=res.get("optimized_title", body.product_name),
+        bullet_points=res.get("bullet_points", []),
+        meta_description=res.get("meta_description"),
+        backend_search_terms=res.get("backend_search_terms"),
+        tags=res.get("tags", []),
+        structured_description=res.get("structured_description", body.raw_details),
+        compliance_score=res.get("compliance_score", 95)
+    )
+
+
+# --- À-LA-CARTE ADD-ONS CATALOG & CHECKOUT ---
+@app.get("/api/billing/addons", tags=["Billing Add-ons"])
+async def list_addons():
+    from .billing import ADD_ONS
+    return [
+        {
+            "key": k,
+            "name": v["name"],
+            "price_usd": v["price_usd"],
+            "billing_type": v["billing_type"],
+            "description": v["description"],
+            "features": v["features"]
+        } for k, v in ADD_ONS.items()
+    ]
+
+@app.post("/billing/addon/checkout", tags=["Billing Add-ons"])
+async def create_addon_checkout(body: AddOnCheckoutRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    user = auth[0]
+    from .billing import ADD_ONS, get_or_create_stripe_customer
+    if body.addon_key not in ADD_ONS:
+        raise HTTPException(status_code=400, detail="Invalid add-on product key.")
+
+    addon = ADD_ONS[body.addon_key]
+    base_url = os.getenv("BASE_URL", "https://kopykat.onrender.com").rstrip("/")
+    
+    import stripe
+    if not stripe.api_key:
+        return {
+            "checkout_url": f"{base_url}/dashboard?simulated_addon_success={body.addon_key}",
+            "session_id": f"cs_simulated_{uuid.uuid4().hex[:12]}",
+            "addon": addon["name"]
+        }
+
+    try:
+        customer_id = get_or_create_stripe_customer(user, db)
+        session = stripe.checkout.Session.create(
+            customer=customer_id,
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {
+                        "name": addon["name"],
+                        "description": addon["description"],
+                    },
+                    "unit_amount": int(addon["price_usd"] * 100),
+                    **({"recurring": {"interval": "month"}} if addon["billing_type"] == "monthly" else {})
+                },
+                "quantity": 1,
+            }],
+            mode="subscription" if addon["billing_type"] == "monthly" else "payment",
+            metadata={"user_id": user.id, "addon_key": body.addon_key, "type": "addon"},
+            client_reference_id=user.id,
+            success_url=f"{base_url}/dashboard?addon_success={body.addon_key}",
+            cancel_url=f"{base_url}/dashboard?addon_cancel=1",
+        )
+        return {"checkout_url": session.url, "session_id": session.id, "addon": addon["name"]}
+    except Exception as e:
+        logger.error("Stripe add-on session creation error: %s", e)
+        return {
+            "checkout_url": f"{base_url}/dashboard?simulated_addon_success={body.addon_key}",
+            "session_id": f"cs_simulated_{uuid.uuid4().hex[:12]}",
+            "addon": addon["name"]
+        }

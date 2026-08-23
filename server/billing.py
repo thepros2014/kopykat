@@ -79,6 +79,57 @@ PLANS = {
     },
 }
 
+ADD_ONS = {
+    "brand_voice_training": {
+        "name": "Brand Voice Training (Custom AI Persona)",
+        "price_usd": 49.00,
+        "billing_type": "one_time",
+        "description": "Unlock custom AI persona training with bespoke voice guidelines, target audience tuning, and past copy style transfer.",
+        "features": [
+            "Bespoke brand persona configuration",
+            "Automatic prompt injection on all copy generations",
+            "Audience tone and vocabulary matching",
+            "Style transfer from your past winning listings"
+        ]
+    },
+    "marketplace_optimizer_pack": {
+        "name": "Marketplace Listing Optimizer Pack (50 Listings)",
+        "price_usd": 29.00,
+        "billing_type": "one_time",
+        "description": "Deep algorithmic optimization for Amazon (backend keywords/bullets), Etsy (13 tags/character caps), and Shopify product pages.",
+        "features": [
+            "Amazon keyword and bullet optimization",
+            "Etsy 13-tag high conversion extractor",
+            "Shopify SEO meta titles and structured descriptions",
+            "Listing compliance and character limit scoring"
+        ]
+    },
+    "done_for_you_marketing_pack": {
+        "name": "Done-For-You Monthly Marketing Pack",
+        "price_usd": 149.00,
+        "billing_type": "monthly",
+        "description": "Autonomous full-funnel marketing package containing 4 SEO articles, 10 multi-channel social posts, 3 email drips, and 5 product descriptions.",
+        "features": [
+            "4 SEO Authority Blog Posts published directly to your store",
+            "10 High-converting social media bundles",
+            "3 Multi-step customer retention email campaigns",
+            "5 Optimized product catalog descriptions"
+        ]
+    },
+    "bulk_catalog_import_pass": {
+        "name": "Unlimited Bulk Catalog Import and Semantic Mapper",
+        "price_usd": 19.00,
+        "billing_type": "one_time",
+        "description": "Unlimited CSV, Excel, and Shopify direct catalog imports with automatic AI column mapping and batch rewriting.",
+        "features": [
+            "Unlimited products per CSV batch",
+            "Automated fuzzy column detection",
+            "Batch formatting for multiple channels",
+            "Direct Shopify catalog 1-click sync"
+        ]
+    }
+}
+
 ONE_TIME_GENERATIONS = {
     "starter": {"name": "Starter Pack (250 generations)", "price_id_env": "STRIPE_PRICE_PACK_STARTER", "generations": 250, "price_usd": 5},
     "growth": {"name": "Growth Pack (1,000 generations)", "price_id_env": "STRIPE_PRICE_PACK_GROWTH", "generations": 1000, "price_usd": 15},
