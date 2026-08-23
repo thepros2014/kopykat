@@ -266,3 +266,15 @@ class PriceMarginItemResponse(BaseModel):
     status: str
     recommendation: str
     updated_at: datetime
+
+
+class ShopifyImportRequest(BaseModel):
+    shop_url: Optional[str] = None
+    access_token: Optional[str] = None
+    limit: Optional[int] = 50
+
+class ShopifyImportResponse(BaseModel):
+    success: bool
+    total_imported: int
+    items: list[dict]
+    error: Optional[str] = None

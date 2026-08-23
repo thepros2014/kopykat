@@ -1132,6 +1132,75 @@ async function runOmniPush() {
 }
 
 // -- BULK CATALOG SYNC -------------------------------------------------------
+
+async function importShopifyCatalogDirect() {
+  const shopUrl = document.getElementById('shopify-shop-url').value.trim();
+  const token = document.getElementById('shopify-admin-token').value.trim();
+  const btn = document.getElementById('btn-import-shopify');
+
+  btn.textContent = "Connecting to Shopify...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/catalog/import-shopify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ shop_url: shopUrl || null, access_token: token || null, limit: 100 })
+    });
+
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || "Failed to import Shopify products");
+    }
+
+    bulkItems = data.items || [];
+    const tbody = document.getElementById('bulk-table-body');
+    if (tbody) {
+      tbody.innerHTML = '';
+      for (let i = 0; i < bulkItems.length; i++) {
+        const item = bulkItems[i];
+        item.status = 'Ready';
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        tr.id = 'bulk-row-' + i;
+
+        const tdStatus = document.createElement('td');
+        tdStatus.style.padding = '12px 8px';
+        tdStatus.className = 'status-cell';
+        const badge = document.createElement('span');
+        badge.style.color = '#eab308';
+        badge.style.fontWeight = 'bold';
+        badge.textContent = 'Ready';
+        tdStatus.appendChild(badge);
+
+        const tdName = document.createElement('td');
+        tdName.style.padding = '12px 8px';
+        tdName.style.fontWeight = 'bold';
+        tdName.textContent = item.name || '';
+
+        const tdDesc = document.createElement('td');
+        tdDesc.style.padding = '12px 8px';
+        tdDesc.style.color = 'var(--muted)';
+        const rawDesc = item.desc || '';
+        tdDesc.textContent = rawDesc.length > 80 ? rawDesc.substring(0, 80) + '...' : rawDesc;
+
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdName);
+        tr.appendChild(tdDesc);
+        tbody.appendChild(tr);
+      }
+    }
+
+    document.getElementById('bulk-preview-area').classList.remove('hidden');
+    alert("Successfully imported " + data.total_imported + " live products from Shopify! Select destination marketplaces below to syndicate.");
+  } catch (err) {
+    alert("Error: " + err.message);
+  } finally {
+    btn.textContent = "Import Shopify Catalog";
+    btn.disabled = false;
+  }
+}
+
 async function parseCSV() {
   const fileInput = document.getElementById('csv-file');
   if (!fileInput || !fileInput.files.length) return alert("Please select a CSV file.");

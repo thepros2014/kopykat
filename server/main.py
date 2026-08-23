@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest, CustomerReviewResponse, PriceMarginItemCreate, PriceMarginItemResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest, CustomerReviewResponse, PriceMarginItemCreate, PriceMarginItemResponse, ShopifyImportRequest, ShopifyImportResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -920,3 +920,60 @@ async def delete_price_item(item_id: str, auth: tuple = Depends(get_current_user
     db.delete(item)
     db.commit()
     return {"success": True, "message": "Item deleted"}
+
+
+# --- SHOPIFY DIRECT IMPORT ROUTES ---
+@app.post("/api/catalog/import-shopify", response_model=ShopifyImportResponse, tags=["Catalog Automation"])
+@limiter.limit("15/minute")
+async def api_import_shopify_catalog(
+    request: Request,
+    body: ShopifyImportRequest,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .shopify_import import import_shopify_catalog_direct
+    from .database import UserIntegration
+    from .auth import decrypt_credentials
+    import json
+
+    user, _ = auth
+    shop_url = body.shop_url
+    token = body.access_token
+
+    # If credentials not provided in payload, look up connected Shopify integration
+    if not shop_url or not token:
+        integ = db.query(UserIntegration).filter(
+            UserIntegration.user_id == user.id,
+            UserIntegration.platform == "shopify",
+            UserIntegration.status == "connected"
+        ).first()
+
+        if integ and integ.credentials:
+            try:
+                decrypted = decrypt_credentials(integ.credentials)
+                creds = json.loads(decrypted) if decrypted.startswith("{") else {"token": decrypted}
+                token = creds.get("token") or creds.get("access_token")
+                shop_url = creds.get("shop_url") or creds.get("shop")
+            except Exception:
+                pass
+
+    if not shop_url or not token:
+        return ShopifyImportResponse(
+            success=False,
+            total_imported=0,
+            items=[],
+            error="Please provide your Shopify store URL and Admin API Access Token, or connect Shopify in Integrations."
+        )
+
+    res = await import_shopify_catalog_direct(
+        shop_url=shop_url,
+        access_token=token,
+        limit=body.limit or 50
+    )
+
+    return ShopifyImportResponse(
+        success=res.get("success", False),
+        total_imported=res.get("total_imported", 0),
+        items=res.get("items", []),
+        error=res.get("error")
+    )
