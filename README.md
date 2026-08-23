@@ -1,5 +1,14 @@
 # KopyKat — Autonomous E-Commerce Operating System
 
+[![Build Status](https://img.shields.io/github/actions/workflow/status/thepros2014/kopykat/ci.yml?branch=main&label=Build&style=flat-square)](https://github.com/thepros2014/kopykat/actions)
+[![Test Suite](https://img.shields.io/badge/Tests-33%20Passing-brightgreen?style=flat-square)](https://github.com/thepros2014/kopykat)
+[![Python Version](https://img.shields.io/badge/Python-3.11-blue?style=flat-square&logo=python)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Stripe](https://img.shields.io/badge/Stripe-Billing%20Live-635BFF?style=flat-square&logo=stripe)](https://stripe.com)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Zero Emojis](https://img.shields.io/badge/Policy-Zero%20Emojis-black?style=flat-square)](tests/test_no_emojis.py)
+
+
 KopyKat is a multi-channel e-commerce automation and marketing engine. It synchronizes catalogs across Shopify, Amazon, eBay, Walmart, and Temu, mines competitor 1-star reviews to generate high-converting counter-copy, balances cross-platform stock levels in real time to prevent overselling, and automates SEO blogs, email drips, and lead discovery.
 
 ---

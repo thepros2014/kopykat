@@ -21,3 +21,17 @@ async def test_generate_seo_post(db_session):
         db_post = db_session.query(BlogPost).filter(BlogPost.id == post.id).first()
         assert db_post is not None
         assert db_post.word_count > 0
+
+def test_sitemap_and_robots_endpoints(client, db_session):
+    # Test robots.txt
+    robots_res = client.get("/robots.txt")
+    assert robots_res.status_code == 200
+    assert "Sitemap:" in robots_res.text
+    assert "User-agent: *" in robots_res.text
+
+    # Test sitemap.xml
+    sitemap_res = client.get("/sitemap.xml")
+    assert sitemap_res.status_code == 200
+    assert "<?xml" in sitemap_res.text
+    assert "<urlset" in sitemap_res.text
+    assert "/blog" in sitemap_res.text

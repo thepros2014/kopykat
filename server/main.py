@@ -91,6 +91,51 @@ async def blog_post(slug:str,db:Session=Depends(get_db)):
     path=frontend_dir/"post.html"
     if not path.exists(): return HTMLResponse("<h1>Post layout pending...</h1>")
     html=path.read_text(encoding="utf-8").replace("{{title}}",bleach.clean(post.title)).replace("{{content}}",sanitize_html(post.content)).replace("{{meta_desc}}",bleach.clean(post.meta_desc or "")).replace("{{date}}",post.created_at.strftime("%B %d, %Y")); return HTMLResponse(html)
+
+@app.get("/robots.txt", response_class=HTMLResponse, include_in_schema=False)
+async def get_robots_txt():
+    robots = """User-agent: *
+Allow: /
+Allow: /blog
+Allow: /blog/
+
+Sitemap: https://kopykat.onrender.com/sitemap.xml
+"""
+    return HTMLResponse(robots, media_type="text/plain")
+
+@app.get("/sitemap.xml", response_class=HTMLResponse, include_in_schema=False)
+async def get_sitemap_xml(db: Session = Depends(get_db)):
+    base = os.getenv("BASE_URL", "https://kopykat.onrender.com").rstrip("/")
+    posts = db.query(BlogPost).filter(BlogPost.published == True).order_by(BlogPost.created_at.desc()).all()
+    
+    xml_entries = [
+        f"""  <url>
+    <loc>{base}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>""",
+        f"""  <url>
+    <loc>{base}/blog</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>"""
+    ]
+    
+    for p in posts:
+        mod_date = p.created_at.strftime("%Y-%m-%d")
+        xml_entries.append(f"""  <url>
+    <loc>{base}/blog/{p.slug}</loc>
+    <lastmod>{mod_date}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>""")
+    
+    xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(xml_entries)}
+</urlset>"""
+    return HTMLResponse(xml_content, media_type="application/xml")
+
 @app.get("/health",response_model=HealthResponse,tags=["System"])
 async def health_check(): return HealthResponse(status="ok",version=APP_VERSION,timestamp=datetime.utcnow())
 @app.get("/api/plans",tags=["Billing"])
@@ -977,3 +1022,20 @@ async def api_import_shopify_catalog(
         items=res.get("items", []),
         error=res.get("error")
     )
+
+
+# --- OPPORTUNITY LEADS ROUTE ---
+@app.get("/api/leads", tags=["Opportunity Scout"])
+async def list_opportunity_leads(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import OpportunityLog
+    leads = db.query(OpportunityLog).order_by(OpportunityLog.created_at.desc()).limit(50).all()
+    return [
+        {
+            "id": l.id,
+            "platform": l.platform,
+            "post_title": l.post_title,
+            "post_url": l.post_url,
+            "draft_reply": l.draft_reply,
+            "created_at": l.created_at
+        } for l in leads
+    ]

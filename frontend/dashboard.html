@@ -65,6 +65,7 @@
     <button class="sidebar-link" onclick="showSection('inventory', this)">Inventory Balancer</button>
     <button class="sidebar-link" onclick="showSection('ugc', this)">Reviews & UGC Drips</button>
     <button class="sidebar-link" onclick="showSection('pricing-monitor', this)">Price & Margin Monitor</button>
+    <button class="sidebar-link" onclick="showSection('leads', this)">Opportunity Leads</button>
  <div style="flex:1;"></div>
  <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
  </aside>
@@ -1419,6 +1420,58 @@ document.addEventListener('DOMContentLoaded', () => {
   loadInventory();
   loadCustomerReviews();
   loadPriceItems();
+  loadOpportunityLeads();
+
+async function loadOpportunityLeads() {
+  const container = document.getElementById('leads-feed-list');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/leads', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (!res.ok) throw new Error("Failed to load leads");
+    const leads = await res.json();
+
+    container.innerHTML = '';
+    if (!leads.length) {
+      container.innerHTML = '<div style="color:var(--muted); font-size:13px; padding:20px 0;">No active social leads discovered yet. The Opportunity Scout scans every 4 hours.</div>';
+      return;
+    }
+
+    leads.forEach((l, idx) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.background = 'var(--bg2)';
+      card.style.border = '1px solid var(--border)';
+      card.style.borderRadius = '8px';
+      card.style.padding = '16px';
+
+      card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+        '<span style="font-weight:bold; color:var(--purple); font-size:12px; text-transform:uppercase;">' + l.platform + ' Thread</span>' +
+        '<span style="color:var(--muted); font-size:12px;">' + new Date(l.created_at).toLocaleTimeString() + ' ' + new Date(l.created_at).toLocaleDateString() + '</span>' +
+        '</div>' +
+        '<h4 style="margin:0 0 10px 0; font-size:15px;"><a href="' + (l.post_url || '#') + '" target="_blank" style="color:var(--text); text-decoration:none; border-bottom:1px dashed var(--muted);">' + l.post_title + ' &rarr;</a></h4>' +
+        '<div style="padding:12px; background:var(--bg); border-left:3px solid var(--purple); border-radius:4px; font-size:13px; margin-bottom:12px; line-height:1.5;">' +
+        '<strong style="color:var(--text); display:block; margin-bottom:4px;">AI Drafted Response:</strong>' +
+        '<span id="lead-draft-' + idx + '" style="color:var(--muted);">' + l.draft_reply + '</span>' +
+        '</div>' +
+        '<div style="display:flex; gap:8px;">' +
+        '<button class="btn btn-outline btn-sm" onclick="copyLeadDraft(' + idx + ')">Copy Draft Reply</button>' +
+        (l.post_url ? '<a href="' + l.post_url + '" target="_blank" class="btn btn-outline btn-sm">Open Thread</a>' : '') +
+        '</div>';
+
+      container.appendChild(card);
+    });
+  } catch (err) {
+    container.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Failed to load leads feed.</div>';
+  }
+}
+
+function copyLeadDraft(idx) {
+  const el = document.getElementById('lead-draft-' + idx);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => alert("Draft reply copied to clipboard!"));
+}
+
 
 async function loadPriceItems() {
   const tbody = document.getElementById('pm-table-body');
