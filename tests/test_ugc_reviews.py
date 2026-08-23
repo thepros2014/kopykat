@@ -56,3 +56,46 @@ def test_customer_review_sentiment_classification(client, auth_headers, test_use
     assert list_res.status_code == 200
     reviews = list_res.json()
     assert len(reviews) >= 2
+
+
+def test_customer_review_neutral_sentiment_classification(client, auth_headers):
+    """Verifies that 3-star reviews are classified as neutral with action_needed status and feedback reply."""
+    res = client.post(
+        "/api/reviews/submit",
+        json={
+            "customer_name": "Charlie Davis",
+            "customer_email": "charlie@example.com",
+            "product_name": "Leather Travel Duffel",
+            "rating": 3,
+            "review_text": "The bag is decent and arrived on time, but the strap feels a bit stiff."
+        },
+        headers=auth_headers
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["sentiment"] == "neutral"
+    assert data["status"] == "action_needed"
+    assert "Charlie Davis" in data["draft_reply"]
+    assert "improve" in data["draft_reply"] or "feedback" in data["draft_reply"]
+
+
+def test_customer_review_negative_keyword_override(client, auth_headers):
+    """Verifies that heavy negative text overrides a high star rating (e.g. sarcastic 5-star review)."""
+    res = client.post(
+        "/api/reviews/submit",
+        json={
+            "customer_name": "David Miller",
+            "customer_email": "david@example.com",
+            "product_name": "Leather Travel Duffel",
+            "rating": 5,
+            "review_text": "Terrible broken scam, awful quality, complete waste of money and never buy this."
+        },
+        headers=auth_headers
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["sentiment"] == "negative"
+    assert data["status"] == "action_needed"
+    assert "Dear David Miller" in data["draft_reply"]
+    assert "refund" in data["draft_reply"].lower() or "replacement" in data["draft_reply"].lower()
+

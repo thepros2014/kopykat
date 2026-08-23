@@ -31,23 +31,24 @@ def db_session():
     transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
     
+    def override_get_db():
+        try:
+            yield session
+        finally:
+            pass
+    app.dependency_overrides[get_db] = override_get_db
+    
     yield session
     
+    app.dependency_overrides.clear()
     session.close()
     transaction.rollback()
     connection.close()
 
 @pytest.fixture
 def client(db_session):
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
-    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
-    app.dependency_overrides.clear()
 
 @pytest.fixture
 def test_user(db_session):

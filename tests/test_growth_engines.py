@@ -110,3 +110,58 @@ def test_admin_mrr_metrics_endpoint(client, db_session, test_user):
         assert data["active_subscribers"] >= 1
         assert data["software_asset_score"] == 9.2
         assert "$120,000" in data["valuation_estimate_usd"]["asset_sale_range"]
+
+
+def test_admin_mrr_metrics_multi_tier_and_churn_tracking(client, db_session):
+    """Verifies multi-tier MRR summation, active tier counts, and subscriber churn percentage."""
+    import uuid
+
+    # Create users and subscriptions
+    users_data = [
+        ("u_boutique_active", "boutique", "active"),
+        ("u_standard_active", "standard", "active"),
+        ("u_megastore_active", "megastore", "active"),
+        ("u_boutique_canceled", "boutique", "canceled"),
+        ("u_standard_pastdue", "standard", "past_due"),
+    ]
+
+    for uid, plan, status in users_data:
+        user = User(
+            id=uid,
+            email=f"{uid}@example.com",
+            hashed_password="hashed_dummy_password",
+            plan=plan,
+            generations=10,
+            monthly_limit=250,
+            is_active=True
+        )
+        sub = Subscription(
+            id=f"sub_{uid}",
+            user_id=uid,
+            stripe_subscription_id=f"stripe_sub_{uid}",
+            plan=plan,
+            status=status
+        )
+        db_session.add(user)
+        db_session.add(sub)
+
+    db_session.commit()
+
+    with patch("server.main.ADMIN_SECRET", "test_admin_secret_key"):
+        res = client.get("/admin/mrr-metrics", headers={"X-Admin-Secret": "test_admin_secret_key"})
+        assert res.status_code == 200
+        data = res.json()
+
+        assert data["active_subscribers"] == 3
+        assert data["canceled_subscribers"] == 1
+        assert data["past_due_subscribers"] == 1
+        assert data["active_subscribers_by_tier"]["boutique"] == 1
+        assert data["active_subscribers_by_tier"]["standard"] == 1
+        assert data["active_subscribers_by_tier"]["megastore"] == 1
+        assert data["mrr_usd"] == 10198.61
+        assert data["arr_usd"] == 122383.32
+        assert data["churn_rate_pct"] == 25.0
+        assert data["pricing_model"]["boutique_usd_mo"] == 179.49
+        assert data["pricing_model"]["standard_usd_mo"] == 379.49
+        assert data["pricing_model"]["megastore_usd_mo"] == 9639.63
+

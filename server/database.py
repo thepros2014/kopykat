@@ -21,6 +21,12 @@ class Base(DeclarativeBase):
 
 class User(Base):
     __tablename__ = "users"
+
+    def __init__(self, **kwargs):
+        if "name" in kwargs and "full_name" not in kwargs:
+            kwargs["full_name"] = kwargs.pop("name")
+        super().__init__(**kwargs)
+
     id = Column(String(36), primary_key=True)
     email = Column(String(255), unique=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)

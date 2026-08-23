@@ -2,6 +2,7 @@ import json
 import os
 import logging
 import random
+import re
 import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
@@ -139,17 +140,61 @@ DO NOT include markdown wrappers like ```json.
 
 
 def _extract_clean_json(text: str) -> dict:
-    text = text.strip()
-    if text.startswith("```json"):
-        text = text[7:]
-    if text.startswith("```"):
-        text = text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
-    return json.loads(text.strip())
+    clean_text = text.strip()
+    if clean_text.startswith("```json"):
+        clean_text = clean_text[7:]
+    if clean_text.startswith("```"):
+        clean_text = clean_text[3:]
+    if clean_text.endswith("```"):
+        clean_text = clean_text[:-3]
+    clean_text = clean_text.strip()
+    try:
+        return json.loads(clean_text)
+    except Exception:
+        match = re.search(r'\{.*\}', clean_text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except Exception:
+                pass
+        raise ValueError("AI returned invalid campaign formatting. Please try again.")
 
 
-def generate_omni_campaign_from_image(image_bytes: bytes, mime_type: str, keyword: str = "", extra_context: str = "") -> dict:
+def _generate_fallback_vision_campaign(keyword: str = "", extra_context: str = "") -> dict:
+    """
+    Deterministic offline fallback for vision-based omni-channel campaigns.
+    """
+    title = f"{keyword.title() if keyword else 'Premium Artisan Product'}"
+    return {
+        "detected_product_name": title,
+        "detected_description": f"Engineered for superior reliability and modern aesthetics, this {keyword or 'product'} combines durable materials with elegant ergonomics for everyday excellence.",
+        "blog_post": {
+            "title": f"Why the {title} is Transforming the Industry",
+            "content": f"<h2>Modern Innovation Meets Timeless Design</h2><p>In today's fast-paced market, consumers demand reliability without compromise. The {title} delivers on every front.</p><h3>Key Highlights</h3><ul><li>Precision craftsmanship and premium build</li><li>Effortless operation and seamless workflow</li><li>Backed by comprehensive quality guarantee</li></ul>"
+        },
+        "email_drip": [
+            {
+                "subject": f"Are you struggling with standard {keyword or 'products'}?",
+                "body": f"<p>Most solutions in the market fail when you need them most. Discover how {title} solves the common frustration with proven performance.</p>"
+            },
+            {
+                "subject": f"Why top creators choose {title}",
+                "body": f"<p>See how our customers transformed their results within the first 30 days of using {title}.</p>"
+            },
+            {
+                "subject": f"Exclusive offer: Upgrade to {title} today",
+                "body": f"<p>Claim your 30-day satisfaction guarantee and experience the difference today.</p>"
+            }
+        ],
+        "social_posts": [
+            f"Upgrade your routine with {title}. Premium craftsmanship designed for high performance. #ecommerce #quality #innovation",
+            f"Tired of fragile alternatives? {title} provides durable excellence you can trust every day.",
+            f"Discover why {title} is becoming the go-to standard for industry professionals."
+        ]
+    }
+
+
+def generate_omni_campaign_from_image(image_bytes: bytes, mime_type: str = "image/jpeg", keyword: str = "", extra_context: str = "", allow_fallback: bool = False) -> dict:
     """
     Uses Vision AI (Gemini / GPT-4o) to analyze product images and generate a full,
     multi-channel marketing campaign and product descriptions.
@@ -213,6 +258,8 @@ Exact structure required:
         except Exception as e:
             logger.warning(f"Gemini vision failed: {e}. Attempting fallback...")
             if not openai_key:
+                if allow_fallback:
+                    return _generate_fallback_vision_campaign(keyword, extra_context)
                 raise ValueError(f"Vision campaign generation failed: {e}")
     
     # 2. Try OpenAI Vision (GPT-4o / GPT-4o-mini)
@@ -244,6 +291,10 @@ Exact structure required:
             return _extract_clean_json(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"OpenAI vision failed: {e}")
+            if allow_fallback:
+                return _generate_fallback_vision_campaign(keyword, extra_context)
             raise ValueError(f"Vision campaign generation failed: {e}")
             
+    if allow_fallback:
+        return _generate_fallback_vision_campaign(keyword, extra_context)
     raise ValueError("No AI API key configured. Set GEMINI_API_KEY or OPENAI_API_KEY in .env")

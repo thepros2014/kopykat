@@ -11,3 +11,9 @@ node_modules/
 dist/
 Backup-codes*.txt
 
+
+*.msi
+*.winmd
+.coverage
+kopykat/
+scratch_*.py

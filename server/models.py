@@ -3,7 +3,7 @@
 from __future__ import annotations
 from datetime import datetime
 from typing import Optional, List, Literal
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 class UserRegister(BaseModel):
     email: EmailStr
@@ -21,6 +21,7 @@ class TokenResponse(BaseModel):
     generations: int
 
 class UserProfile(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     email: str
     full_name: Optional[str]
@@ -28,13 +29,12 @@ class UserProfile(BaseModel):
     generations: int
     monthly_limit: int
     created_at: datetime
-    class Config:
-        from_attributes = True
 
 class APIKeyCreate(BaseModel):
     name: str = Field(default="My Key", max_length=100)
 
 class APIKeyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     key_prefix: str
     name: str
@@ -42,8 +42,6 @@ class APIKeyResponse(BaseModel):
     last_used: Optional[datetime]
     requests_today: int
     created_at: datetime
-    class Config:
-        from_attributes = True
 
 class APIKeyCreated(APIKeyResponse):
     raw_key: str
@@ -64,6 +62,7 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     type: str
     variations: List[str]
+    output: Optional[str] = None
     generations_used: int
     generations: int
     generation_time_ms: int
@@ -157,7 +156,7 @@ class ConnectorToggleRequest(BaseModel):
 class CampaignVisionGenerateRequest(BaseModel):
     keyword: Optional[str] = ""
     extra_context: Optional[str] = ""
-    image_base64: str = Field(min_length=10)
+    image_base64: str = Field(min_length=1)
     mime_type: Optional[str] = "image/jpeg"
 
 
@@ -300,7 +299,7 @@ class BrandPersonaResponse(BaseModel):
 
 class MarketplaceOptimizeRequest(BaseModel):
     product_name: str = Field(min_length=2, max_length=255)
-    platform: str = Field(pattern="^(amazon|etsy|shopify)$")
+    platform: str = Field(pattern="^(amazon|shopify|etsy|tiktok|tiktok_shop|ebay)$")
     raw_details: str = Field(min_length=5, max_length=5000)
     keywords: Optional[str] = None
     target_audience: Optional[str] = None
@@ -313,6 +312,10 @@ class MarketplaceOptimizeResponse(BaseModel):
     meta_description: Optional[str] = None
     backend_search_terms: Optional[str] = None
     tags: list[str] = []
+    short_hooks: list[str] = []
+    hashtags: list[str] = []
+    sub_title: Optional[str] = None
+    item_specifics: Optional[dict] = None
     structured_description: str
     compliance_score: int  # 1-100 score on platform character limits & keyword density
 
@@ -327,3 +330,64 @@ class AddOnItemResponse(BaseModel):
     billing_type: str  # one_time / monthly
     description: str
     features: list[str]
+
+
+# --- GROWTH ENGINE & MRR TELEMETRY SCHEMAS ---
+
+class AdminMRRMetricsResponse(BaseModel):
+    mrr_usd: float
+    arr_usd: float
+    active_subscribers: int
+    canceled_subscribers: int
+    past_due_subscribers: int
+    churn_rate_pct: float
+    active_subscribers_by_tier: dict
+    total_lifetime_revenue_usd: float
+    total_registered_merchants: int
+    pricing_model: dict
+    software_asset_score: float
+    valuation_estimate_usd: dict
+
+class SEOAnalyticsArticle(BaseModel):
+    id: str
+    title: str
+    slug: str
+    url: str
+    word_count: int
+    created_at: datetime
+
+class SEOAnalyticsResponse(BaseModel):
+    total_posts: int
+    total_words_generated: int
+    sitemap_url: str
+    robots_url: str
+    indexing_status: str
+    recent_articles: list[SEOAnalyticsArticle]
+
+class SEOPingIndexResponse(BaseModel):
+    success: bool
+    sitemap_url: str
+    pings: list[dict]
+    message: str
+
+class OpportunityLeadItemResponse(BaseModel):
+    id: str
+    platform: str
+    post_title: str
+    post_url: str
+    draft_reply: str
+    score: int
+    created_at: datetime
+
+class DripAnalyticsFunnel(BaseModel):
+    total_free_users: int
+    day2_value_drips_sent: int
+    day4_case_study_drips_sent: int
+    day7_upgrade_drips_sent: int
+    active_paying_subscribers: int
+
+class DripAnalyticsResponse(BaseModel):
+    funnel: DripAnalyticsFunnel
+    conversion_rate_pct: float
+    status: str
+

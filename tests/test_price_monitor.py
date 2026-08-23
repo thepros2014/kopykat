@@ -50,3 +50,29 @@ def test_price_margin_item_crud(client, auth_headers, test_user, db_session):
     del_res = client.delete(f"/api/pricing/item/{item_id}", headers=auth_headers)
     assert del_res.status_code == 200
     assert del_res.json()["success"] is True
+
+
+def test_compute_pricing_analysis_edge_cases():
+    """Verifies edge cases: zero/negative selling prices, competitor undercutting, and zero COGS."""
+    # 1. Zero selling price
+    zero_res = compute_pricing_analysis(cogs=10.0, selling_price=0.0)
+    assert zero_res["status"] == "critical"
+    assert "Selling price must be greater than zero" in zero_res["recommendation"]
+
+    # 2. Negative selling price
+    neg_res = compute_pricing_analysis(cogs=10.0, selling_price=-15.0)
+    assert neg_res["status"] == "critical"
+    assert "Selling price must be greater than zero" in neg_res["recommendation"]
+
+    # 3. Competitor undercutting (< 85% of selling price)
+    undercut_res = compute_pricing_analysis(cogs=20.0, selling_price=100.0, competitor_price=80.0, target_margin=40.0)
+    assert undercut_res["status"] == "warning"
+    assert "TACTICAL" in undercut_res["recommendation"]
+    assert "undercutting" in undercut_res["recommendation"].lower()
+
+    # 4. Zero COGS (e.g. digital goods)
+    zero_cogs_res = compute_pricing_analysis(cogs=0.0, selling_price=50.0, target_margin=40.0)
+    assert zero_cogs_res["status"] == "healthy"
+    assert zero_cogs_res["current_margin_pct"] == 100.0
+    assert zero_cogs_res["profit_per_unit_usd"] == 50.0
+

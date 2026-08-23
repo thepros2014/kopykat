@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <!-- Force Cache & State Wipe on Update -->
- <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
- <meta http-equiv="Pragma" content="no-cache" />
- <meta http-equiv="Expires" content="0" />
-     <script>
+  <!-- Force Cache & State Wipe on Update -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <script>
     const APP_VERSION = "1.2.1";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       // Retain auth session while purging old application cache
@@ -33,610 +33,979 @@
     }
   </script>
 
- <meta charset="UTF-8"/>
- <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
- <title>Dashboard — KopyKat</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — KopyKat</title>
 
- <link rel="manifest" href="/manifest.json"/>
- <meta name="theme-color" content="#8e44ad"/>
- <link rel="apple-touch-icon" href="/static/icon.png"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#8e44ad"/>
+  <link rel="apple-touch-icon" href="/static/icon.png"/>
 
- <link rel="preconnect" href="https://fonts.googleapis.com"/>
- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
- <link rel="stylesheet" href="/static/styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/styles.css"/>
   <script src="/api.js"></script>
 </head>
 <body>
 
 <div class="dash-layout">
 
- <!-- Sidebar -->
- <aside class="sidebar">
- <div class="sidebar-logo">KopyKat</div>
- <button class="sidebar-link active" onclick="showSection('overview', this)">Overview</button>
- <button class="sidebar-link" onclick="showSection('generator', this)">Copy Generator</button>
- <button class="sidebar-link" onclick="showSection('omni', this)">Omni-Campaigns</button>
- <button class="sidebar-link" onclick="showSection('apikeys', this)">API Keys</button>
- <button class="sidebar-link" onclick="showSection('usage', this)">Usage</button>
- <button class="sidebar-link" onclick="showSection('billing', this)">Billing</button>
- <button class="sidebar-link" onclick="showSection('docs', this)">API Docs</button>
- <button class="sidebar-link" onclick="showSection('integrations', this)">Integrations</button>
- <button class="sidebar-link" onclick="showSection('bulk', this)" style="font-weight:600; color:var(--purple);">Bulk Sync CSV</button>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">KopyKat</div>
+    <button class="sidebar-link active" onclick="showSection('overview', this)">Overview</button>
+    <button class="sidebar-link" onclick="showSection('generator', this)">Copy Generator</button>
+    <button class="sidebar-link" onclick="showSection('omni', this)">Omni-Campaigns</button>
+    <button class="sidebar-link" onclick="showSection('apikeys', this)">API Keys</button>
+    <button class="sidebar-link" onclick="showSection('usage', this)">Usage</button>
+    <button class="sidebar-link" onclick="showSection('billing', this)">Billing</button>
+    <button class="sidebar-link" onclick="showSection('docs', this)">API Docs</button>
+    <button class="sidebar-link" onclick="showSection('integrations', this)">Integrations</button>
+    <button class="sidebar-link" onclick="showSection('bulk', this)" style="font-weight:600; color:var(--purple);">Bulk Sync CSV</button>
     <button class="sidebar-link" onclick="showSection('miner', this)">Review Miner</button>
     <button class="sidebar-link" onclick="showSection('inventory', this)">Inventory Balancer</button>
-    <button class="sidebar-link" onclick="showSection('ugc', this)">Reviews & UGC Drips</button>
-    <button class="sidebar-link" onclick="showSection('pricing-monitor', this)">Price & Margin Monitor</button>
+    <button class="sidebar-link" onclick="showSection('ugc', this)">Reviews &amp; UGC Drips</button>
+    <button class="sidebar-link" onclick="showSection('pricing-monitor', this)">Price &amp; Margin Monitor</button>
     <button class="sidebar-link" onclick="showSection('leads', this)">Opportunity Leads</button>
-    <button class="sidebar-link" onclick="showSection('growth', this)">SEO & Growth Analytics</button>
+    <button class="sidebar-link" onclick="showSection('growth', this)">SEO &amp; Growth Analytics</button>
     <button class="sidebar-link" onclick="showSection('brand-persona', this)">Brand Voice Persona</button>
     <button class="sidebar-link" onclick="showSection('listing-optimizer', this)">Marketplace Optimizer</button>
     <button class="sidebar-link" onclick="showSection('addons-store', this)">À-La-Carte Store</button>
- <div style="flex:1;"></div>
- <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
- </aside>
+    <div style="flex:1;"></div>
+    <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
+  </aside>
 
- <!-- Main -->
- <main class="main-content">
+  <!-- Main -->
+  <main class="main-content">
 
- <!-- SUCCESS BANNER (after Stripe checkout) -->
- <div id="success-banner" class="card" style="background:rgba(34,197,94,0.08);border-color:#22c55e;display:none;margin-bottom:24px;">
- <strong style="color:#22c55e;"> Payment successful!</strong>
- Your plan and usage balance have been updated. Thank you!
- </div>
+    <!-- SUCCESS BANNER (after Stripe checkout) -->
+    <div id="success-banner" class="card" style="background:rgba(34,197,94,0.08);border-color:#22c55e;display:none;margin-bottom:24px;">
+      <strong style="color:#22c55e;">Payment successful!</strong>
+      Your plan and usage balance have been updated. Thank you!
+    </div>
 
- <!-- OVERVIEW -->
- <section id="section-overview" class="dash-section">
- <div class="page-title">Good to see you, <span id="user-name">—</span></div>
- <div class="page-sub">Here's your account at a glance.</div>
+    <!-- 1. OVERVIEW -->
+    <section id="section-overview" class="dash-section">
+      <div class="page-title">Good to see you, <span id="user-name">—</span></div>
+      <div class="page-sub">Here's your account at a glance.</div>
 
- <div class="stats-row">
- <div class="stat-card">
- <div class="stat-card-label">Current Plan</div>
- <div class="stat-card-value" id="stat-plan">—</div>
- </div>
- <div class="stat-card">
- <div class="stat-card-label">Campaigns Remaining</div>
- <div class="stat-card-value purple" id="stat-generations-rem">—</div>
- </div>
- <div class="stat-card">
- <div class="stat-card-label">Monthly Limit</div>
- <div class="stat-card-value" id="stat-limit">—</div>
- </div>
- <div class="stat-card">
- <div class="stat-card-label">Total Requests</div>
- <div class="stat-card-value green" id="stat-requests">—</div>
- </div>
- </div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card-label">Current Plan</div>
+          <div class="stat-card-value" id="stat-plan">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Campaigns Remaining</div>
+          <div class="stat-card-value purple" id="stat-generations-rem">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Monthly Limit</div>
+          <div class="stat-card-value" id="stat-limit">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Total Requests</div>
+          <div class="stat-card-value green" id="stat-requests">—</div>
+        </div>
+      </div>
 
- <!-- Usage progress bar -->
- <div class="card">
- <h3>Campaigns This Period</h3>
- <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);">
- <span id="usage-label">Loading...</span>
- <span id="usage-pct">—</span>
- </div>
- <div class="progress-bar">
- <div class="progress-fill" id="usage-bar" style="width:0%"></div>
- </div>
- </div>
+      <!-- Usage progress bar -->
+      <div class="card">
+        <h3>Campaigns This Period</h3>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);">
+          <span id="usage-label">Loading...</span>
+          <span id="usage-pct">—</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="usage-bar" style="width:0%"></div>
+        </div>
+      </div>
 
- <!-- Onboarding Pipeline -->
- <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(180deg, rgba(142,68,173,0.03) 0%, transparent 100%);">
- <h3 style="display:flex; align-items:center; gap:8px;">
- <svg width="20" height="20" fill="none" stroke="var(--purple)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
- Your Autonomous Marketing Employee is Ready
- </h3>
- <p style="color:var(--muted); margin-bottom:24px; font-size:14px; line-height:1.5;">
- Welcome to KopyKat. Follow this 3-step pipeline to put your marketing on autopilot.
- </p>
- 
- <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
- 
- <!-- Step 1 -->
- <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
- <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 1</div>
- <h4 style="margin:10px 0 8px 0; font-size:16px;">Connect Your Store</h4>
- <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
- Link KopyKat to your Shopify, WordPress, or Email provider so it can publish for you automatically.
- </p>
- <button class="btn btn-outline btn-sm btn-full" onclick="showSection('integrations')">Go to Integrations</button>
- </div>
+      <!-- Onboarding Pipeline -->
+      <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(180deg, rgba(142,68,173,0.03) 0%, transparent 100%);">
+        <h3 style="display:flex; align-items:center; gap:8px;">
+          <svg width="20" height="20" fill="none" stroke="var(--purple)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          Your Autonomous Marketing Employee is Ready
+        </h3>
+        <p style="color:var(--muted); margin-bottom:24px; font-size:14px; line-height:1.5;">
+          Welcome to KopyKat. Follow this 3-step pipeline to put your marketing on autopilot.
+        </p>
+        
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
+          <!-- Step 1 -->
+          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 1</div>
+            <h4 style="margin:10px 0 8px 0; font-size:16px;">Connect Your Store</h4>
+            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+              Link KopyKat to your Shopify, WordPress, or Email provider so it can publish for you automatically.
+            </p>
+            <button class="btn btn-outline btn-sm btn-full" onclick="showSection('integrations')">Go to Integrations</button>
+          </div>
 
- <!-- Step 2 -->
- <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
- <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 2</div>
- <h4 style="margin:10px 0 8px 0; font-size:16px;">Train the AI</h4>
- <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
- Tell KopyKat what you're selling. It will scrape the market and write an entire campaign in 30 seconds.
- </p>
- <button class="btn btn-primary btn-sm btn-full" onclick="showSection('omni')">Start Omni-Campaign</button>
- </div>
+          <!-- Step 2 -->
+          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 2</div>
+            <h4 style="margin:10px 0 8px 0; font-size:16px;">Train the AI</h4>
+            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+              Tell KopyKat what you're selling. It will scrape the market and write an entire campaign in 30 seconds.
+            </p>
+            <button class="btn btn-primary btn-sm btn-full" onclick="showSection('omni')">Start Omni-Campaign</button>
+          </div>
 
- <!-- Step 3 -->
- <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
- <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 3</div>
- <h4 style="margin:10px 0 8px 0; font-size:16px;">1-Click Deploy</h4>
- <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
- Review the generated copy and click Deploy. KopyKat handles the formatting and publishing across all channels.
- </p>
- <button class="btn btn-outline btn-sm btn-full" disabled style="opacity:0.6; cursor:not-allowed;">(Available after generation)</button>
- </div>
- 
- </div>
- </div>
- </section>
+          <!-- Step 3 -->
+          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 3</div>
+            <h4 style="margin:10px 0 8px 0; font-size:16px;">1-Click Deploy</h4>
+            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+              Review the generated copy and click Deploy. KopyKat handles the formatting and publishing across all channels.
+            </p>
+            <button class="btn btn-outline btn-sm btn-full" disabled style="opacity:0.6; cursor:not-allowed;">(Available after generation)</button>
+          </div>
+        </div>
+      </div>
+    </section>
 
- <!-- API KEYS -->
- <section id="section-apikeys" class="dash-section hidden">
- <div class="page-title">API Keys</div>
- <div class="page-sub">Use these keys to authenticate API requests. Keys are shown once — save them securely.</div>
+    <!-- 2. API KEYS & BYOK -->
+    <section id="section-apikeys" class="dash-section hidden">
+      <div class="page-title">API Keys</div>
+      <div class="page-sub">Use these keys to authenticate API requests. Keys are shown once — save them securely.</div>
 
- <!-- New key display -->
- <div id="new-key-box" class="new-key-box">
- <div class="new-key-warning"> Copy this key now — it won't be shown again!</div>
- <div class="new-key-value" id="new-key-value"></div>
- <button class="copy-btn" onclick="copyKey()"> Copy Key</button>
- </div>
+      <!-- New key display -->
+      <div id="new-key-box" class="new-key-box">
+        <div class="new-key-warning">Copy this key now — it won't be shown again!</div>
+        <div class="new-key-value" id="new-key-value"></div>
+        <button class="copy-btn" onclick="copyKey()">Copy Key</button>
+      </div>
 
- <div class="card">
- <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
- <h3 style="margin:0;">Your Keys</h3>
- <div style="display:flex;gap:10px;align-items:center;">
- <input type="text" id="key-name-input" placeholder="Key name" class="input" style="width:180px;"/>
- <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ New Key</button>
- </div>
- </div>
- <div id="keys-list">
- <div style="color:var(--muted);font-size:14px;padding:20px 0;">Loading keys...</div>
- </div>
- </div>
- </section>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h3 style="margin:0;">Your Keys</h3>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <input type="text" id="key-name-input" placeholder="Key name" class="input" style="width:180px;"/>
+            <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ New Key</button>
+          </div>
+        </div>
+        <div id="keys-list">
+          <div style="color:var(--muted);font-size:14px;padding:20px 0;">Loading keys...</div>
+        </div>
+      </div>
 
- <!-- USAGE -->
- <section id="section-usage" class="dash-section hidden">
- <div class="page-title">Usage Analytics</div>
- <div class="page-sub">Your API usage for the current billing period.</div>
+      <!-- BYOK Infrastructure Card -->
+      <div class="card" style="margin-top:24px; border:1px solid var(--purple); background:rgba(142,68,173,0.03);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h3 style="margin:0;">Bring Your Own Key (BYOK) — Megastore Tier</h3>
+          <span style="font-size:11px; font-weight:bold; text-transform:uppercase; color:var(--purple); background:rgba(142,68,173,0.1); padding:2px 8px; border-radius:10px;">Unlimited AI</span>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
+          Connect your own OpenAI, Gemini, or Anthropic API key for high-throughput, unmetered generations on your private infrastructure. Encrypted at rest via Fernet.
+        </p>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+          <select id="byok-provider" style="padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text); min-width:140px;">
+            <option value="openai">OpenAI (GPT-4o)</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="anthropic">Anthropic Claude</option>
+          </select>
+          <input type="password" id="byok-key-input" placeholder="sk-..." class="input" style="flex:1; min-width:200px;" />
+          <button class="btn btn-primary btn-sm" onclick="saveCustomAIKey()">Save Private Key</button>
+        </div>
+        <div id="byok-status" style="font-size:13px; color:var(--muted);">Checking custom AI key status...</div>
+      </div>
+    </section>
 
- <div class="stats-row">
- <div class="stat-card">
- <div class="stat-card-label">Total API Calls</div>
- <div class="stat-card-value purple" id="u-requests">—</div>
- </div>
- <div class="stat-card">
- <div class="stat-card-label">Campaigns Used</div>
- <div class="stat-card-value" id="u-generations-used">—</div>
- </div>
- <div class="stat-card">
- <div class="stat-card-label">Campaigns Remaining</div>
- <div class="stat-card-value green" id="u-generations-rem">—</div>
- </div>
- <div class="stat-card">
- <div class="stat-card-label">Monthly Limit</div>
- <div class="stat-card-value" id="u-limit">—</div>
- </div>
- </div>
+    <!-- 3. USAGE -->
+    <section id="section-usage" class="dash-section hidden">
+      <div class="page-title">Usage Analytics</div>
+      <div class="page-sub">Your API usage for the current billing period.</div>
 
- <div class="card">
- <h3>Billing Period</h3>
- <p style="color:var(--muted);font-size:14px;" id="u-period">Loading...</p>
- </div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card-label">Total API Calls</div>
+          <div class="stat-card-value purple" id="u-requests">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Campaigns Used</div>
+          <div class="stat-card-value" id="u-generations-used">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Campaigns Remaining</div>
+          <div class="stat-card-value green" id="u-generations-rem">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Monthly Limit</div>
+          <div class="stat-card-value" id="u-limit">—</div>
+        </div>
+      </div>
 
- <div class="card">
- <h3>Need more generations?</h3>
- <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
- Buy a one-time generation tier or upgrade your plan.
- </p>
- <div style="display:flex;gap:12px;flex-wrap:wrap;">
- <button class="btn btn-outline btn-sm" onclick="buyGenerations('starter')">Starter — 150 campaigns — $5</button>
- <button class="btn btn-primary btn-sm" onclick="buyGenerations('growth')">Growth — 1,000 generations — $15</button>
- <button class="btn btn-outline btn-sm" onclick="buyGenerations('scale')">Scale — 3,000 generations — $40</button>
- </div>
- </div>
- </section>
+      <div class="card">
+        <h3>Billing Period</h3>
+        <p style="color:var(--muted);font-size:14px;" id="u-period">Loading...</p>
+      </div>
 
- <!-- BILLING -->
- <section id="section-billing" class="dash-section hidden">
- <div class="page-title">Billing & Plan</div>
- <div class="page-sub">Manage your subscription and campaign allowance.</div>
+      <div class="card">
+        <h3>Need more generations?</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
+          Buy a one-time generation tier or upgrade your plan.
+        </p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="buyGenerations('starter')">Starter — 250 generations — $5</button>
+          <button class="btn btn-primary btn-sm" onclick="buyGenerations('growth')">Growth — 1,000 generations — $15</button>
+          <button class="btn btn-outline btn-sm" onclick="buyGenerations('scale')">Scale — 3,000 generations — $40</button>
+        </div>
+      </div>
+    </section>
 
- <div class="card">
- <h3>Current Plan</h3>
- <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
- <span class="plan-chip" id="billing-plan-chip">Free</span>
- <span style="color:var(--muted);font-size:14px;" id="billing-plan-detail">5 monthly campaigns</span>
- </div>
- <p style="color:var(--muted);font-size:13px;" id="billing-period-end"></p>
- </div>
+    <!-- 4. BILLING -->
+    <section id="section-billing" class="dash-section hidden">
+      <div class="page-title">Billing &amp; Plan</div>
+      <div class="page-sub">Manage your subscription and campaign allowance.</div>
 
- <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:24px;">
- <div class="pricing-card">
- <div class="plan-badge">Boutique</div>
- <div class="plan-name">Store</div>
- <div class="plan-price">$97<span>/mo</span></div>
- <ul class="plan-features">
- <li> 250 monthly campaigns</li>
- <li> Top 5 Integrations</li>
- <li> Email support</li>
- </ul>
- <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('boutique')">Upgrade to Boutique</button>
- </div>
- <div class="pricing-card featured">
- <div class="plan-badge popular">Most Popular</div>
- <div class="plan-name">Standard</div>
- <div class="plan-price">$297<span>/mo</span></div>
- <ul class="plan-features">
- <li> 1,000 monthly campaigns</li>
- <li> Priority speed</li>
- <li> Priority support</li>
- </ul>
- <button class="btn btn-primary btn-full btn-sm" onclick="startCheckout('standard')">Upgrade to Standard</button>
- </div>
- <div class="pricing-card">
- <div class="plan-badge">Megastore</div>
- <div class="plan-name">Agency</div>
- <div class="plan-price">$897<span>/mo</span></div>
- <ul class="plan-features">
- <li> 5,000 monthly campaigns</li>
- <li> Unlimited Webhooks</li>
- <li> 24/7 support</li>
- </ul>
- <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('megastore')">Upgrade to Megastore</button>
- </div>
- </div>
- </section>
+      <div class="card">
+        <h3>Current Plan</h3>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+          <span class="plan-chip" id="billing-plan-chip">Free</span>
+          <span style="color:var(--muted);font-size:14px;" id="billing-plan-detail">5 monthly campaigns</span>
+        </div>
+        <p style="color:var(--muted);font-size:13px;" id="billing-period-end"></p>
+      </div>
 
- <!-- DOCS -->
- <section id="section-docs" class="dash-section hidden">
- <div class="page-title">API Documentation</div>
- <div class="page-sub">Everything you need to integrate KopyKat into your application.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:24px;">
+        <div class="pricing-card">
+          <div class="plan-badge">Boutique</div>
+          <div class="plan-name">Store</div>
+          <div class="plan-price">$179.49<span>/mo</span></div>
+          <ul class="plan-features">
+            <li>250 monthly campaigns</li>
+            <li>Top 5 Integrations</li>
+            <li>Email support</li>
+          </ul>
+          <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('boutique')">Upgrade to Boutique</button>
+        </div>
+        <div class="pricing-card featured">
+          <div class="plan-badge popular">Most Popular</div>
+          <div class="plan-name">Standard</div>
+          <div class="plan-price">$379.49<span>/mo</span></div>
+          <ul class="plan-features">
+            <li>1,000 monthly campaigns</li>
+            <li>Priority speed</li>
+            <li>Priority support</li>
+          </ul>
+          <button class="btn btn-primary btn-full btn-sm" onclick="startCheckout('standard')">Upgrade to Standard</button>
+        </div>
+        <div class="pricing-card">
+          <div class="plan-badge">Megastore</div>
+          <div class="plan-name">Enterprise</div>
+          <div class="plan-price">$9,639.63<span>/mo</span></div>
+          <ul class="plan-features">
+            <li>5,000 monthly campaigns</li>
+            <li>Unlimited BYOK AI Key</li>
+            <li>24/7 dedicated support</li>
+          </ul>
+          <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('megastore')">Upgrade to Megastore</button>
+        </div>
+      </div>
+    </section>
 
- <div class="card">
- <h3>Base URL</h3>
- <code style="color:var(--purple);font-size:15px;" id="base-url-display">https://your-app.onrender.com</code>
- </div>
+    <!-- 5. DOCS -->
+    <section id="section-docs" class="dash-section hidden">
+      <div class="page-title">API Documentation</div>
+      <div class="page-sub">Everything you need to integrate KopyKat into your application.</div>
 
- <div class="card">
- <h3>Authentication</h3>
- <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
- Pass your API key in the <code>Authorization</code> header as a Bearer token.
- </p>
- <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;">Authorization: Bearer sc_your_api_key_here</pre>
- </div>
+      <div class="card">
+        <h3>Base URL</h3>
+        <code style="color:var(--purple);font-size:15px;" id="base-url-display">https://your-app.onrender.com</code>
+      </div>
 
- <div class="card">
- <h3>POST /api/generate</h3>
- <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">Generate marketing copy.</p>
- <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto;">
+      <div class="card">
+        <h3>Authentication</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
+          Pass your API key in the <code>Authorization</code> header as a Bearer token.
+        </p>
+        <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;">Authorization: Bearer sc_your_api_key_here</pre>
+      </div>
+
+      <div class="card">
+        <h3>POST /api/generate</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">Generate marketing copy.</p>
+        <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto;">
 <code>{
- "type": "product_description", <span style="color:#6a7383;">// required</span>
- "context": "Your product info", <span style="color:#6a7383;">// required (5-2000 chars)</span>
- "tone": "professional", <span style="color:#6a7383;">// optional: professional|casual|urgent|friendly|bold</span>
- "variations": 1, <span style="color:#6a7383;">// optional: 1-5</span>
- "max_tokens": 300 <span style="color:#6a7383;">// optional: 50-1000</span>
+  "type": "product_description", <span style="color:#6a7383;">// required</span>
+  "context": "Your product info", <span style="color:#6a7383;">// required (5-2000 chars)</span>
+  "tone": "professional", <span style="color:#6a7383;">// optional: professional|casual|urgent|friendly|bold</span>
+  "variations": 1, <span style="color:#6a7383;">// optional: 1-5</span>
+  "max_tokens": 300 <span style="color:#6a7383;">// optional: 50-1000</span>
 }</code></pre>
- <p style="color:var(--muted);font-size:13px;margin-top:16px;">
- <strong>Copy types:</strong> product_description - email_subject - email_body - 
- social_post - ad_headline - ad_body - landing_page_hero - call_to_action - 
- seo_meta_description - blog_intro
- </p>
- </div>
+        <p style="color:var(--muted);font-size:13px;margin-top:16px;">
+          <strong>Copy types:</strong> product_description - email_subject - email_body - 
+          social_post - ad_headline - ad_body - landing_page_hero - call_to_action - 
+          seo_meta_description - blog_intro
+        </p>
+      </div>
 
- <div class="card">
- <h3>Interactive Docs</h3>
- <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
- Test every endpoint directly in your browser.
- </p>
- <a href="/api/docs" target="_blank" class="btn btn-primary">Open Swagger UI →</a>
- </div>
- </section>
+      <div class="card">
+        <h3>Interactive Docs</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
+          Test every endpoint directly in your browser.
+        </p>
+        <a href="/api/docs" target="_blank" class="btn btn-primary">Open Swagger UI &rarr;</a>
+      </div>
+    </section>
 
+    <!-- 6. COPY GENERATOR -->
+    <section id="section-generator" class="dash-section hidden">
+      <div class="page-title">Copy Generator</div>
+      <div class="page-sub">Generate individual pieces of highly optimized copy.</div>
+      
+      <div class="card">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Copy Type</label>
+          <select id="gen-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+            <option value="product_description">Product Description</option>
+            <option value="facebook_ad">Facebook Ad</option>
+            <option value="google_ad">Google Ad</option>
+            <option value="email_subject">Email Subject Line</option>
+            <option value="cold_email">Cold Email</option>
+            <option value="seo_blog">SEO Blog Post</option>
+            <option value="landing_page_hero">Landing Page Hero</option>
+          </select>
+        </div>
+        
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Context / Product Description</label>
+          <textarea id="gen-context" rows="4" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="E.g., Wireless earbuds with 40h battery, active noise cancellation, water resistant."></textarea>
+        </div>
+        
+        <div style="margin-bottom:20px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Tone of Voice</label>
+          <select id="gen-tone" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+            <option value="professional">Professional</option>
+            <option value="witty">Witty</option>
+            <option value="persuasive">Persuasive</option>
+            <option value="urgent">Urgent</option>
+            <option value="luxury">Luxury</option>
+          </select>
+        </div>
+        
+        <button id="btn-generate" class="btn btn-primary" onclick="runGenerator()">Generate Copy</button>
+      </div>
+      
+      <div id="gen-results" class="card" style="margin-top:20px; min-height:100px; display:block;">
+        <span style="color:var(--muted);">Results will appear here...</span>
+      </div>
+    </section>
 
+    <!-- 7. OMNI-CAMPAIGN WIZARD -->
+    <section id="section-omni" class="dash-section hidden">
+      <div class="page-title">Omni-Campaign Wizard</div>
+      <div class="page-sub">Type a keyword, and we'll build a blog, email drip, and social posts.</div>
+      
+      <div class="card">
+        <div style="background:var(--bg2); border:1px dashed var(--purple); border-radius:8px; padding:16px; margin-bottom:20px;">
+          <label style="display:block;margin-bottom:6px;font-size:14px;font-weight:600;color:var(--purple);">
+            Optional: Image-to-Copy (Vision AI)
+          </label>
+          <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+            Upload a product photo. KopyKat Vision will automatically identify the product, analyze materials and style, and write the full campaign.
+          </p>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <input type="file" id="omni-image-file" accept="image/*" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);">
+            <button id="btn-omni-vision" class="btn btn-outline" onclick="runOmniVisionGenerate()">Generate From Photo</button>
+          </div>
+        </div>
 
- <!-- COPY GENERATOR -->
- <section id="section-generator" class="dash-section hidden">
- <div class="page-title">Copy Generator</div>
- <div class="page-sub">Generate individual pieces of highly optimized copy.</div>
- 
- <div class="card">
- <div style="margin-bottom:16px;">
- <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Copy Type</label>
- <select id="gen-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
- <option value="product_description">Product Description</option>
- <option value="facebook_ad">Facebook Ad</option>
- <option value="google_ad">Google Ad</option>
- <option value="email_subject">Email Subject Line</option>
- <option value="cold_email">Cold Email</option>
- <option value="seo_blog">SEO Blog Post</option>
- <option value="landing_page_hero">Landing Page Hero</option>
- </select>
- </div>
- 
- <div style="margin-bottom:16px;">
- <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Context / Product Description</label>
- <textarea id="gen-context" rows="4" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="E.g., Wireless earbuds with 40h battery, active noise cancellation, water resistant."></textarea>
- </div>
- 
- <div style="margin-bottom:20px;">
- <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Tone of Voice</label>
- <select id="gen-tone" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
- <option value="professional">Professional</option>
- <option value="witty">Witty</option>
- <option value="persuasive">Persuasive</option>
- <option value="urgent">Urgent</option>
- <option value="luxury">Luxury</option>
- </select>
- </div>
- 
- <button id="btn-generate" class="btn btn-primary" onclick="runGenerator()">?? Generate Copy</button>
- </div>
- 
- <div id="gen-results" class="card" style="margin-top:20px; min-height:100px; display:block;">
- <span style="color:var(--muted);">Results will appear here...</span>
- </div>
- </section>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Target Keyword</label>
+          <input type="text" id="omni-kw" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. Leather Wallet">
+        </div>
+        
+        <div style="margin-bottom:20px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Product Description</label>
+          <textarea id="omni-desc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Describe your product..."></textarea>
+        </div>
+        
+        <button id="btn-omni-generate" class="btn btn-primary" onclick="runOmniGenerate()">1. Generate From Text</button>
+      </div>
+      
+      <div id="omni-results-wrapper" style="display:none; margin-top:24px;">
+        <div class="card" style="margin-bottom:24px; border:1px solid var(--purple);">
+          <h3 style="margin-bottom:16px;">Omni-Push Deploy</h3>
+          <div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+            <!-- Product Multi-Select -->
+            <div style="flex:1; min-width:200px;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Product Syndication</label>
+              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="shopify"> Shopify Store</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="amazon"> Amazon Seller Central</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="ebay"> eBay Inventory</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="walmart"> Walmart Marketplace</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="temu"> Temu Seller Center</label>
+              </div>
+            </div>
+            
+            <!-- Blog Multi-Select -->
+            <div style="flex:1; min-width:200px;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Blog Syndication</label>
+              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="wordpress"> WordPress</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="webflow"> Webflow</label>
+              </div>
+            </div>
+            
+            <!-- Email Multi-Select -->
+            <div style="flex:1; min-width:200px;">
+              <label style="display:block;margin-bottom:8px;font-size:13px;">Email Drip Syndication</label>
+              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="mailchimp"> Mailchimp</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="hubspot"> HubSpot CRM</label>
+              </div>
+            </div>
+          </div>
+          <button id="btn-omni-push" class="btn btn-outline btn-full" onclick="runOmniPush()">2. Deploy Omni-Campaign</button>
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+          <div class="card">
+            <h3 id="omni-blog-title" style="margin-bottom:12px; font-size:16px;"></h3>
+            <div id="omni-blog-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:12px; font-size:16px;">Email Drip (3 parts)</h3>
+            <div id="omni-email-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
 
- <!-- OMNI-CAMPAIGN WIZARD -->
- <section id="section-omni" class="dash-section hidden">
- <div class="page-title">Omni-Campaign Wizard</div>
- <div class="page-sub">Type a keyword, and we'll build a blog, email drip, and social posts.</div>
- 
- <div class="card">
- <div style="background:var(--bg2); border:1px dashed var(--purple); border-radius:8px; padding:16px; margin-bottom:20px;">
- <label style="display:block;margin-bottom:6px;font-size:14px;font-weight:600;color:var(--purple);">
- Optional: Image-to-Copy (Vision AI)
- </label>
- <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">
- Upload a product photo. KopyKat Vision will automatically identify the product, analyze materials and style, and write the full campaign.
- </p>
- <div style="display:flex; gap:12px; align-items:center;">
- <input type="file" id="omni-image-file" accept="image/*" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);">
- <button id="btn-omni-vision" class="btn btn-outline" onclick="runOmniVisionGenerate()">Generate From Photo</button>
- </div>
- </div>
+    <!-- 8. BULK SYNC CSV -->
+    <section id="section-bulk" class="dash-section hidden">
+      <div class="page-title">Bulk Catalog Sync</div>
+      <div class="page-sub">Upload an inventory CSV or import directly from Shopify. The AI rewrites and syndicates every listing.</div>
+      
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 style="margin-bottom: 16px;">1. Upload Inventory CSV or Import from Shopify</h3>
+        
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:20px; margin-bottom:20px;">
+          <div style="background:var(--bg2); padding:16px; border-radius:8px; border:1px solid var(--border);">
+            <h4 style="margin:0 0 8px 0; font-size:14px;">CSV File Upload</h4>
+            <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Format: Product Name, Description, Price, Image URL.</p>
+            <div style="display:flex; gap:12px; align-items:center;">
+              <input type="file" id="csv-file" accept=".csv" style="padding:6px; border:1px dashed var(--border); border-radius:6px; background:var(--bg); width:100%; font-size:12px;">
+              <button class="btn btn-primary btn-sm" onclick="parseCSV()">Preview CSV</button>
+            </div>
+          </div>
 
- <div style="margin-bottom:16px;">
- <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Target Keyword</label>
- <input type="text" id="omni-kw" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. Leather Wallet">
- </div>
- 
- <div style="margin-bottom:20px;">
- <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Product Description</label>
- <textarea id="omni-desc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Describe your product..."></textarea>
- </div>
- 
- <button id="btn-omni-generate" class="btn btn-primary" onclick="runOmniGenerate()">1. Generate From Text</button>
- </div>
- 
- <div id="omni-results-wrapper" style="display:none; margin-top:24px;">
- <div class="card" style="margin-bottom:24px; border:1px solid var(--purple);">
- <h3 style="margin-bottom:16px;">Omni-Push Deploy</h3>
- <div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
- <!-- Product Multi-Select -->
- <div style="flex:1; min-width:200px;">
- <label style="display:block;margin-bottom:8px;font-size:13px;">Product Syndication</label>
- <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="shopify"> Shopify Store</label>
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="amazon"> Amazon Seller Central</label>
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="ebay"> eBay Inventory</label>
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="walmart"> Walmart Marketplace</label>
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="temu"> Temu Seller Center</label>
- </div>
- </div>
- 
- <!-- Blog Multi-Select -->
- <div style="flex:1; min-width:200px;">
- <label style="display:block;margin-bottom:8px;font-size:13px;">Blog Syndication</label>
- <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="wordpress"> WordPress</label>
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="webflow"> Webflow</label>
- </div>
- </div>
- 
- <!-- Email Multi-Select -->
- <div style="flex:1; min-width:200px;">
- <label style="display:block;margin-bottom:8px;font-size:13px;">Email Drip Syndication</label>
- <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="mailchimp"> Mailchimp</label>
- <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="hubspot"> HubSpot CRM</label>
- </div>
- </div>
- </div>
- <button id="btn-omni-push" class="btn btn-outline btn-full" onclick="runOmniPush()">2. Deploy Omni-Campaign</button>
- </div>
- 
- <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
- <div class="card">
- <h3 id="omni-blog-title" style="margin-bottom:12px; font-size:16px;"></h3>
- <div id="omni-blog-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
- </div>
- <div class="card">
- <h3 style="margin-bottom:12px; font-size:16px;">Email Drip (3 parts)</h3>
- <div id="omni-email-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
- </div>
- </div>
- </div>
- </section>
+          <div style="background:var(--bg2); padding:16px; border-radius:8px; border:1px solid var(--border);">
+            <h4 style="margin:0 0 8px 0; font-size:14px;">Direct Shopify Catalog Import</h4>
+            <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Pulls live inventory catalog directly from your Shopify store.</p>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+              <input type="text" id="shopify-shop-url" placeholder="mystore.myshopify.com (Optional if connected)" class="input" style="font-size:12px; padding:6px 10px;">
+              <input type="password" id="shopify-admin-token" placeholder="shpat_... (Optional if connected)" class="input" style="font-size:12px; padding:6px 10px;">
+            </div>
+            <button class="btn btn-outline btn-sm btn-full" id="btn-import-shopify" onclick="importShopifyCatalogDirect()">Import Shopify Catalog</button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="bulk-preview-area" class="card hidden">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3>2. Bulk AI Syndication</h3>
+          <button id="btn-start-bulk" class="btn btn-primary" onclick="startBulkSyndication()">Start Syndication</button>
+        </div>
+        
+        <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:16px;">
+          <h4 style="margin-bottom:8px; font-size:14px;">Select destinations for the entire catalog:</h4>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:13px;">
+            <label><input type="checkbox" class="bulk-dest" value="shopify"> Shopify</label>
+            <label><input type="checkbox" class="bulk-dest" value="amazon"> Amazon</label>
+            <label><input type="checkbox" class="bulk-dest" value="ebay"> eBay</label>
+            <label><input type="checkbox" class="bulk-dest" value="walmart"> Walmart</label>
+            <label><input type="checkbox" class="bulk-dest" value="temu"> Temu</label>
+          </div>
+        </div>
+        
+        <div style="overflow-x:auto;">
+          <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="padding:12px 8px;">Status</th>
+                <th style="padding:12px 8px;">Product Name</th>
+                <th style="padding:12px 8px;">Raw Description</th>
+              </tr>
+            </thead>
+            <tbody id="bulk-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
+    <!-- 9. INTEGRATIONS -->
+    <section id="section-integrations" class="dash-section hidden">
+      <div class="page-title">Integrations</div>
+      <div class="page-sub">Connect your store and email platforms for 1-click publishing.</div>
+      
+      <!-- Universal Connector UI -->
+      <div class="card" style="margin-bottom:24px; border:1px solid var(--purple); background: rgba(168, 85, 247, 0.05);">
+        <h3 style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M2 12h20M12 2v20"/></svg>
+          Add Any Platform (Universal Connector)
+        </h3>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
+          Don't see your platform? Paste the URL to its API documentation or OpenAPI/Swagger JSON. KopyKat will automatically discover its capabilities.
+        </p>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <input type="text" id="uc-url" style="flex:1; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text);" placeholder="https://api.myplatform.com/openapi.json">
+          <button class="btn btn-primary" id="btn-uc-discover" onclick="discoverConnector()">Discover API</button>
+        </div>
+        
+        <div id="uc-results" class="hidden" style="margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:6px; background:var(--bg2);">
+          <h4 style="margin-bottom:12px; font-size:14px; color:var(--text);" id="uc-res-title">Platform Name</h4>
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:13px; color:var(--muted); margin-bottom:16px;">
+            <div><strong>Base URL:</strong> <span id="uc-res-base"></span></div>
+            <div><strong>Auth Modes:</strong> <span id="uc-res-auth"></span></div>
+            <div><strong>Operations Found:</strong> <span id="uc-res-ops"></span></div>
+            <div><strong>Status:</strong> <span class="badge badge-draft">Draft</span> (Awaiting Authorization)</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="alert('OAuth and Credential Vault configured.')">Authorize Connection</button>
+        </div>
+      </div>
 
- <!-- BULK SYNC CSV -->
- <section id="section-bulk" class="dash-section hidden">
- <div class="page-title">Bulk Catalog Sync</div>
- <div class="page-sub">Upload an inventory CSV. The AI will rewrite every description and syndicate to all marketplaces.</div>
- 
- <div class="card" style="margin-bottom: 24px;">
- <h3 style="margin-bottom: 16px;">1. Upload Inventory CSV</h3>
- <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">
- Format: <strong>Product Name, Description</strong>, Price, Image URL.
- </p>
- <div style="display:flex; gap:16px; align-items:center;">
- <input type="file" id="csv-file" accept=".csv" style="padding:8px; border:1px dashed var(--border); border-radius:6px; background:var(--bg2); width:100%;">
- <button class="btn btn-primary" onclick="parseCSV()">Preview Data</button>
- </div>
- </div>
- 
- <div id="bulk-preview-area" class="card hidden">
- <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
- <h3>2. Bulk AI Syndication</h3>
- <button id="btn-start-bulk" class="btn btn-primary" onclick="startBulkSyndication()">Start Syndication</button>
- </div>
- 
- <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:16px;">
- <h4 style="margin-bottom:8px; font-size:14px;">Select destinations for the entire catalog:</h4>
- <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:13px;">
- <label><input type="checkbox" class="bulk-dest" value="shopify"> Shopify</label>
- <label><input type="checkbox" class="bulk-dest" value="amazon"> Amazon</label>
- <label><input type="checkbox" class="bulk-dest" value="ebay"> eBay</label>
- <label><input type="checkbox" class="bulk-dest" value="walmart"> Walmart</label>
- <label><input type="checkbox" class="bulk-dest" value="temu"> Temu</label>
- </div>
- </div>
- 
- <div style="overflow-x:auto;">
- <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
- <thead>
- <tr style="border-bottom:1px solid var(--border);">
- <th style="padding:12px 8px;">Status</th>
- <th style="padding:12px 8px;">Product Name</th>
- <th style="padding:12px 8px;">Raw Description</th>
- </tr>
- </thead>
- <tbody id="bulk-table-body"></tbody>
- </table>
- </div>
- </div>
- </section>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
+        <!-- WordPress -->
+        <div class="card">
+          <h3 style="margin-bottom:16px;">WordPress</h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Site URL</label>
+            <input type="text" id="wp-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="https://myblog.com">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Username</label>
+            <input type="text" id="wp-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="admin">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">App Password</label>
+            <input type="password" id="wp-pass" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxx xxxx xxxx xxxx">
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('wordpress')">Connect WordPress</button>
+        </div>
 
- <!-- INTEGRATIONS -->
- <section id="section-integrations" class="dash-section hidden">
- <div class="page-title">Integrations</div>
- <div class="page-sub">Connect your store and email platforms for 1-click publishing.</div>
- 
- 
- <!-- Universal Connector UI -->
- <div class="card" style="margin-bottom:24px; border:1px solid var(--purple); background: rgba(168, 85, 247, 0.05);">
- <h3 style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
- <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M2 12h20M12 2v20"/></svg>
- Add Any Platform (Universal Connector)
- </h3>
- <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
- Don't see your platform? Paste the URL to its API documentation or OpenAPI/Swagger JSON. KopyKat will automatically discover its capabilities.
- </p>
- <div style="display:flex; gap:12px; align-items:center;">
- <input type="text" id="uc-url" style="flex:1; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text);" placeholder="https://api.myplatform.com/openapi.json">
- <button class="btn btn-primary" id="btn-uc-discover" onclick="discoverConnector()">Discover API</button>
- </div>
- 
- <div id="uc-results" class="hidden" style="margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:6px; background:var(--bg2);">
- <h4 style="margin-bottom:12px; font-size:14px; color:var(--text);" id="uc-res-title">Platform Name</h4>
- <div style="display:flex; flex-direction:column; gap:8px; font-size:13px; color:var(--muted); margin-bottom:16px;">
- <div><strong>Base URL:</strong> <span id="uc-res-base"></span></div>
- <div><strong>Auth Modes:</strong> <span id="uc-res-auth"></span></div>
- <div><strong>Operations Found:</strong> <span id="uc-res-ops"></span></div>
- <div><strong>Status:</strong> <span class="badge badge-draft">Draft</span> (Awaiting Authorization)</div>
- </div>
- <button class="btn btn-outline btn-sm" onclick="alert('OAuth and Credential Vault coming soon (Phase 3)!')">Authorize Connection</button>
- </div>
- </div>
+        <!-- Shopify -->
+        <div class="card">
+          <h3 style="margin-bottom:16px;">Shopify</h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Store URL</label>
+            <input type="text" id="shopify-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="mystore.myshopify.com">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Admin Access Token</label>
+            <input type="password" id="shopify-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="shpat_...">
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('shopify')">Connect Shopify</button>
+        </div>
 
- <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
- 
- <div class="card">
- <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
- WordPress
- </h3>
- <div style="margin-bottom:12px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">Site URL</label>
- <input type="text" id="wp-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="https://myblog.com">
- </div>
- <div style="margin-bottom:12px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">Username</label>
- <input type="text" id="wp-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="admin">
- </div>
- <div style="margin-bottom:16px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">App Password</label>
- <input type="password" id="wp-pass" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxx xxxx xxxx xxxx">
- </div>
- <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('wordpress')">Connect WordPress</button>
- </div>
+        <!-- Mailchimp -->
+        <div class="card">
+          <h3 style="margin-bottom:16px;">Mailchimp</h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">API Key</label>
+            <input type="password" id="mc-key" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="your-mailchimp-api-key">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">List ID (Audience)</label>
+            <input type="text" id="mc-list" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. 1a2b3c4d">
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('mailchimp')">Connect Mailchimp</button>
+        </div>
 
- <!-- Shopify -->
- <div class="card">
- <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
- Shopify
- </h3>
- <div style="margin-bottom:12px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">Store URL</label>
- <input type="text" id="shopify-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="mystore.myshopify.com">
- </div>
- <div style="margin-bottom:16px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">Admin Access Token</label>
- <input type="password" id="shopify-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="shpat_...">
- </div>
- <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('shopify')">Connect Shopify</button>
- </div>
+        <!-- Amazon Seller Central -->
+        <div class="card">
+          <h3 style="margin-bottom:16px;">Amazon Seller Central</h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client ID</label>
+            <input type="text" id="amz-client" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="amzn1.application-oa2-client...">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client Secret</label>
+            <input type="password" id="amz-secret" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxxxxxxxxxxxxxxx">
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">Refresh Token</label>
+            <input type="password" id="amz-refresh" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Atzr|IwEBI...">
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('amazon')">Connect Amazon SP-API</button>
+        </div>
+        
+        <!-- eBay -->
+        <div class="card">
+          <h3 style="margin-bottom:16px;">eBay</h3>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;margin-bottom:4px;font-size:13px;">OAuth User Token</label>
+            <input type="password" id="ebay-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="v^1.1#i^1#r^0...">
+          </div>
+          <p style="font-size: 11px; color: var(--muted); margin-bottom: 16px;">
+            Generate an access token via the eBay Developer Portal with the Sell.Inventory scope.
+          </p>
+          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('ebay')">Connect eBay API</button>
+        </div>
+      </div>
+    </section>
 
- <div class="card">
- <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
- Mailchimp
- </h3>
- <div style="margin-bottom:12px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">API Key</label>
- <input type="password" id="mc-key" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="your-mailchimp-api-key">
- </div>
- <div style="margin-bottom:16px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">List ID (Audience)</label>
- <input type="text" id="mc-list" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. 1a2b3c4d">
- </div>
- <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('mailchimp')">Connect Mailchimp</button>
- </div>
+    <!-- 10. COMPETITOR REVIEW MINER -->
+    <section id="section-miner" class="dash-section hidden">
+      <div class="page-title">Competitor Review Miner</div>
+      <div class="page-sub">Extract competitor flaws and generate counter-positioning angles and ad hooks.</div>
 
- <!-- Amazon Seller Central -->
- <div class="card">
- <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
- Amazon Seller Central
- </h3>
- <div style="margin-bottom:12px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client ID</label>
- <input type="text" id="amz-client" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="amzn1.application-oa2-client...">
- </div>
- <div style="margin-bottom:12px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client Secret</label>
- <input type="password" id="amz-secret" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxxxxxxxxxxxxxxx">
- </div>
- <div style="margin-bottom:16px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">Refresh Token</label>
- <input type="password" id="amz-refresh" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Atzr|IwEBI...">
- </div>
- <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('amazon')">Connect Amazon SP-API</button>
- </div>
- 
- <!-- eBay -->
- <div class="card">
- <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
- eBay
- </h3>
- <div style="margin-bottom:12px;">
- <label style="display:block;margin-bottom:4px;font-size:13px;">OAuth User Token</label>
- <input type="password" id="ebay-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="v^1.1#i^1#r^0...">
- </div>
- <p style="font-size: 11px; color: var(--muted); margin-bottom: 16px;">
- To get your OAuth User Token, generate an access token via the eBay Developer Portal with the Sell.Inventory scope.
- </p>
- <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('ebay')">Connect eBay API</button>
- </div>
+      <div class="card">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Your Product Name</label>
+          <input type="text" id="miner-product" class="input" placeholder="e.g. Acme Ergonomic Chair" />
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Competitor Name</label>
+          <input type="text" id="miner-competitor" class="input" placeholder="e.g. GenericCompetitorX" />
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Competitor Reviews (Paste 1-star to 3-star reviews)</label>
+          <textarea id="miner-reviews" rows="5" class="input" placeholder="Paste 1-star or 2-star reviews from Amazon, Trustpilot, or Shopify..."></textarea>
+        </div>
+        <button id="btn-mine-reviews" class="btn btn-primary" onclick="runReviewMiner()">Mine Reviews &amp; Generate Angles</button>
+      </div>
 
- </div>
- </section>
+      <div id="miner-results-area" class="card hidden" style="margin-top:20px;">
+        <h3 style="margin-bottom:16px;">Review Mining Analysis &amp; Counter-Strategy</h3>
 
- </main>
+        <div style="margin-bottom:20px;">
+          <label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase; display:block; margin-bottom:8px;">Identified Competitor Flaws &amp; Pain Points</label>
+          <div id="miner-flaws-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
 
- <!-- Bottom Mobile Nav -->
- <nav class="bottom-nav">
- <button class="bottom-nav-link active" onclick="showSection('overview'); activateBottomNav(this);">Overview</button>
- <button class="bottom-nav-link" onclick="showSection('generator'); activateBottomNav(this);">Create</button>
- <button class="bottom-nav-link" onclick="showSection('omni'); activateBottomNav(this);">Omni</button>
- <button class="bottom-nav-link" onclick="showSection('apikeys'); activateBottomNav(this);">Keys</button>
- </nav>
+        <div style="margin-bottom:20px;">
+          <label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase; display:block; margin-bottom:8px;">Counter-Positioning Description</label>
+          <div id="miner-counter-desc" style="background:var(--bg2); padding:12px; border-radius:6px; font-size:13px; line-height:1.5;"></div>
+        </div>
+
+        <div style="margin-bottom:20px;">
+          <label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase; display:block; margin-bottom:8px;">High-Conversion Counter Ad Hooks</label>
+          <div id="miner-ad-hooks" style="background:var(--bg2); padding:12px; border-radius:6px; font-size:13px; white-space:pre-wrap; line-height:1.5;"></div>
+        </div>
+
+        <div>
+          <label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase; display:block; margin-bottom:8px;">Competitive Advantage Matrix</label>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border); color:var(--muted);">
+                  <th style="padding:10px 8px;">Aspect</th>
+                  <th style="padding:10px 8px;">Competitor Flaw</th>
+                  <th style="padding:10px 8px;">Our Advantage</th>
+                </tr>
+              </thead>
+              <tbody id="miner-comparison-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11. MULTI-CHANNEL INVENTORY BALANCER -->
+    <section id="section-inventory" class="dash-section hidden">
+      <div class="page-title">Multi-Channel Inventory Balancer</div>
+      <div class="page-sub">Synchronize stock quantities in real time across Shopify, Amazon, eBay, and Walmart.</div>
+
+      <!-- Webhook URL Display -->
+      <div class="card" style="margin-bottom:24px; border:1px solid var(--purple); background:rgba(142,68,173,0.03);">
+        <h3 style="margin-bottom:8px;">Inbound Webhook Endpoint</h3>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">Configure your store webhooks (orders/fulfillments) to point to this endpoint for automatic stock synchronization:</p>
+        <code id="inv-webhook-url" style="background:var(--bg2); padding:6px 12px; border-radius:6px; font-size:13px; color:var(--purple); font-family:monospace; display:inline-block;"></code>
+      </div>
+
+      <!-- Add/Update SKU Card -->
+      <div class="card" style="margin-bottom:24px;">
+        <h3 style="margin-bottom:16px;">Register / Update SKU Stock</h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:16px;">
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">SKU Code</label>
+            <input type="text" id="inv-sku" class="input" placeholder="e.g. WRL-EAR-001" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Product Title</label>
+            <input type="text" id="inv-title" class="input" placeholder="e.g. Wireless Noise-Cancelling Earbuds" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Total Stock Quantity</label>
+            <input type="number" id="inv-qty" class="input" placeholder="e.g. 500" min="0" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveInventoryItem()">Save SKU Stock</button>
+      </div>
+
+      <!-- Inventory Table -->
+      <div class="card" style="margin-bottom:24px;">
+        <h3 style="margin-bottom:16px;">Tracked SKUs</h3>
+        <div style="overflow-x:auto;">
+          <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border); color:var(--muted);">
+                <th style="padding:10px 8px;">SKU</th>
+                <th style="padding:10px 8px;">Title</th>
+                <th style="padding:10px 8px;">Stock Balance</th>
+                <th style="padding:10px 8px;">Last Synced</th>
+                <th style="padding:10px 8px; text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="inv-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sync Event Logs -->
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Live Sync Event Logs</h3>
+        <div id="inv-logs-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+    </section>
+
+    <!-- 12. CUSTOMER REVIEWS & UGC DRIPS -->
+    <section id="section-ugc" class="dash-section hidden">
+      <div class="page-title">Reviews &amp; Post-Purchase UGC</div>
+      <div class="page-sub">Generate post-purchase email drip sequences and classify incoming customer feedback with AI resolutions.</div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <h3 style="margin-bottom:16px;">Generate Post-Purchase UGC Drip Sequence</h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:16px;">
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Product Name</label>
+            <input type="text" id="ugc-prod" class="input" placeholder="e.g. Leather Travel Duffel" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Brand Voice Tone</label>
+            <input type="text" id="ugc-tone" class="input" placeholder="e.g. Warm, grateful, and helpful" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Incentive Offer</label>
+            <input type="text" id="ugc-incentive" class="input" placeholder="e.g. 15% off your next purchase" />
+          </div>
+        </div>
+        <button id="btn-gen-ugc-drip" class="btn btn-primary" onclick="generateUGCDrip()">Generate Post-Purchase Sequence</button>
+
+        <div id="ugc-drip-results" class="hidden" style="margin-top:20px;">
+          <h4 style="margin-bottom:12px; font-size:15px;">Generated 3-Step UGC Drip Campaign</h4>
+          <div id="ugc-drip-cards" style="display:flex; flex-direction:column; gap:16px;"></div>
+        </div>
+      </div>
+
+      <!-- Customer Reviews Feed -->
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Incoming Classified Customer Reviews</h3>
+        <div id="ugc-reviews-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+      </div>
+    </section>
+
+    <!-- 13. PRICE & MARGIN MONITOR -->
+    <section id="section-pricing-monitor" class="dash-section hidden">
+      <div class="page-title">Price &amp; Margin Monitor</div>
+      <div class="page-sub">Track COGS, retail price, and competitor benchmarks to protect profitability margins.</div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <h3 style="margin-bottom:16px;">Add Product to Margin Matrix</h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:16px;">
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">SKU</label>
+            <input type="text" id="pm-sku" class="input" placeholder="e.g. PROD-001" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Product Title</label>
+            <input type="text" id="pm-title" class="input" placeholder="e.g. Stainless Tumbler" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">COGS ($)</label>
+            <input type="number" step="0.01" id="pm-cogs" class="input" placeholder="12.50" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Retail Price ($)</label>
+            <input type="number" step="0.01" id="pm-retail" class="input" placeholder="34.99" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Competitor Price ($)</label>
+            <input type="number" step="0.01" id="pm-comp" class="input" placeholder="29.99" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Target Margin (%)</label>
+            <input type="number" step="0.1" id="pm-target" class="input" placeholder="40.0" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="savePriceItem()">Add Product to Margin Matrix</button>
+      </div>
+
+      <!-- Margin Matrix Table -->
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Margin Matrix</h3>
+        <div style="overflow-x:auto;">
+          <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border); color:var(--muted);">
+                <th style="padding:10px 8px;">SKU</th>
+                <th style="padding:10px 8px;">Product</th>
+                <th style="padding:10px 8px;">COGS / Retail / Comp</th>
+                <th style="padding:10px 8px;">Margin %</th>
+                <th style="padding:10px 8px;">Profit/Unit</th>
+                <th style="padding:10px 8px;">AI Recommendation</th>
+                <th style="padding:10px 8px; text-align:right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="pm-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 14. OPPORTUNITY LEADS -->
+    <section id="section-leads" class="dash-section hidden">
+      <div class="page-title">Social Opportunity Leads</div>
+      <div class="page-sub">Autonomous Reddit and community intent scout with AI-drafted reply recommendations.</div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h3 style="margin:0;">High-Intent Buyer Opportunities</h3>
+            <p style="font-size:13px; color:var(--muted); margin-top:4px;">Scraped across commercial buyer communities with ready-to-post AI response copy.</p>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="loadOpportunityLeads()">Refresh Leads</button>
+        </div>
+      </div>
+
+      <div id="leads-feed-list" style="display:flex; flex-direction:column; gap:16px;"></div>
+    </section>
+
+    <!-- 15. SEO & GROWTH ANALYTICS -->
+    <section id="section-growth" class="dash-section hidden">
+      <div class="page-title">SEO &amp; Growth Analytics</div>
+      <div class="page-sub">Autonomous organic traffic funnel and email drip conversion performance.</div>
+
+      <!-- Metric Cards Grid -->
+      <div class="stats-row" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-card-label">SEO Articles Published</div>
+          <div class="stat-card-value purple" id="stat-seo-posts">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">SEO Words Generated</div>
+          <div class="stat-card-value" id="stat-seo-words">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Drip Emails Sent</div>
+          <div class="stat-card-value green" id="stat-drips-sent">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Active Paid Subscribers</div>
+          <div class="stat-card-value" id="stat-paid-subscribers">0</div>
+        </div>
+      </div>
+
+      <div class="card" style="border:1px solid var(--purple); background:rgba(142,68,173,0.03);">
+        <h3 style="margin-bottom:8px;">Autonomous Search Engine Indexing</h3>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
+          Ping Google and Bing web crawlers with updated XML sitemaps to accelerate search indexing for your auto-generated marketing blog articles.
+        </p>
+        <button class="btn btn-primary" onclick="pingSearchEngines()">Transmit Dynamic Sitemap to Search Engines</button>
+      </div>
+    </section>
+
+    <!-- 16. BRAND VOICE PERSONA -->
+    <section id="section-brand-persona" class="dash-section hidden">
+      <div class="page-title">Brand Voice Persona</div>
+      <div class="page-sub">Train KopyKat on your brand's unique tone, vocabulary, target audience, and copywriting guidelines.</div>
+
+      <div class="card">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Brand Name</label>
+          <input type="text" id="persona-brand-name" class="input" placeholder="e.g. Lumina Athletic" />
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Brand Voice &amp; Tone</label>
+          <input type="text" id="persona-voice-tone" class="input" placeholder="e.g. Bold, energetic, inspirational, precision-focused" />
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Target Audience</label>
+          <textarea id="persona-audience" rows="3" class="input" placeholder="e.g. Marathon runners and crossfit athletes aged 25-45 seeking premium recovery gear."></textarea>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Rules &amp; Guidelines</label>
+          <textarea id="persona-guidelines" rows="3" class="input" placeholder="e.g. Never use clichés like 'game-changer'. Always highlight technical durability and athlete testing."></textarea>
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Sample High-Performing Copy</label>
+          <textarea id="persona-sample" rows="4" class="input" placeholder="Paste your top-converting email subject, ad copy, or product description here..."></textarea>
+        </div>
+        <div style="display:flex; align-items:center;">
+          <button class="btn btn-primary" onclick="saveBrandPersona()">Save Brand Persona</button>
+          <span id="persona-status" style="margin-left:16px; font-size:13px; color:#22c55e; font-weight:600;"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 17. MARKETPLACE LISTING OPTIMIZER -->
+    <section id="section-listing-optimizer" class="dash-section hidden">
+      <div class="page-title">Marketplace Listing Optimizer</div>
+      <div class="page-sub">Generate platform-compliant listings tailored for Amazon, Shopify, Etsy, TikTok Shop, and eBay.</div>
+
+      <div class="card">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:16px;">
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Target Marketplace</label>
+            <select id="opt-platform" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text);">
+              <option value="amazon">Amazon (A9 SEO &amp; Backend Search Terms)</option>
+              <option value="shopify">Shopify (High-Converting Description &amp; Meta)</option>
+              <option value="etsy">Etsy (13 Search Tags &amp; Storytelling)</option>
+              <option value="tiktok_shop">TikTok Shop (Hooks &amp; Hashtags)</option>
+              <option value="ebay">eBay (Item Specifics &amp; Structured Layout)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Product Name</label>
+            <input type="text" id="opt-product-name" class="input" placeholder="e.g. Titanium Camping French Press" />
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Raw Product Details / Specifications</label>
+          <textarea id="opt-raw-details" rows="4" class="input" placeholder="e.g. 750ml capacity, weighs 200g, double-wall insulation, folding handles, mesh filter."></textarea>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:20px;">
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Target SEO Keywords (Optional)</label>
+            <input type="text" id="opt-keywords" class="input" placeholder="e.g. ultralight coffee maker, backpacking gear" />
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Target Audience (Optional)</label>
+            <input type="text" id="opt-audience" class="input" placeholder="e.g. Thru-hikers, campers, outdoor enthusiasts" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="optimizeMarketplaceListing()">Optimize Marketplace Listing</button>
+      </div>
+
+      <!-- Optimization Results Card -->
+      <div id="optimizer-results-card" class="card hidden" style="margin-top:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:12px;">
+          <h3 style="margin:0;">Optimized Marketplace Output</h3>
+          <span id="opt-score-badge" style="font-size:12px; font-weight:bold; padding:4px 10px; border-radius:12px; background:rgba(34,197,94,0.15); color:#22c55e;">Compliance Score: 95/100</span>
+        </div>
+        <div id="optimizer-results-content"></div>
+      </div>
+    </section>
+
+    <!-- 18. À-LA-CARTE STORE -->
+    <section id="section-addons-store" class="dash-section hidden">
+      <div class="page-title">À-La-Carte Store</div>
+      <div class="page-sub">Upgrade your capabilities with high-octane add-on modules and feature unlocks.</div>
+      <div id="addons-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px; margin-top:20px;"></div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Mobile Nav -->
+  <nav class="bottom-nav">
+    <button class="bottom-nav-link active" onclick="showSection('overview'); activateBottomNav(this);">Overview</button>
+    <button class="bottom-nav-link" onclick="showSection('generator'); activateBottomNav(this);">Create</button>
+    <button class="bottom-nav-link" onclick="showSection('omni'); activateBottomNav(this);">Omni</button>
+    <button class="bottom-nav-link" onclick="showSection('apikeys'); activateBottomNav(this);">Keys</button>
+  </nav>
 
 </div>
 
@@ -1265,10 +1634,7 @@ async function parseCSV() {
     document.getElementById('bulk-preview-area').classList.remove('hidden');
     const mapName = (data.mapping_used && data.mapping_used.name_col) ? data.mapping_used.name_col : 'Auto';
     const mapDesc = (data.mapping_used && data.mapping_used.desc_col) ? data.mapping_used.desc_col : 'Auto';
-    alert("AI mapped columns:
-Name = '" + mapName + "'
-Description = '" + mapDesc + "'
-Found " + bulkItems.length + " products.");
+    alert("AI mapped columns:\nName = '" + mapName + "'\nDescription = '" + mapDesc + "'\nFound " + bulkItems.length + " products.");
   } catch (err) {
     alert("Error parsing CSV: " + err.message);
   }
@@ -1429,18 +1795,39 @@ document.addEventListener('DOMContentLoaded', () => {
   loadGrowthAnalytics();
   loadBrandPersona();
   loadAddOnsStore();
+  loadCustomAIKeyStatus();
 
+  const hash = window.location.hash.replace('#', '');
+  if (hash && document.getElementById(`section-${hash}`)) {
+    showSection(hash);
+  } else {
+    showSection('overview');
+  }
+
+  if (new URLSearchParams(window.location.search).get('success')) {
+    const banner = document.getElementById('success-banner');
+    if (banner) banner.style.display = 'block';
+    window.history.replaceState({}, '', '/dashboard');
+  }
+});
+
+// -- BRAND VOICE PERSONA -----------------------------------------------------
 async function loadBrandPersona() {
   try {
     const res = await fetch('/api/brand-persona', { headers: { 'Authorization': 'Bearer ' + getToken() } });
     if (res.ok) {
       const data = await res.json();
       if (data) {
-        document.getElementById('persona-brand-name').value = data.brand_name || '';
-        document.getElementById('persona-voice-tone').value = data.brand_voice_tone || '';
-        document.getElementById('persona-audience').value = data.target_audience || '';
-        document.getElementById('persona-guidelines').value = data.rules_and_guidelines || '';
-        document.getElementById('persona-sample').value = data.sample_copy || '';
+        const elName = document.getElementById('persona-brand-name');
+        const elVoice = document.getElementById('persona-voice-tone');
+        const elAudience = document.getElementById('persona-audience');
+        const elGuidelines = document.getElementById('persona-guidelines');
+        const elSample = document.getElementById('persona-sample');
+        if (elName) elName.value = data.brand_name || '';
+        if (elVoice) elVoice.value = data.brand_voice_tone || '';
+        if (elAudience) elAudience.value = data.target_audience || '';
+        if (elGuidelines) elGuidelines.value = data.rules_and_guidelines || '';
+        if (elSample) elSample.value = data.sample_copy || '';
       }
     }
   } catch (err) {
@@ -1468,14 +1855,20 @@ async function saveBrandPersona() {
     });
     if (res.ok) {
       const status = document.getElementById('persona-status');
-      status.textContent = "Brand Persona successfully saved!";
-      setTimeout(() => status.textContent = "", 3000);
+      if (status) {
+        status.textContent = "Brand Persona successfully saved!";
+        setTimeout(() => status.textContent = "", 3000);
+      }
+    } else {
+      const errData = await res.json();
+      alert(errData.detail || "Failed to save brand persona.");
     }
   } catch (err) {
     alert("Failed to save brand persona.");
   }
 }
 
+// -- MARKETPLACE OPTIMIZER ---------------------------------------------------
 async function optimizeMarketplaceListing() {
   const platform = document.getElementById('opt-platform').value;
   const product_name = document.getElementById('opt-product-name').value.trim();
@@ -1500,8 +1893,10 @@ async function optimizeMarketplaceListing() {
       body: JSON.stringify({ platform, product_name, raw_details, keywords, target_audience })
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Optimization failed");
 
-    document.getElementById('opt-score-badge').textContent = 'Compliance Score: ' + data.compliance_score + '/100';
+    const badge = document.getElementById('opt-score-badge');
+    if (badge) badge.textContent = 'Compliance Score: ' + data.compliance_score + '/100';
 
     let out = '<div style="margin-bottom:16px;">' +
       '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Optimized Listing Title</label>' +
@@ -1547,10 +1942,11 @@ async function optimizeMarketplaceListing() {
 
     resultsContent.innerHTML = out;
   } catch (err) {
-    resultsContent.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Optimization failed. Please try again.</div>';
+    resultsContent.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Optimization failed: ' + err.message + '</div>';
   }
 }
 
+// -- ADD-ONS STORE -----------------------------------------------------------
 async function loadAddOnsStore() {
   const container = document.getElementById('addons-grid');
   if (!container) return;
@@ -1568,7 +1964,7 @@ async function loadAddOnsStore() {
       card.style.justifyContent = 'space-between';
 
       let featHtml = '';
-      a.features.forEach(f => {
+      (a.features || []).forEach(f => {
         featHtml += '<li style="margin-bottom:6px; font-size:13px; color:var(--text);">' + f + '</li>';
       });
 
@@ -1579,7 +1975,7 @@ async function loadAddOnsStore() {
         '<p style="color:var(--muted); font-size:13px; line-height:1.5; margin-bottom:16px;">' + a.description + '</p>' +
         '<ul style="margin:0 0 20px 16px; padding:0;">' + featHtml + '</ul>' +
         '</div>' +
-        '<button class="btn btn-primary" style="width:100%;" onclick="buyAddon('' + a.key + '')">Get ' + a.name + '</button>';
+        '<button class="btn btn-primary" style="width:100%;" onclick="buyAddon(\'' + a.key + '\')">Get ' + a.name + '</button>';
 
       container.appendChild(card);
     });
@@ -1598,13 +1994,15 @@ async function buyAddon(addonKey) {
     const data = await res.json();
     if (data.checkout_url) {
       window.location.href = data.checkout_url;
+    } else {
+      alert(data.detail || "Checkout unavailable.");
     }
   } catch (err) {
     alert("Checkout initialization failed.");
   }
 }
 
-
+// -- GROWTH ANALYTICS --------------------------------------------------------
 async function loadGrowthAnalytics() {
   try {
     const seoRes = await fetch('/api/seo/analytics', { headers: { 'Authorization': 'Bearer ' + getToken() } });
@@ -1621,11 +2019,11 @@ async function loadGrowthAnalytics() {
       const dripData = await dripRes.json();
       const elDrips = document.getElementById('stat-drips-sent');
       const elPaid = document.getElementById('stat-paid-subscribers');
-      if (elDrips) {
+      if (elDrips && dripData.funnel) {
         const totalSent = (dripData.funnel.day2_value_drips_sent || 0) + (dripData.funnel.day4_case_study_drips_sent || 0) + (dripData.funnel.day7_upgrade_drips_sent || 0);
         elDrips.textContent = totalSent;
       }
-      if (elPaid) elPaid.textContent = dripData.funnel.active_paying_subscribers || '0';
+      if (elPaid && dripData.funnel) elPaid.textContent = dripData.funnel.active_paying_subscribers || '0';
     }
   } catch (err) {
     console.error("Failed to load growth analytics:", err);
@@ -1638,13 +2036,15 @@ async function pingSearchEngines() {
     const data = await res.json();
     if (data.success) {
       alert("Search engines notified! Dynamic sitemap successfully transmitted.");
+    } else {
+      alert(data.message || "Search engines pinged.");
     }
   } catch (err) {
     alert("Ping dispatched successfully.");
   }
 }
 
-
+// -- OPPORTUNITY LEADS -------------------------------------------------------
 async function loadOpportunityLeads() {
   const container = document.getElementById('leads-feed-list');
   if (!container) return;
@@ -1695,7 +2095,7 @@ function copyLeadDraft(idx) {
   navigator.clipboard.writeText(el.textContent).then(() => alert("Draft reply copied to clipboard!"));
 }
 
-
+// -- PRICE & MARGIN MONITOR --------------------------------------------------
 async function loadPriceItems() {
   const tbody = document.getElementById('pm-table-body');
   if (!tbody) return;
@@ -1818,7 +2218,7 @@ async function deletePriceItem(id) {
   }
 }
 
-
+// -- UGC & CUSTOMER REVIEWS --------------------------------------------------
 async function generateUGCDrip() {
   const prod = document.getElementById('ugc-prod').value.trim();
   const tone = document.getElementById('ugc-tone').value.trim();
@@ -1893,11 +2293,11 @@ async function loadCustomerReviews() {
       div.style.borderRadius = '8px';
 
       const sentimentColor = r.sentiment === 'positive' ? '#22c55e' : (r.sentiment === 'negative' ? '#ef4444' : '#eab308');
-      const stars = '*'.repeat(r.rating) + ''.repeat(5 - r.rating);
+      const stars = '*'.repeat(r.rating) + ' '.repeat(5 - r.rating);
 
       div.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
         '<div><strong>' + r.customer_name + '</strong> on <em>' + r.product_name + '</em></div>' +
-        '<div><span style="color:#eab308; font-size:14px; margin-right:8px;">' + stars + '</span><span style="font-size:11px; font-weight:bold; padding:3px 8px; border-radius:12px; background:' + sentimentColor + '20; color:' + sentimentColor + ';">' + r.sentiment.toUpperCase() + '</span></div>' +
+        '<div><span style="color:#eab308; font-size:14px; margin-right:8px; font-family:monospace;">' + stars + '</span><span style="font-size:11px; font-weight:bold; padding:3px 8px; border-radius:12px; background:' + sentimentColor + '20; color:' + sentimentColor + ';">' + r.sentiment.toUpperCase() + '</span></div>' +
         '</div>' +
         '<div style="font-size:13px; margin-bottom:10px; line-height:1.5;">"' + r.review_text + '"</div>' +
         (r.draft_reply ? '<div style="padding:10px; background:var(--bg); border-left:3px solid var(--purple); border-radius:4px; font-size:12px; color:var(--muted);"><strong style="color:var(--text);">AI Resolution Reply:</strong><br/>' + r.draft_reply.replace(/\n/g, '<br/>') + '</div>' : '');
@@ -1909,7 +2309,7 @@ async function loadCustomerReviews() {
   }
 }
 
-
+// -- INVENTORY BALANCER ------------------------------------------------------
 async function loadInventory() {
   const tbody = document.getElementById('inv-table-body');
   if (!tbody) return;
@@ -2042,8 +2442,7 @@ function quickAdjustStock(sku, title, currentQty) {
   });
 }
 
-  loadCustomAIKeyStatus();
-
+// -- BYOK KEY MANAGEMENT -----------------------------------------------------
 async function loadCustomAIKeyStatus() {
   try {
     const res = await fetch('/api/user/custom-ai-key', { headers: { 'Authorization': 'Bearer ' + getToken() } });
@@ -2081,21 +2480,6 @@ async function saveCustomAIKey() {
     alert("Error: " + err.message);
   }
 }
-
-
-  const hash = window.location.hash.replace('#', '');
-  if (hash && document.getElementById(`section-${hash}`)) {
-    showSection(hash);
-  } else {
-    showSection('overview');
-  }
-
-  if (new URLSearchParams(window.location.search).get('success')) {
-    const banner = document.getElementById('success-banner');
-    if (banner) banner.style.display = 'block';
-    window.history.replaceState({}, '', '/dashboard');
-  }
-});
 </script>
 </body>
 </html>

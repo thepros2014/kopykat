@@ -9,8 +9,10 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+import threading
 
 import bleach
+import stripe
 from fastapi import (FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status, File, UploadFile)
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -23,7 +25,22 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (BrandPersonaRequest, BrandPersonaResponse, MarketplaceOptimizeRequest, MarketplaceOptimizeResponse, AddOnCheckoutRequest, AddOnItemResponse, RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse, PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest, CustomerReviewResponse, PriceMarginItemCreate, PriceMarginItemResponse, ShopifyImportRequest, ShopifyImportResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (
+    AdminMRRMetricsResponse, SEOAnalyticsResponse, SEOPingIndexResponse, OpportunityLeadItemResponse,
+    DripAnalyticsResponse, BrandPersonaRequest, BrandPersonaResponse, MarketplaceOptimizeRequest,
+    MarketplaceOptimizeResponse, AddOnCheckoutRequest, AddOnItemResponse, RequestPasswordReset,
+    ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest,
+    CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest,
+    CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse,
+    InventoryItemCreate, InventoryItemResponse, InventoryWebhookPayload, InventorySyncLogResponse,
+    PostPurchaseDripRequest, PostPurchaseDripResponse, CustomerReviewSubmitRequest,
+    CustomerReviewResponse, PriceMarginItemCreate, PriceMarginItemResponse, ShopifyImportRequest,
+    ShopifyImportResponse, ConnectorToggleRequest, ConnectorTestRequest,
+    ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister,
+    UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated,
+    GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest,
+    CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse
+)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -31,14 +48,18 @@ from .marketing import generate_seo_post
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
-APP_VERSION="1.0.1"; BASE_DIR=Path(__file__).parent.parent; ADMIN_SECRET=os.getenv("ADMIN_SECRET","")
-limiter=Limiter(key_func=get_remote_address)
+APP_VERSION = "1.0.1"
+BASE_DIR = Path(__file__).parent.parent
+ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
+limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("ENVIRONMENT") != "testing")
 import sentry_sdk
-if os.environ.get("SENTRY_DSN"): sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], traces_sample_rate=1.0, profiles_sample_rate=1.0)
-app=FastAPI(title="KopyKat",description="Instant AI-powered marketing copy. Automated. Always on.",version=APP_VERSION,docs_url="/api/docs",redoc_url="/api/redoc")
-app.state.limiter=limiter; app.add_exception_handler(RateLimitExceeded,_rate_limit_exceeded_handler)
-ALLOWED_ORIGINS=[o.strip() for o in os.getenv("ALLOWED_ORIGINS","https://kopykat.onrender.com").split(",") if o.strip()]
-app.add_middleware(CORSMiddleware,allow_origins=ALLOWED_ORIGINS,allow_credentials=True,allow_methods=["GET","POST","DELETE","OPTIONS"],allow_headers=["Authorization","Content-Type","X-Admin-Secret"])
+if os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], traces_sample_rate=1.0, profiles_sample_rate=1.0)
+app = FastAPI(title="KopyKat", description="Instant AI-powered marketing copy. Automated. Always on.", version=APP_VERSION, docs_url="/api/docs", redoc_url="/api/redoc")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "https://kopykat.onrender.com").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "DELETE", "OPTIONS"], allow_headers=["Authorization", "Content-Type", "X-Admin-Secret"])
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 trusted_proxies = [p.strip() for p in os.getenv("TRUSTED_PROXIES", "127.0.0.1,localhost").split(",") if p.strip()]
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted_proxies)
@@ -63,8 +84,10 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Expires"] = "0"
     return response
 
-_ALLOWED_TAGS=["p","h2","h3","h4","ul","ol","li","strong","em","b","i","a","br","blockquote"]; _ALLOWED_ATTRS={"a":["href","title","rel"]}
-def sanitize_html(raw:str)->str: return bleach.clean(raw,tags=_ALLOWED_TAGS,attributes=_ALLOWED_ATTRS,strip=True,strip_comments=True)
+_ALLOWED_TAGS = ["p", "h2", "h3", "h4", "ul", "ol", "li", "strong", "em", "b", "i", "a", "br", "blockquote"]
+_ALLOWED_ATTRS = {"a": ["href", "title", "rel"]}
+def sanitize_html(raw: str) -> str:
+    return bleach.clean(raw, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True, strip_comments=True)
 
 scheduler_instance = None
 
@@ -92,14 +115,19 @@ async def shutdown():
         except Exception:
             pass
     logger.info("KopyKat shut down gracefully")
-frontend_dir=BASE_DIR/"frontend"
-if (frontend_dir/"static").exists(): app.mount("/static",StaticFiles(directory=str(frontend_dir/"static")),name="static")
 
-@app.get("/",response_class=HTMLResponse,include_in_schema=False)
+frontend_dir = BASE_DIR / "frontend"
+if (frontend_dir / "static").exists():
+    app.mount("/static", StaticFiles(directory=str(frontend_dir / "static")), name="static")
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def landing_page():
-    index=frontend_dir/"index.html"; return HTMLResponse(index.read_text(encoding="utf-8")) if index.exists() else HTMLResponse("<h1>KopyKat — Loading...</h1>")
-@app.get("/manifest.json",include_in_schema=False)
-async def get_manifest(): return FileResponse(frontend_dir/"manifest.json")
+    index = frontend_dir / "index.html"
+    return HTMLResponse(index.read_text(encoding="utf-8")) if index.exists() else HTMLResponse("<h1>KopyKat — Loading...</h1>")
+
+@app.get("/manifest.json", include_in_schema=False)
+async def get_manifest():
+    return FileResponse(frontend_dir / "manifest.json")
 
 @app.get("/api.js", include_in_schema=False)
 async def get_api_js():
@@ -108,28 +136,43 @@ async def get_api_js():
         js_path = frontend_dir / "api.js"
     return FileResponse(js_path, media_type="application/javascript")
 
-@app.get("/sw.js",include_in_schema=False)
-async def get_sw(): return FileResponse(frontend_dir/"sw.js")
-@app.get("/dashboard",response_class=HTMLResponse,include_in_schema=False)
+@app.get("/sw.js", include_in_schema=False)
+async def get_sw():
+    return FileResponse(frontend_dir / "sw.js")
+
+@app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard_page():
-    dash=frontend_dir/"dashboard.html"; return HTMLResponse(dash.read_text(encoding="utf-8")) if dash.exists() else HTMLResponse("<h1>Dashboard — Loading...</h1>")
-@app.get("/admin/trigger-seo",include_in_schema=False)
-async def trigger_seo(background_tasks:BackgroundTasks,x_admin_secret:Optional[str]=Header(None,alias="x-admin-secret")):
-    if not ADMIN_SECRET or x_admin_secret!=ADMIN_SECRET: raise HTTPException(status_code=401,detail="Unauthorized")
-    background_tasks.add_task(generate_seo_post); return {"status":"ok","message":"SEO blog generation started in background."}
-@app.get("/blog",response_class=HTMLResponse,include_in_schema=False)
-async def blog_index(db:Session=Depends(get_db)):
-    posts=db.query(BlogPost).filter(BlogPost.published==True).order_by(BlogPost.created_at.desc()).all(); template_path=frontend_dir/"blog.html"
-    if not template_path.exists(): return HTMLResponse("<h1>Blog setup pending...</h1>")
-    template=template_path.read_text(encoding="utf-8"); items="".join(f'<div class="card"><div>{p.created_at.strftime("%B %d, %Y")}</div><h2><a href="/blog/{p.slug}">{bleach.clean(p.title)}</a></h2><p>{bleach.clean(p.meta_desc or "")}</p></div>' for p in posts)
-    return HTMLResponse(template.replace("<!-- POSTS -->",items or "<p>No posts yet. The AI is writing the first one!</p>"))
-@app.get("/blog/{slug}",response_class=HTMLResponse,include_in_schema=False)
-async def blog_post(slug:str,db:Session=Depends(get_db)):
-    post=db.query(BlogPost).filter(BlogPost.slug==slug,BlogPost.published==True).first()
-    if not post: raise HTTPException(status_code=404,detail="Post not found")
-    path=frontend_dir/"post.html"
-    if not path.exists(): return HTMLResponse("<h1>Post layout pending...</h1>")
-    html=path.read_text(encoding="utf-8").replace("{{title}}",bleach.clean(post.title)).replace("{{content}}",sanitize_html(post.content)).replace("{{meta_desc}}",bleach.clean(post.meta_desc or "")).replace("{{date}}",post.created_at.strftime("%B %d, %Y")); return HTMLResponse(html)
+    dash = frontend_dir / "dashboard.html"
+    return HTMLResponse(dash.read_text(encoding="utf-8")) if dash.exists() else HTMLResponse("<h1>Dashboard — Loading...</h1>")
+
+@app.get("/admin/trigger-seo", include_in_schema=False)
+async def trigger_seo(background_tasks: BackgroundTasks, x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret")):
+    current_admin_secret = ADMIN_SECRET or os.getenv("ADMIN_SECRET")
+    if not current_admin_secret or x_admin_secret != current_admin_secret:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    background_tasks.add_task(generate_seo_post)
+    return {"status": "ok", "message": "SEO blog generation started in background."}
+
+@app.get("/blog", response_class=HTMLResponse, include_in_schema=False)
+async def blog_index(db: Session = Depends(get_db)):
+    posts = db.query(BlogPost).filter(BlogPost.published == True).order_by(BlogPost.created_at.desc()).all()
+    template_path = frontend_dir / "blog.html"
+    if not template_path.exists():
+        return HTMLResponse("<h1>Blog setup pending...</h1>")
+    template = template_path.read_text(encoding="utf-8")
+    items = "".join(f'<div class="card"><div>{p.created_at.strftime("%B %d, %Y")}</div><h2><a href="/blog/{p.slug}">{bleach.clean(p.title)}</a></h2><p>{bleach.clean(p.meta_desc or "")}</p></div>' for p in posts)
+    return HTMLResponse(template.replace("<!-- POSTS -->", items or "<p>No posts yet. The AI is writing the first one!</p>"))
+
+@app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
+async def blog_post(slug: str, db: Session = Depends(get_db)):
+    post = db.query(BlogPost).filter(BlogPost.slug == slug, BlogPost.published == True).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    path = frontend_dir / "post.html"
+    if not path.exists():
+        return HTMLResponse("<h1>Post layout pending...</h1>")
+    html = path.read_text(encoding="utf-8").replace("{{title}}", bleach.clean(post.title)).replace("{{content}}", sanitize_html(post.content)).replace("{{meta_desc}}", bleach.clean(post.meta_desc or "")).replace("{{date}}", post.created_at.strftime("%B %d, %Y"))
+    return HTMLResponse(html)
 
 @app.get("/robots.txt", response_class=HTMLResponse, include_in_schema=False)
 async def get_robots_txt():
@@ -175,11 +218,16 @@ async def get_sitemap_xml(db: Session = Depends(get_db)):
 </urlset>"""
     return HTMLResponse(xml_content, media_type="application/xml")
 
-@app.get("/health",response_model=HealthResponse,tags=["System"])
-async def health_check(): return HealthResponse(status="ok",version=APP_VERSION,timestamp=datetime.utcnow())
-@app.get("/api/plans",tags=["Billing"])
-async def list_plans(): return {"subscriptions":{k:{"name":v["name"],"price_usd":v["price_usd"],"monthly_generations":v["monthly_generations"],"features":v["features"]} for k,v in PLANS.items()},"one_time_generations":{k:{"name":v["name"],"price_usd":v["price_usd"],"generations":v["generations"]} for k,v in ONE_TIME_GENERATIONS.items()}}
+@app.get("/health", response_model=HealthResponse, tags=["System"])
+async def health_check():
+    return HealthResponse(status="ok", version=APP_VERSION, timestamp=datetime.utcnow())
 
+@app.get("/api/plans", tags=["Billing"])
+async def list_plans():
+    return {
+        "subscriptions": {k: {"name": v["name"], "price_usd": v["price_usd"], "monthly_generations": v["monthly_generations"], "features": v["features"]} for k, v in PLANS.items()},
+        "one_time_generations": {k: {"name": v["name"], "price_usd": v["price_usd"], "generations": v["generations"]} for k, v in ONE_TIME_GENERATIONS.items()}
+    }
 
 @app.post("/auth/request-verification", tags=["Auth"])
 @limiter.limit("5/minute")
@@ -296,73 +344,91 @@ async def reset_password(request: Request, body: ResetPasswordSubmit, db: Sessio
     db.commit()
     return {"status": "success", "message": "Password reset successfully. You can now log in."}
 
-@app.post("/auth/register",response_model=TokenResponse,tags=["Auth"])
+@app.post("/auth/register", response_model=TokenResponse, tags=["Auth"])
 @limiter.limit("5/minute")
-async def register(request:Request,body:UserRegister,background_tasks:BackgroundTasks,db:Session=Depends(get_db)):
-    user=register_user(body.email,body.password,body.full_name,db); from .scheduler import _send_email; background_tasks.add_task(_send_email,"Welcome to KopyKat ",f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 5 free generations.",user.email); return TokenResponse(access_token=create_access_token(user.id,user.email),plan=user.plan,generations=user.generations)
-@app.post("/auth/login",response_model=TokenResponse,tags=["Auth"])
+async def register(request: Request, body: UserRegister, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    user = register_user(body.email, body.password, body.full_name, db)
+    from .scheduler import _send_email
+    background_tasks.add_task(_send_email, "Welcome to KopyKat", f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 5 free generations.", user.email)
+    return TokenResponse(access_token=create_access_token(user.id, user.email), plan=user.plan, generations=user.generations)
+
+@app.post("/auth/login", response_model=TokenResponse, tags=["Auth"])
 @limiter.limit("10/minute")
-async def login(request:Request,body:UserLogin,db:Session=Depends(get_db)):
-    user=authenticate_user(body.email,body.password,db)
-    if not user: raise HTTPException(status_code=401,detail="Invalid email or password")
-    return TokenResponse(access_token=create_access_token(user.id,user.email),plan=user.plan,generations=user.generations)
-@app.get("/auth/me",response_model=UserProfile,tags=["Auth"])
-async def get_profile(current_user:User=Depends(get_current_user_jwt)): return current_user
-@app.post("/api/keys",response_model=APIKeyCreated,tags=["API Keys"])
-async def create_api_key(body:APIKeyCreate,current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)):
-    raw,api=create_user_api_key(current_user,body.name,db); return APIKeyCreated(id=api.id,key_prefix=api.key_prefix,name=api.name,is_active=api.is_active,last_used=api.last_used,requests_today=api.requests_today,created_at=api.created_at,raw_key=raw)
-@app.get("/api/keys",response_model=list[APIKeyResponse],tags=["API Keys"])
-async def list_api_keys(current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)): return db.query(APIKey).filter(APIKey.user_id==current_user.id,APIKey.is_active==True).all()
-@app.delete("/api/keys/{key_id}",tags=["API Keys"])
-async def delete_api_key(key_id:str,current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)):
-    if not revoke_api_key(key_id,current_user,db): raise HTTPException(status_code=404,detail="Key not found")
-    return {"status":"revoked"}
+async def login(request: Request, body: UserLogin, db: Session = Depends(get_db)):
+    user = authenticate_user(body.email, body.password, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return TokenResponse(access_token=create_access_token(user.id, user.email), plan=user.plan, generations=user.generations)
+
+@app.get("/auth/me", response_model=UserProfile, tags=["Auth"])
+async def get_profile(current_user: User = Depends(get_current_user_jwt)):
+    return current_user
+
+@app.post("/api/keys", response_model=APIKeyCreated, tags=["API Keys"])
+async def create_api_key(body: APIKeyCreate, current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
+    raw, api = create_user_api_key(current_user, body.name, db)
+    return APIKeyCreated(id=api.id, key_prefix=api.key_prefix, name=api.name, is_active=api.is_active, last_used=api.last_used, requests_today=api.requests_today, created_at=api.created_at, raw_key=raw)
+
+@app.get("/api/keys", response_model=list[APIKeyResponse], tags=["API Keys"])
+async def list_api_keys(current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
+    return db.query(APIKey).filter(APIKey.user_id == current_user.id, APIKey.is_active == True).all()
+
+@app.delete("/api/keys/{key_id}", tags=["API Keys"])
+async def delete_api_key(key_id: str, current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
+    if not revoke_api_key(key_id, current_user, db):
+        raise HTTPException(status_code=404, detail="Key not found")
+    return {"status": "revoked"}
+
+_quota_lock = threading.RLock()
+
 def reserve_user_generations(user_id: str, cost: int, db: Session) -> tuple[int, int]:
     """
     Atomically reserves generations from user's balance with row locking where supported.
     Prioritizes monthly bucket before purchased bucket.
     Returns (monthly_used, purchased_used).
     """
-    query = db.query(User).filter(User.id == user_id)
-    if getattr(db.bind, "dialect", None) and db.bind.dialect.name != "sqlite":
-        query = query.with_for_update()
-    db_user = query.first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+    with _quota_lock:
+        query = db.query(User).filter(User.id == user_id)
+        if getattr(db.bind, "dialect", None) and db.bind.dialect.name != "sqlite":
+            query = query.with_for_update()
+        db_user = query.first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    # Reconcile bucket state if total was altered directly
-    current_total = (db_user.monthly_generations or 0) + (db_user.purchased_generations or 0)
-    if db_user.generations != current_total:
-        if db_user.generations > (db_user.purchased_generations or 0):
-            db_user.monthly_generations = db_user.generations - (db_user.purchased_generations or 0)
-        else:
-            db_user.monthly_generations = 0
-            db_user.purchased_generations = db_user.generations
+        # Reconcile bucket state if total was altered directly
+        current_total = (db_user.monthly_generations or 0) + (db_user.purchased_generations or 0)
+        if db_user.generations != current_total:
+            if db_user.generations > (db_user.purchased_generations or 0):
+                db_user.monthly_generations = db_user.generations - (db_user.purchased_generations or 0)
+            else:
+                db_user.monthly_generations = 0
+                db_user.purchased_generations = db_user.generations
 
-    monthly_avail = db_user.monthly_generations or 0
-    purchased_avail = db_user.purchased_generations or 0
-    total_avail = monthly_avail + purchased_avail
+        monthly_avail = db_user.monthly_generations or 0
+        purchased_avail = db_user.purchased_generations or 0
+        total_avail = monthly_avail + purchased_avail
 
-    if total_avail < cost:
-        raise HTTPException(status_code=402, detail="Insufficient campaigns or generation credits remaining. Please upgrade your plan.")
+        if total_avail < cost:
+            raise HTTPException(status_code=402, detail="Insufficient campaigns or generation credits remaining. Please upgrade your plan.")
 
-    monthly_used = min(monthly_avail, cost)
-    purchased_used = cost - monthly_used
+        monthly_used = min(monthly_avail, cost)
+        purchased_used = cost - monthly_used
 
-    db_user.monthly_generations = monthly_avail - monthly_used
-    db_user.purchased_generations = purchased_avail - purchased_used
-    db_user.generations = db_user.monthly_generations + db_user.purchased_generations
-    db.commit()
-    return monthly_used, purchased_used
+        db_user.monthly_generations = monthly_avail - monthly_used
+        db_user.purchased_generations = purchased_avail - purchased_used
+        db_user.generations = db_user.monthly_generations + db_user.purchased_generations
+        db.commit()
+        return monthly_used, purchased_used
 
 def refund_user_generations(user_id: str, monthly_refund: int, purchased_refund: int, db: Session):
     """Atomically restores previously reserved generations to the user's balance."""
-    db_user = db.query(User).filter(User.id == user_id).first()
-    if db_user:
-        db_user.monthly_generations = (db_user.monthly_generations or 0) + monthly_refund
-        db_user.purchased_generations = (db_user.purchased_generations or 0) + purchased_refund
-        db_user.generations = db_user.monthly_generations + db_user.purchased_generations
-        db.commit()
+    with _quota_lock:
+        db_user = db.query(User).filter(User.id == user_id).first()
+        if db_user:
+            db_user.monthly_generations = (db_user.monthly_generations or 0) + monthly_refund
+            db_user.purchased_generations = (db_user.purchased_generations or 0) + purchased_refund
+            db_user.generations = db_user.monthly_generations + db_user.purchased_generations
+            db.commit()
 
 @app.post("/api/generate", response_model=GenerateResponse, tags=["Generate"])
 @limiter.limit("60/minute")
@@ -386,7 +452,7 @@ async def generate(request: Request, body: GenerateRequest, auth: tuple = Depend
         refund_user_generations(user.id, monthly_used, purchased_used, db)
         raise HTTPException(status_code=500, detail="AI generation failed. Your credits have been refunded.")
 
-    actual = result.get("generations_used", body.variations)
+    actual = result.get("generations_used", body.variations) if isinstance(result, dict) else body.variations
     if actual < cost:
         refund = cost - actual
         refund_purchased = min(purchased_used, refund)
@@ -394,68 +460,138 @@ async def generate(request: Request, body: GenerateRequest, auth: tuple = Depend
         refund_user_generations(user.id, refund_monthly, refund_purchased, db)
 
     db_user = db.query(User).filter(User.id == user.id).first()
+    vars_list = result.get("variations") if isinstance(result, dict) else None
+    if vars_list is None:
+        if isinstance(result, dict) and "output" in result:
+            vars_list = [result["output"]]
+        else:
+            vars_list = []
+    gen_time = result.get("generation_time_ms", 0) if isinstance(result, dict) else 0
+
+    first_output = vars_list[0] if vars_list else ""
     return GenerateResponse(
         type=body.type,
-        variations=result["variations"],
+        variations=vars_list,
+        output=first_output,
         generations_used=actual,
-        generations=db_user.generations,
-        generation_time_ms=result["generation_time_ms"]
+        generations=db_user.generations if db_user else 0,
+        generation_time_ms=gen_time
     )
-@app.post("/billing/subscribe",response_model=CheckoutResponse,tags=["Billing"])
-async def subscribe(body:CheckoutRequest,current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)): return CheckoutResponse(**create_subscription_checkout(plan=body.plan,user=current_user,db=db))
-@app.post("/billing/one-time",response_model=CheckoutResponse,tags=["Billing"])
-async def buy_one_time(body:OneTimeGenerationsRequest,current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)): return CheckoutResponse(**create_one_time_checkout(pack=body.tier,user=current_user,db=db))
-@app.post("/billing/webhook",include_in_schema=False)
-async def stripe_webhook(request:Request,stripe_signature:Optional[str]=Header(None,alias="stripe-signature"),db:Session=Depends(get_db)): return JSONResponse(content=handle_stripe_webhook(await request.body(),stripe_signature or "",db))
-@app.get("/billing/status",tags=["Billing"])
-async def billing_status(current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)):
-    from .database import Subscription; sub=db.query(Subscription).filter(Subscription.user_id==current_user.id,Subscription.status=="active").order_by(Subscription.created_at.desc()).first(); return {"plan":current_user.plan,"status":sub.status if sub else "free","generations":current_user.generations,"monthly_limit":current_user.monthly_limit,"current_period_end":sub.current_period_end if sub else None}
-@app.get("/api/usage",response_model=UsageSummary,tags=["Usage"])
-async def get_usage(current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)):
-    from sqlalchemy import func; from .database import Subscription; sub=db.query(Subscription).filter(Subscription.user_id==current_user.id,Subscription.status=="active").order_by(Subscription.created_at.desc()).first(); agg=db.query(func.count(UsageRecord.id).label("total_requests"),func.sum(UsageRecord.generations_used).label("total_generations")).filter(UsageRecord.user_id==current_user.id).first(); return UsageSummary(total_requests=agg.total_requests or 0,total_generations_used=agg.total_generations or 0,generations=current_user.generations,monthly_limit=current_user.monthly_limit,plan=current_user.plan,period_start=sub.current_period_start.isoformat() if sub and sub.current_period_start else None,period_end=sub.current_period_end.isoformat() if sub and sub.current_period_end else None)
-@app.get("/admin/revenue",tags=["Admin"])
-async def admin_revenue(x_admin_secret:Optional[str]=Header(None,alias="x-admin-secret"),db:Session=Depends(get_db)):
-    if not ADMIN_SECRET or x_admin_secret!=ADMIN_SECRET: raise HTTPException(status_code=403,detail="Forbidden")
+
+@app.post("/billing/subscribe", response_model=CheckoutResponse, tags=["Billing"])
+async def subscribe(body: CheckoutRequest, current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Payment gateway unavailable. Stripe is not configured.")
+    return CheckoutResponse(**create_subscription_checkout(plan=body.plan, user=current_user, db=db))
+
+@app.post("/billing/checkout", response_model=CheckoutResponse, tags=["Billing"])
+async def checkout(body: CheckoutRequest, current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Payment gateway unavailable. Stripe is not configured.")
+    return CheckoutResponse(**create_subscription_checkout(plan=body.plan, user=current_user, db=db))
+
+@app.post("/billing/one-time", response_model=CheckoutResponse, tags=["Billing"])
+async def buy_one_time(body: OneTimeGenerationsRequest, current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Payment gateway unavailable. Stripe is not configured.")
+    return CheckoutResponse(**create_one_time_checkout(pack=body.tier, user=current_user, db=db))
+
+@app.post("/billing/webhook", include_in_schema=False)
+async def stripe_webhook(request: Request, stripe_signature: Optional[str] = Header(None, alias="stripe-signature"), db: Session = Depends(get_db)):
+    return JSONResponse(content=handle_stripe_webhook(await request.body(), stripe_signature or "", db))
+
+@app.get("/billing/status", tags=["Billing"])
+async def billing_status(current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
+    from .database import Subscription
+    sub = db.query(Subscription).filter(Subscription.user_id == current_user.id, Subscription.status == "active").order_by(Subscription.created_at.desc()).first()
+    return {
+        "plan": current_user.plan,
+        "status": sub.status if sub else "free",
+        "generations": current_user.generations,
+        "monthly_limit": current_user.monthly_limit,
+        "current_period_end": sub.current_period_end if sub else None
+    }
+
+@app.get("/api/usage", response_model=UsageSummary, tags=["Usage"])
+async def get_usage(current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    from .database import Subscription
+    sub = db.query(Subscription).filter(Subscription.user_id == current_user.id, Subscription.status == "active").order_by(Subscription.created_at.desc()).first()
+    agg = db.query(func.count(UsageRecord.id).label("total_requests"), func.sum(UsageRecord.generations_used).label("total_generations")).filter(UsageRecord.user_id == current_user.id).first()
+    return UsageSummary(
+        total_requests=agg.total_requests or 0,
+        total_generations_used=agg.total_generations or 0,
+        generations=current_user.generations,
+        monthly_limit=current_user.monthly_limit,
+        plan=current_user.plan,
+        period_start=sub.current_period_start.isoformat() if sub and sub.current_period_start else None,
+        period_end=sub.current_period_end.isoformat() if sub and sub.current_period_end else None
+    )
+
+@app.get("/admin/revenue", tags=["Admin"])
+async def admin_revenue(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
+    current_admin_secret = ADMIN_SECRET or os.getenv("ADMIN_SECRET")
+    if not current_admin_secret or x_admin_secret != current_admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return get_total_revenue(db)
 
-@app.get("/admin/mrr-metrics", tags=["Admin"])
+@app.get("/admin/mrr-metrics", tags=["Admin"], response_model=AdminMRRMetricsResponse)
 async def admin_mrr_metrics(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
-    if not ADMIN_SECRET or x_admin_secret != ADMIN_SECRET:
+    current_admin_secret = ADMIN_SECRET or os.getenv("ADMIN_SECRET")
+    if not current_admin_secret or x_admin_secret != current_admin_secret:
         raise HTTPException(status_code=403, detail="Forbidden")
     
     from .database import Subscription, RevenueRecord, User
     from sqlalchemy import func
+    from .billing import PLANS
     
     active_subs = db.query(Subscription).filter(Subscription.status == "active").all()
+    canceled_subs = db.query(Subscription).filter(Subscription.status == "canceled").count()
+    past_due_subs = db.query(Subscription).filter(Subscription.status == "past_due").count()
+    
     tier_counts = {"boutique": 0, "standard": 0, "megastore": 0}
+    tier_prices = {k: v["price_usd"] for k, v in PLANS.items() if k in tier_counts}
+    
     mrr_usd = 0.0
-    
-    tier_prices = {
-        "boutique": 179.49,
-        "standard": 379.49,
-        "megastore": 9639.63
-    }
-    
+    active_user_ids = set()
     for s in active_subs:
         if s.plan in tier_counts:
             tier_counts[s.plan] += 1
             mrr_usd += tier_prices.get(s.plan, 0.0)
-            
+            active_user_ids.add(s.user_id)
+
+    # Check for paying users not tracked with a Subscription row
+    all_sub_user_ids = {s.user_id for s in db.query(Subscription).all()}
+    paying_users = db.query(User).filter(User.plan.in_(["boutique", "standard", "megastore"])).all()
+    for u in paying_users:
+        if u.id not in all_sub_user_ids:
+            if u.plan in tier_counts:
+                tier_counts[u.plan] += 1
+                mrr_usd += tier_prices.get(u.plan, 0.0)
+                active_user_ids.add(u.id)
+
+    total_active_subscribers = len(active_user_ids)
     total_rev_cents = db.query(func.sum(RevenueRecord.amount_cents)).filter(RevenueRecord.status == "succeeded").scalar() or 0
     total_lifetime_rev_usd = round(total_rev_cents / 100.0, 2)
     total_users = db.query(User).count()
     
+    total_sub_base = total_active_subscribers + canceled_subs
+    churn_rate_pct = round((canceled_subs / total_sub_base * 100.0), 2) if total_sub_base > 0 else 0.0
+    
     return {
         "mrr_usd": round(mrr_usd, 2),
         "arr_usd": round(mrr_usd * 12.0, 2),
-        "active_subscribers": len(active_subs),
+        "active_subscribers": total_active_subscribers,
+        "canceled_subscribers": canceled_subs,
+        "past_due_subscribers": past_due_subs,
+        "churn_rate_pct": churn_rate_pct,
         "active_subscribers_by_tier": tier_counts,
         "total_lifetime_revenue_usd": total_lifetime_rev_usd,
         "total_registered_merchants": total_users,
         "pricing_model": {
-            "boutique_usd_mo": 179.49,
-            "standard_usd_mo": 379.49,
-            "megastore_usd_mo": 9639.63
+            "boutique_usd_mo": tier_prices.get("boutique", 179.49),
+            "standard_usd_mo": tier_prices.get("standard", 379.49),
+            "megastore_usd_mo": tier_prices.get("megastore", 9639.63),
         },
         "software_asset_score": 9.2,
         "valuation_estimate_usd": {
@@ -463,52 +599,115 @@ async def admin_mrr_metrics(x_admin_secret: Optional[str] = Header(None, alias="
             "arr_multiple_range": "3x - 5x ARR"
         }
     }
-@app.get("/api/admin/stats",tags=["Admin"])
-async def admin_stats(x_admin_secret:Optional[str]=Header(None,alias="x-admin-secret"),db:Session=Depends(get_db)):
-    if not ADMIN_SECRET or x_admin_secret!=ADMIN_SECRET: raise HTTPException(status_code=401,detail="Unauthorized")
-    from sqlalchemy import func; from .database import RevenueRecord; users=db.query(User).count(); paying=db.query(User).filter(User.plan!="free").count(); revenue=db.query(func.sum(RevenueRecord.amount_cents)).filter(RevenueRecord.status=="succeeded").scalar() or 0; reqs=db.query(func.count(UsageRecord.id)).scalar() or 0; gens=db.query(func.sum(UsageRecord.generations_used)).scalar() or 0; recent=db.query(User).order_by(User.created_at.desc()).limit(10).all(); return {"total_users":users,"paying_users":paying,"total_revenue_cents":revenue,"total_requests":reqs,"total_generations":gens,"recent_users":[{"email":u.email,"plan":u.plan,"created_at":u.created_at.isoformat()} for u in recent]}
-@app.get("/admin",response_class=HTMLResponse,include_in_schema=False)
-async def admin_page():
-    path=BASE_DIR/"frontend"/"admin.html"
-    if not path.exists(): raise HTTPException(status_code=404,detail="Admin panel not found")
-    return path.read_text(encoding="utf-8")
-# Legacy unhashed password reset replaced by SHA-256 token verification above
 
-# Integration/campaign routes remain in their dedicated modules and are exposed below.
-@app.post("/api/integrations",tags=["Integrations"])
-async def save_integration(request:Request,body:IntegrationSaveRequest,auth:tuple=Depends(get_current_user_apikey),db:Session=Depends(get_db)):
-    from .database import UserIntegration; from .auth import encrypt_credentials; import json,uuid; user,_=auth; existing=db.query(UserIntegration).filter(UserIntegration.user_id==user.id,UserIntegration.platform==body.platform).first(); enc=encrypt_credentials(json.dumps(body.credentials));
-    if existing: existing.credentials=enc; existing.status="connected"
-    else: db.add(UserIntegration(id=str(uuid.uuid4()),user_id=user.id,platform=body.platform,credentials=enc,status="connected"))
-    db.commit(); return {"message":f"{body.platform.capitalize()} integration saved"}
-@app.get("/api/integrations",tags=["Integrations"])
-async def get_integrations(auth:tuple=Depends(get_current_user_apikey),db:Session=Depends(get_db)):
-    from .database import UserIntegration; from .auth import decrypt_credentials; from .integrations import fetch_metadata; import json; user,_=auth; ints=db.query(UserIntegration).filter(UserIntegration.user_id==user.id).all(); connected=[]; metadata={}
+@app.get("/api/admin/stats", tags=["Admin"])
+async def admin_stats(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
+    current_admin_secret = ADMIN_SECRET or os.getenv("ADMIN_SECRET")
+    if not current_admin_secret or x_admin_secret != current_admin_secret:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    from sqlalchemy import func
+    from .database import RevenueRecord
+    users = db.query(User).count()
+    paying = db.query(User).filter(User.plan != "free").count()
+    revenue = db.query(func.sum(RevenueRecord.amount_cents)).filter(RevenueRecord.status == "succeeded").scalar() or 0
+    reqs = db.query(func.count(UsageRecord.id)).scalar() or 0
+    gens = db.query(func.sum(UsageRecord.generations_used)).scalar() or 0
+    recent = db.query(User).order_by(User.created_at.desc()).limit(10).all()
+    return {
+        "total_users": users,
+        "paying_users": paying,
+        "total_revenue_cents": revenue,
+        "total_requests": reqs,
+        "total_generations": gens,
+        "recent_users": [{"email": u.email, "plan": u.plan, "created_at": u.created_at.isoformat()} for u in recent]
+    }
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+async def admin_page():
+    path = BASE_DIR / "frontend" / "admin.html"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Admin panel not found")
+    return path.read_text(encoding="utf-8")
+
+# Integration/campaign routes
+@app.post("/api/integrations", tags=["Integrations"])
+async def save_integration(request: Request, body: IntegrationSaveRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import UserIntegration
+    from .auth import encrypt_credentials
+    import json
+    import uuid
+    user, _ = auth
+    existing = db.query(UserIntegration).filter(UserIntegration.user_id == user.id, UserIntegration.platform == body.platform).first()
+    enc = encrypt_credentials(json.dumps(body.credentials))
+    if existing:
+        existing.credentials = enc
+        existing.status = "connected"
+    else:
+        db.add(UserIntegration(id=str(uuid.uuid4()), user_id=user.id, platform=body.platform, credentials=enc, status="connected"))
+    db.commit()
+    return {"message": f"{body.platform.capitalize()} integration saved"}
+
+@app.get("/api/integrations", tags=["Integrations"])
+async def get_integrations(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import UserIntegration
+    from .auth import decrypt_credentials
+    from .integrations import fetch_metadata
+    import json
+    user, _ = auth
+    ints = db.query(UserIntegration).filter(UserIntegration.user_id == user.id).all()
+    connected = []
+    metadata = {}
     for i in ints:
         connected.append(i.platform)
         try:
-            opts=fetch_metadata(i.platform,json.loads(decrypt_credentials(i.credentials)))
-            if opts: metadata[i.platform]=opts
-        except Exception: pass
-    return {"connected":connected,"metadata":metadata}
-@app.post("/api/push",tags=["Integrations"])
-async def push_content(request:Request,body:PushRequest,background_tasks:BackgroundTasks,auth:tuple=Depends(get_current_user_apikey),db:Session=Depends(get_db)):
-    from .database import UserIntegration,PushJob; from .auth import decrypt_credentials; import json,uuid; user,_=auth; integration=db.query(UserIntegration).filter(UserIntegration.user_id==user.id,UserIntegration.platform==body.platform).first()
-    if not integration: raise HTTPException(status_code=400,detail=f"No {body.platform} integration configured.")
-    try: creds=json.loads(decrypt_credentials(integration.credentials))
-    except Exception: integration.status="invalid_credentials"; db.commit(); raise HTTPException(status_code=400,detail="Integration credentials invalid or corrupted. Please reconnect.")
-    job_id=str(uuid.uuid4()); db.add(PushJob(id=job_id,user_id=user.id,platform=body.platform,status="pending")); db.commit(); from .integrations import background_push; background_tasks.add_task(background_push,body.platform,creds,body.title,body.content,body.metadata,integration.id,job_id); return JSONResponse(status_code=202,content={"message":"Push accepted","job_id":job_id})
-@app.get("/api/push/status/{job_id}",tags=["Integrations"])
-async def get_push_status(job_id:str,auth:tuple=Depends(get_current_user_apikey),db:Session=Depends(get_db)):
-    from .database import PushJob; user,_=auth; job=db.query(PushJob).filter(PushJob.id==job_id,PushJob.user_id==user.id).first()
-    if not job: raise HTTPException(status_code=404,detail="Push job not found.")
-    return {"status":job.status,"details":job.details}
-@app.post("/api/public/demo",tags=["Public"])
+            opts = fetch_metadata(i.platform, json.loads(decrypt_credentials(i.credentials)))
+            if opts:
+                metadata[i.platform] = opts
+        except Exception:
+            pass
+    return {"connected": connected, "metadata": metadata}
+
+@app.post("/api/push", tags=["Integrations"])
+async def push_content(request: Request, body: PushRequest, background_tasks: BackgroundTasks, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import UserIntegration, PushJob
+    from .auth import decrypt_credentials
+    import json
+    import uuid
+    user, _ = auth
+    integration = db.query(UserIntegration).filter(UserIntegration.user_id == user.id, UserIntegration.platform == body.platform).first()
+    if not integration:
+        raise HTTPException(status_code=400, detail=f"No {body.platform} integration configured.")
+    try:
+        creds = json.loads(decrypt_credentials(integration.credentials))
+    except Exception:
+        integration.status = "invalid_credentials"
+        db.commit()
+        raise HTTPException(status_code=400, detail="Integration credentials invalid or corrupted. Please reconnect.")
+    job_id = str(uuid.uuid4())
+    db.add(PushJob(id=job_id, user_id=user.id, platform=body.platform, status="pending"))
+    db.commit()
+    from .integrations import background_push
+    background_tasks.add_task(background_push, body.platform, creds, body.title, body.content, body.metadata, integration.id, job_id)
+    return JSONResponse(status_code=202, content={"message": "Push accepted", "job_id": job_id})
+
+@app.get("/api/push/status/{job_id}", tags=["Integrations"])
+async def get_push_status(job_id: str, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import PushJob
+    user, _ = auth
+    job = db.query(PushJob).filter(PushJob.id == job_id, PushJob.user_id == user.id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Push job not found.")
+    return {"status": job.status, "details": job.details}
+
+@app.post("/api/public/demo", tags=["Public"])
 @limiter.limit("2/day")
-async def api_public_demo(request:Request,body:CampaignGenerateRequest,db:Session=Depends(get_db)):
+async def api_public_demo(request: Request, body: CampaignGenerateRequest, db: Session = Depends(get_db)):
     from .campaigns import generate_demo_campaign
-    try: return {"assets":generate_demo_campaign(body.keyword,body.product_desc)}
-    except Exception as e: logger.error("Public demo failed: %s",e,exc_info=True); raise HTTPException(status_code=500,detail="Demo generation failed due to an internal error.")
+    try:
+        return {"assets": generate_demo_campaign(body.keyword, body.product_desc)}
+    except Exception as e:
+        logger.error("Public demo failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Demo generation failed due to an internal error.")
 
 @app.post("/api/connector/discover", tags=["Connectors"])
 @limiter.limit("5/minute")
@@ -559,28 +758,44 @@ async def api_connector_discover(
         "status": "draft"
     }
 
-@app.post("/api/catalog/parse-csv",tags=["Campaigns"])
-async def api_parse_csv(request:Request,file:UploadFile=File(...),auth:tuple=Depends(get_current_user_apikey)):
-    import csv,io; from .ai_engine import analyze_csv_mapping; content=await file.read()
-    try: text_content=content.decode("utf-8-sig")
-    except UnicodeDecodeError: raise HTTPException(status_code=400,detail="CSV must be UTF-8 encoded.")
-    rows=list(csv.reader(io.StringIO(text_content)))
-    if len(rows)<2: raise HTTPException(status_code=400,detail="CSV is empty or missing headers.")
-    headers=rows[0]; mapping=await analyze_csv_mapping(headers,rows[1]); name_col=mapping.get("name_col",""); desc_col=mapping.get("desc_col","")
-    if not name_col: raise HTTPException(status_code=400,detail="AI could not identify a Product Name column.")
-    try: name_idx=headers.index(name_col)
-    except ValueError: raise HTTPException(status_code=400,detail=f"AI returned invalid name column: {name_col}")
-    desc_idx=headers.index(desc_col) if desc_col in headers else -1; results=[]
+@app.post("/api/catalog/parse-csv", tags=["Campaigns"])
+async def api_parse_csv(request: Request, file: UploadFile = File(...), auth: tuple = Depends(get_current_user_apikey)):
+    import csv
+    import io
+    from .ai_engine import analyze_csv_mapping
+    content = await file.read()
+    try:
+        text_content = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded.")
+    rows = list(csv.reader(io.StringIO(text_content)))
+    if len(rows) < 2:
+        raise HTTPException(status_code=400, detail="CSV is empty or missing headers.")
+    headers = rows[0]
+    mapping = await analyze_csv_mapping(headers, rows[1])
+    name_col = mapping.get("name_col", "")
+    desc_col = mapping.get("desc_col", "")
+    if not name_col:
+        raise HTTPException(status_code=400, detail="AI could not identify a Product Name column.")
+    try:
+        name_idx = headers.index(name_col)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"AI returned invalid name column: {name_col}")
+    desc_idx = headers.index(desc_col) if desc_col in headers else -1
+    results = []
     for r in rows[1:]:
-        if len(r)<=name_idx or not r[name_idx].strip(): continue
-        results.append({"name":r[name_idx],"desc":r[desc_idx] if desc_idx!=-1 and len(r)>desc_idx else ""})
-    return {"items":results[:100],"mapping_used":mapping}
+        if len(r) <= name_idx or not r[name_idx].strip():
+            continue
+        results.append({"name": r[name_idx], "desc": r[desc_idx] if desc_idx != -1 and len(r) > desc_idx else ""})
+    return {"items": results[:100], "mapping_used": mapping}
+
 @app.post("/api/campaign/generate", tags=["Campaigns"])
 @limiter.limit("5/minute")
 async def api_campaign_generate(request: Request, body: CampaignGenerateRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
     from .database import Campaign
     from .campaigns import generate_omni_campaign
-    import uuid, json
+    import uuid
+    import json
     user, _ = auth
 
     monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
@@ -616,12 +831,7 @@ async def api_campaign_generate_vision(
     user, _ = auth
     
     # Invariant: Atomic credit deduction before expensive Vision generation
-    updated = db.execute(
-        text("UPDATE users SET generations = generations - 1 WHERE id = :uid AND generations >= 1"),
-        {"uid": user.id}
-    ).rowcount
-    if updated == 0:
-        raise HTTPException(status_code=402, detail="Insufficient campaigns remaining. Please upgrade your plan.")
+    monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
         
     try:
         raw_b64 = body.image_base64
@@ -644,35 +854,52 @@ async def api_campaign_generate_vision(
         db.commit()
         return {"id": cid, "name": name, "assets": data}
     except ValueError as e:
-        db.rollback()
-        # Refund on input/AI parsing failure
-        db.execute(text("UPDATE users SET generations = generations + 1 WHERE id = :uid"), {"uid": user.id})
-        db.commit()
+        refund_user_generations(user.id, monthly_used, purchased_used, db)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        db.rollback()
-        db.execute(text("UPDATE users SET generations = generations + 1 WHERE id = :uid"), {"uid": user.id})
-        db.commit()
+        refund_user_generations(user.id, monthly_used, purchased_used, db)
         raise HTTPException(status_code=500, detail="Vision generation failed due to an internal error. Your balance was refunded.")
 
-@app.post("/api/campaign/push",tags=["Campaigns"])
+@app.post("/api/campaign/push", tags=["Campaigns"])
 @limiter.limit("5/minute")
-async def api_campaign_push(request:Request,body:CampaignPushRequest,background_tasks:BackgroundTasks,auth:tuple=Depends(get_current_user_apikey),db:Session=Depends(get_db)):
-    from .database import Campaign,UserIntegration,PushJob; from .auth import decrypt_credentials; from .integrations import background_push; import json,uuid; user,_=auth; camp=db.query(Campaign).filter(Campaign.id==body.campaign_id,Campaign.user_id==user.id).first()
-    if not camp: raise HTTPException(status_code=404,detail="Campaign not found")
-    assets=json.loads(camp.assets); jobs=[]
-    for asset_type,dest in body.destinations.items():
-        platform=dest.get("platform"); meta=dest.get("metadata",{}); integration=db.query(UserIntegration).filter(UserIntegration.user_id==user.id,UserIntegration.platform==platform).first() if platform else None
-        if not integration: continue
-        try: creds=json.loads(decrypt_credentials(integration.credentials))
-        except Exception: continue
-        if asset_type=="blog" and "blog_post" in assets: title=assets["blog_post"]["title"]; content=assets["blog_post"]["content"]
-        elif asset_type=="email" and assets.get("email_drip"): title=assets["email_drip"][0]["subject"]; content=assets["email_drip"][0]["body"]
-        else: continue
-        if not content: continue
-        jid=str(uuid.uuid4()); db.add(PushJob(id=jid,user_id=user.id,platform=platform,status="pending")); jobs.append(jid); background_tasks.add_task(background_push,platform,creds,title,content,meta,integration.id,jid)
-    db.commit(); return JSONResponse(status_code=202,content={"message":"Omni-Push accepted","job_ids":jobs})
-
+async def api_campaign_push(request: Request, body: CampaignPushRequest, background_tasks: BackgroundTasks, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .database import Campaign, UserIntegration, PushJob
+    from .auth import decrypt_credentials
+    from .integrations import background_push
+    import json
+    import uuid
+    user, _ = auth
+    camp = db.query(Campaign).filter(Campaign.id == body.campaign_id, Campaign.user_id == user.id).first()
+    if not camp:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    assets = json.loads(camp.assets)
+    jobs = []
+    for asset_type, dest in body.destinations.items():
+        platform = dest.get("platform")
+        meta = dest.get("metadata", {})
+        integration = db.query(UserIntegration).filter(UserIntegration.user_id == user.id, UserIntegration.platform == platform).first() if platform else None
+        if not integration:
+            continue
+        try:
+            creds = json.loads(decrypt_credentials(integration.credentials))
+        except Exception:
+            continue
+        if asset_type == "blog" and "blog_post" in assets:
+            title = assets["blog_post"]["title"]
+            content = assets["blog_post"]["content"]
+        elif asset_type == "email" and assets.get("email_drip"):
+            title = assets["email_drip"][0]["subject"]
+            content = assets["email_drip"][0]["body"]
+        else:
+            continue
+        if not content:
+            continue
+        jid = str(uuid.uuid4())
+        db.add(PushJob(id=jid, user_id=user.id, platform=platform, status="pending"))
+        jobs.append(jid)
+        background_tasks.add_task(background_push, platform, creds, title, content, meta, integration.id, jid)
+    db.commit()
+    return JSONResponse(status_code=202, content={"message": "Omni-Push accepted", "job_ids": jobs})
 
 @app.get("/api/connector", tags=["Connectors"])
 async def api_connector_list(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
@@ -833,6 +1060,7 @@ async def api_connector_toggle(connector_id: str, body: ConnectorToggleRequest, 
     return {"id": c.id, "status": c.status}
 
 
+# --- COMPETITOR REVIEW MINING ROUTE ---
 @app.post("/api/competitor/mine-reviews", response_model=CompetitorMineResponse, tags=["Competitor Mining"])
 @limiter.limit("10/minute")
 async def api_mine_competitor_reviews(
@@ -848,13 +1076,8 @@ async def api_mine_competitor_reviews(
 
     user, _ = auth
 
-    # Atomic credit deduction
-    updated = db.execute(
-        text("UPDATE users SET generations = generations - 1 WHERE id = :uid AND generations >= 1"),
-        {"uid": user.id}
-    ).rowcount
-    if updated == 0:
-        raise HTTPException(status_code=402, detail="Insufficient generation balance. Please upgrade your plan.")
+    # Centralized dual-bucket reservation (monthly before purchased)
+    monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
 
     try:
         data = await mine_competitor_reviews(
@@ -886,13 +1109,16 @@ async def api_mine_competitor_reviews(
         )
     except Exception as e:
         db.rollback()
-        # Atomic refund on failure
-        db.execute(text("UPDATE users SET generations = generations + 1 WHERE id = :uid"), {"uid": user.id})
-        db.commit()
+        # Atomic dual-bucket refund on failure
+        refund_user_generations(user.id, monthly_used, purchased_used, db)
         logger.error("Competitor review mining failed: %s", e)
-        raise HTTPException(status_code=500, detail="Review mining analysis failed. Your balance was refunded.")
+        raise HTTPException(
+            status_code=500,
+            detail="Review mining analysis failed. Your balance was refunded."
+        )
 
 
+# --- BYOK CUSTOM AI KEY ROUTES ---
 @app.get("/api/user/custom-ai-key", response_model=CustomAIKeyResponse, tags=["BYOK"])
 async def get_custom_ai_key_status(auth: tuple = Depends(get_current_user_apikey)):
     user, _ = auth
@@ -916,7 +1142,13 @@ async def set_custom_ai_key(request: Request, body: CustomAIKeyRequest, auth: tu
     user.custom_ai_key_encrypted = encrypted_key
     user.custom_ai_provider = body.provider
     db.commit()
-    return {"success": True, "message": "Custom AI API Key securely saved. Unlimited generations via your infrastructure are now active."}
+    return {
+        "success": True,
+        "has_custom_key": True,
+        "provider": user.custom_ai_provider,
+        "unlimited_active": True,
+        "message": "Custom AI API Key securely saved. Unlimited generations via your infrastructure are now active."
+    }
 
 @app.delete("/api/user/custom-ai-key", tags=["BYOK"])
 async def delete_custom_ai_key(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
@@ -927,7 +1159,7 @@ async def delete_custom_ai_key(auth: tuple = Depends(get_current_user_apikey), d
     return {"success": True, "message": "Custom AI Key removed. Reverted to standard plan quota."}
 
 
-# -- INVENTORY BALANCER ROUTES ------------------------------------------------
+# --- INVENTORY BALANCER ROUTES ---
 @app.get("/api/inventory", response_model=list[InventoryItemResponse], tags=["Inventory Balancer"])
 async def list_inventory_items(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
     from .database import InventoryItem
@@ -1453,6 +1685,10 @@ async def optimize_listing_endpoint(body: MarketplaceOptimizeRequest, auth: tupl
         meta_description=res.get("meta_description"),
         backend_search_terms=res.get("backend_search_terms"),
         tags=res.get("tags", []),
+        short_hooks=res.get("short_hooks", []),
+        hashtags=res.get("hashtags", []),
+        sub_title=res.get("sub_title") or res.get("subtitle"),
+        item_specifics=res.get("item_specifics"),
         structured_description=res.get("structured_description", body.raw_details),
         compliance_score=res.get("compliance_score", 95)
     )

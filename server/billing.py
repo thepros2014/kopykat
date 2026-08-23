@@ -192,10 +192,11 @@ def create_one_time_checkout(pack: str, user: User, db: Session) -> dict:
 
 
 def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
-    if not STRIPE_WEBHOOK_SECRET:
+    webhook_secret = STRIPE_WEBHOOK_SECRET or os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    if not webhook_secret:
         raise HTTPException(status_code=503, detail="Stripe webhook secret is not configured")
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
     except (ValueError, stripe.error.SignatureVerificationError):
         raise HTTPException(status_code=400, detail="Invalid Stripe webhook")
 
@@ -399,6 +400,42 @@ def _handle_one_time_purchased(session: dict, db: Session):
                 active=True
             ))
         logger.info("Addon fulfilled & entitlement granted: user=%s addon=%s", user.email, addon_key)
+    elif metadata.get("plan") and metadata.get("plan") in PLANS and metadata.get("plan") != "free":
+        plan = metadata.get("plan")
+        info = PLANS[plan]
+        user.plan = plan
+        user.monthly_limit = info["monthly_generations"]
+        user.monthly_generations = info["monthly_generations"]
+        user.generations = info["monthly_generations"] + (user.purchased_generations or 0)
+        
+        # Ensure subscription record is active
+        sub = db.query(Subscription).filter(Subscription.user_id == user.id).first()
+        if sub:
+            sub.plan = plan
+            sub.status = "active"
+        else:
+            db.add(Subscription(
+                id=str(uuid.uuid4()),
+                user_id=user.id,
+                stripe_subscription_id=session.get("subscription") or f"sub_{uuid.uuid4().hex[:8]}",
+                plan=plan,
+                status="active"
+            ))
+            
+        if payment_id and not db.query(RevenueRecord).filter(RevenueRecord.stripe_payment_id == payment_id).first():
+            db.add(RevenueRecord(
+                id=str(uuid.uuid4()),
+                stripe_payment_id=payment_id,
+                user_id=user.id,
+                amount_cents=session.get("amount_total", int(info["price_usd"] * 100)),
+                currency=session.get("currency", "usd"),
+                plan=plan,
+                type="subscription",
+                status="succeeded"
+            ))
+        db.add(user)
+        db.commit()
+        logger.info("Plan checkout fulfilled: user=%s plan=%s", user.email, plan)
 
 
 def _handle_payment_failed(invoice: dict, db: Session):
