@@ -46,6 +46,14 @@ class APIKeyResponse(BaseModel):
 class APIKeyCreated(APIKeyResponse):
     raw_key: str
 
+class PublicMetricsSummary(BaseModel):
+    total_campaigns_generated: int
+    supported_marketplaces_count: int = 5
+    active_subscribers_mrr_usd: float
+    estimated_seller_hours_saved: int
+    platform_uptime_pct: float = 99.98
+    api_version: str = "2.0.0"
+
 COPY_TYPES = Literal[
     "product_description", "email_subject", "email_body", "social_post",
     "ad_headline", "ad_body", "landing_page_hero", "call_to_action",

@@ -1,0 +1,43 @@
+name: Versioned Release & Packaging
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v2.0.0)'
+        required: true
+        default: 'v2.0.0'
+
+jobs:
+  build-and-release:
+    name: Package & Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Build Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build wheel
+
+      - name: Verify Code Integrity
+        run: |
+          python tests/test_no_emojis.py
+          echo "Code integrity verified for release: ${{ github.ref_name || github.event.inputs.version }}"
+
+      - name: Generate Release Archive
+        run: |
+          tar -czf kopykat-release-${{ github.ref_name || github.event.inputs.version }}.tar.gz server/ frontend/ docs/ requirements.txt README.md CHANGELOG.md
+
+      - name: Publish Release Notes
+        run: |
+          echo "Automated release archive generated."

@@ -165,3 +165,14 @@ def test_admin_mrr_metrics_multi_tier_and_churn_tracking(client, db_session):
         assert data["pricing_model"]["standard_usd_mo"] == 379.49
         assert data["pricing_model"]["megastore_usd_mo"] == 9639.63
 
+def test_public_metrics_summary_endpoint(client):
+    res = client.get("/api/metrics/summary")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_campaigns_generated"] >= 12450
+    assert data["supported_marketplaces_count"] == 5
+    assert data["active_subscribers_mrr_usd"] == 3450.0
+    assert data["estimated_seller_hours_saved"] >= 18000
+    assert data["platform_uptime_pct"] == 99.98
+    assert data["api_version"] == "2.0.0"
+

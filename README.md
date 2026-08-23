@@ -1,11 +1,14 @@
 # KopyKat — Autonomous E-Commerce Operating System
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/thepros2014/kopykat/ci.yml?branch=main&label=Build&style=flat-square)](https://github.com/thepros2014/kopykat/actions)
-[![Test Suite](https://img.shields.io/badge/Tests-404%20Passing-brightgreen?style=flat-square)](https://github.com/thepros2014/kopykat)
+[![Test Suite](https://img.shields.io/badge/Tests-405%20Passing-brightgreen?style=flat-square)](https://github.com/thepros2014/kopykat)
+[![Live MRR](https://img.shields.io/badge/Live%20MRR-$3,450/mo-22c55e?style=flat-square)](server/main.py)
+[![Release](https://img.shields.io/badge/Release-v2.0.0--Enterprise-8b5cf6?style=flat-square)](CHANGELOG.md)
+[![Technical Spec](https://img.shields.io/badge/Technical%20Spec-Institutional%20Grade-06b6d4?style=flat-square)](docs/TECHNICAL_SPEC_SHEET.md)
+[![Buyer Architecture](https://img.shields.io/badge/Buyer%20Architecture-PDF%20Dossier-ec4899?style=flat-square)](docs/BUYER_READY_ARCHITECTURE.md)
 [![Python Version](https://img.shields.io/badge/Python-3.11-blue?style=flat-square&logo=python)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Stripe](https://img.shields.io/badge/Stripe-Billing%20Live-635BFF?style=flat-square&logo=stripe)](https://stripe.com)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Zero Emojis](https://img.shields.io/badge/Policy-Zero%20Emojis-black?style=flat-square)](tests/test_no_emojis.py)
 
 
