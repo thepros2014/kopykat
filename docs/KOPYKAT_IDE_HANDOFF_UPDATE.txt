@@ -12,6 +12,39 @@ Bring the IDE-side AI fully up to speed without repeating completed work.
 This file is the single source of truth for project state and next steps.
 
 ============================================================
+EXECUTIVE SUMMARY & RECOMMENDED NEXT STEPS (START HERE)
+============================================================
+Current Build Status: 100% Stable, 16/16 Pytest Suite Passing.
+Live Deployment: https://kopykat.onrender.com
+Current Version: 1.2.1
+
+WHAT KOPYKAT ACTUALLY IS (THE 6 ENGINES):
+KopyKat is NOT a simple "copywriting box". It is an autonomous one-person e-commerce operating system:
+1. Semantic CSV Bulk Catalog Importer (AI maps arbitrary column names automatically)
+2. Multi-Platform Syndication Hub (Shopify, Amazon, eBay, Walmart, Temu, Webflow, WordPress, Mailchimp)
+3. Competitor 1-Star Review Miner (Harvests competitor flaws and writes counter-copy + comparison matrices)
+4. Vision AI (Photo-to-listing and omni-channel marketing campaigns from product photos)
+5. SEO Authority Blog Engine (Autonomous long-form articles targeting customer search intent)
+6. Universal Connector Subsystem (Connect any custom e-commerce store via OpenAPI/Swagger docs)
+
+PRICING & COST OF SERVICES:
+- Test Drive (Free): $0/mo (5 Omni-Campaigns, basic marketplace push)
+- Boutique Store: $97/mo (250 Campaigns/mo, Semantic CSV, Vision AI, Review Miner, Top 5 Push)
+- Standard Store (Most Popular): $297/mo (1,000 Campaigns/mo, All Marketplaces, Universal Connectors)
+- Megastore: $897/mo (5,000 Campaigns/mo, Unlimited Custom Connectors, Dedicated Cluster)
+
+RECOMMENDED NEXT STEPS FOR NEXT AI SESSION (IN PRIORITY ORDER):
+1. [ ] MODULE 2: Cross-Platform Inventory & Stock Balancer
+   - Create order webhook listener in server/integrations.py
+   - When a sale happens on Shopify, automatically decrement quantity on eBay, Amazon, and Walmart in real time.
+2. [ ] MODULE 3: Post-Purchase Review & UGC Drip
+   - Automated post-delivery follow-up emails asking buyers for reviews and photo submissions with sentiment analysis.
+3. [ ] MODULE 4: Automated Price & Margin Monitor
+   - Competitor pricing tracker with profit margin optimization alerts.
+4. [ ] MODULE 5: Shopify Direct Catalog Import
+   - 1-click catalog sync that pulls all products directly from Shopify API into KopyKat without needing a CSV file.
+
+============================================================
 MANDATORY ENGINEERING PROTOCOL — ALL AI SESSIONS
 ============================================================
 This protocol applies to every AI working on this project regardless of model.
