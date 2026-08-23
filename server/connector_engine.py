@@ -55,6 +55,8 @@ def fetch_api_document(url: str) -> dict[str, Any]:
     if 300 <= response.status_code < 400:
         raise ConnectorError("Redirects are disabled during connector discovery.")
     response.raise_for_status()
+    if response.url:
+        validate_public_url(response.url)
     if len(response.content) > MAX_SPEC_BYTES:
         raise ConnectorError("API document exceeds the connector size limit.")
     try:
