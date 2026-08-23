@@ -174,3 +174,13 @@ class CompetitorMineResponse(BaseModel):
     counter_description: str
     comparison_points: list[dict]
     ad_hooks: list[str]
+
+
+class CustomAIKeyRequest(BaseModel):
+    api_key: str = Field(min_length=10, max_length=500)
+    provider: Literal["openai", "gemini"] = "openai"
+
+class CustomAIKeyResponse(BaseModel):
+    has_custom_key: bool
+    provider: Optional[str] = None
+    unlimited_active: bool

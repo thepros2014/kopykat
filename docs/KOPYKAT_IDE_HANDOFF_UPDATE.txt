@@ -27,11 +27,28 @@ KopyKat is NOT a simple "copywriting box". It is an autonomous one-person e-comm
 5. SEO Authority Blog Engine (Autonomous long-form articles targeting customer search intent)
 6. Universal Connector Subsystem (Connect any custom e-commerce store via OpenAPI/Swagger docs)
 
-PRICING & COST OF SERVICES:
-- Test Drive (Free): $0/mo (5 Omni-Campaigns, basic marketplace push)
-- Boutique Store: $97/mo (250 Campaigns/mo, Semantic CSV, Vision AI, Review Miner, Top 5 Push)
-- Standard Store (Most Popular): $297/mo (1,000 Campaigns/mo, All Marketplaces, Universal Connectors)
-- Megastore: $897/mo (5,000 Campaigns/mo, Unlimited Custom Connectors, Dedicated Cluster)
+PRICING & COST OF SERVICES (STRICT TIER ALLOCATION):
+- Test Drive (Free): $0/mo
+  * 5 Campaigns / mo
+  * 1 Connected platform of choice
+  * Core engine preview
+- Boutique Store: $179.49/mo
+  * 150 Campaigns / mo
+  * 2 Connectors of choice
+  * 1 Automation feature (CSV or Auto-Sync)
+  * Competitor 1-Star Review Miner & Email Support
+- Standard Store: $379.49/mo
+  * 1,000 Campaigns / mo
+  * 10 Connectors of choice
+  * 2 Automation features (CSV + Vision AI)
+  * Review Miner & Universal Connectors
+  * Priority generation queues
+- Megastore Infrastructure: $9,639.63/mo
+  * 2,500 Campaigns / mo (using our cloud API)
+  * UNLIMITED Campaigns with your own AI API Key (BYOK via private OpenAI/Gemini account)
+  * All Native & Custom Connectors included
+  * All Automation Engines & Review Miners included
+  * Dedicated High-Throughput Cluster & 24/7 VIP Support
 
 RECOMMENDED NEXT STEPS FOR NEXT AI SESSION (IN PRIORITY ORDER):
 1. [ ] MODULE 2: Cross-Platform Inventory & Stock Balancer
@@ -162,6 +179,14 @@ LIVING INVARIANT LEDGER
 ============================================================
 Every time billing, authentication, integrations, credits, or permissions
 are touched, update this ledger and verify the entire codebase against it.
+
+BYOK & TIER QUOTA INVARIANTS
+- Free tier: 5 campaigns, 1 connector.
+- Boutique tier: 150 campaigns, 2 connectors, 1 automation.
+- Standard tier: 1,000 campaigns, 10 connectors, 2 automations.
+- Megastore tier: 2,500 campaigns via platform quota, or UNLIMITED when BYOK key is configured.
+- BYOK API keys (custom_ai_key_encrypted) are strictly encrypted with Fernet before saving.
+- Only users with plan='megastore' are authorized to configure and use custom AI keys.
 
 BILLING INVARIANTS
 - Plan keys in billing.py PLANS dict must exactly match frontend checkout button values.

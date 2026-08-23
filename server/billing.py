@@ -24,28 +24,58 @@ PLANS = {
         "name": "Test Drive",
         "monthly_generations": 5,
         "price_usd": 0,
-        "features": ["5 monthly campaigns", "All copy types", "1 API key", "Community support"],
+        "connectors_allowed": 1,
+        "automation_features_allowed": 1,
+        "features": [
+            "5 monthly campaigns",
+            "1 connector of choice",
+            "Core engine preview"
+        ],
     },
     "boutique": {
         "name": "Boutique Store",
         "price_id_env": "STRIPE_PRICE_BOUTIQUE",
-        "monthly_generations": 250,
-        "price_usd": 97,
-        "features": ["250 monthly campaigns", "Top 5 Integrations", "1 API key", "Email support"],
+        "monthly_generations": 150,
+        "price_usd": 179.49,
+        "connectors_allowed": 2,
+        "automation_features_allowed": 1,
+        "features": [
+            "150 monthly campaigns",
+            "2 connectors of choice",
+            "1 automation feature (CSV or Auto-Sync)",
+            "Email support"
+        ],
     },
     "standard": {
         "name": "Standard Store",
         "price_id_env": "STRIPE_PRICE_STANDARD",
         "monthly_generations": 1000,
-        "price_usd": 297,
-        "features": ["1,000 monthly campaigns", "Top 5 Integrations", "Priority speed", "Priority support"],
+        "price_usd": 379.49,
+        "connectors_allowed": 10,
+        "automation_features_allowed": 2,
+        "features": [
+            "1,000 monthly campaigns",
+            "10 connectors of choice",
+            "2 automation features",
+            "Priority generation speed"
+        ],
     },
     "megastore": {
-        "name": "Megastore",
+        "name": "Megastore Infrastructure",
         "price_id_env": "STRIPE_PRICE_MEGASTORE",
-        "monthly_generations": 5000,
-        "price_usd": 897,
-        "features": ["5,000 monthly campaigns", "Unlimited Webhooks", "Unlimited API keys", "24/7 Priority support"],
+        "monthly_generations": 2500,
+        "price_usd": 9639.63,
+        "connectors_allowed": 999,
+        "automation_features_allowed": 999,
+        "byok_unlimited": True,
+        "features": [
+            "2,500 monthly campaigns (using our API)",
+            "Unlimited campaigns with your own AI API key (BYOK)",
+            "All native and custom connectors included",
+            "All automation engines and review miners",
+            "Dedicated high-throughput cluster",
+            "24/7 VIP priority support"
+        ],
     },
 }
 

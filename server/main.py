@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest, CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse, ConnectorToggleRequest, ConnectorTestRequest, ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -622,3 +622,37 @@ async def api_mine_competitor_reviews(
         db.commit()
         logger.error("Competitor review mining failed: %s", e)
         raise HTTPException(status_code=500, detail="Review mining analysis failed. Your balance was refunded.")
+
+
+@app.get("/api/user/custom-ai-key", response_model=CustomAIKeyResponse, tags=["BYOK"])
+async def get_custom_ai_key_status(auth: tuple = Depends(get_current_user_apikey)):
+    user, _ = auth
+    has_key = bool(user.custom_ai_key_encrypted)
+    is_unlimited = (user.plan == "megastore" and has_key)
+    return CustomAIKeyResponse(
+        has_custom_key=has_key,
+        provider=user.custom_ai_provider,
+        unlimited_active=is_unlimited
+    )
+
+@app.post("/api/user/custom-ai-key", tags=["BYOK"])
+@limiter.limit("10/minute")
+async def set_custom_ai_key(request: Request, body: CustomAIKeyRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    from .auth import encrypt_credentials
+    user, _ = auth
+    if user.plan != "megastore":
+        raise HTTPException(status_code=403, detail="Custom AI API Key (BYOK) is exclusively available on the Megastore Infrastructure tier.")
+
+    encrypted_key = encrypt_credentials(body.api_key.strip())
+    user.custom_ai_key_encrypted = encrypted_key
+    user.custom_ai_provider = body.provider
+    db.commit()
+    return {"success": True, "message": "Custom AI API Key securely saved. Unlimited generations via your infrastructure are now active."}
+
+@app.delete("/api/user/custom-ai-key", tags=["BYOK"])
+async def delete_custom_ai_key(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    user, _ = auth
+    user.custom_ai_key_encrypted = None
+    user.custom_ai_provider = None
+    db.commit()
+    return {"success": True, "message": "Custom AI Key removed. Reverted to standard plan quota."}

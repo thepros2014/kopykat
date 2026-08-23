@@ -34,6 +34,8 @@ class User(Base):
     monthly_limit = Column(Integer, default=5)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    custom_ai_key_encrypted = Column(Text, nullable=True)
+    custom_ai_provider = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")

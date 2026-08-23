@@ -218,7 +218,7 @@
  Buy a one-time generation tier or upgrade your plan.
  </p>
  <div style="display:flex;gap:12px;flex-wrap:wrap;">
- <button class="btn btn-outline btn-sm" onclick="buyGenerations('starter')">Starter — 250 generations — $5</button>
+ <button class="btn btn-outline btn-sm" onclick="buyGenerations('starter')">Starter — 150 campaigns — $5</button>
  <button class="btn btn-primary btn-sm" onclick="buyGenerations('growth')">Growth — 1,000 generations — $15</button>
  <button class="btn btn-outline btn-sm" onclick="buyGenerations('scale')">Scale — 3,000 generations — $40</button>
  </div>
@@ -1344,6 +1344,46 @@ async function runReviewMiner() {
 document.addEventListener('DOMContentLoaded', () => {
   loadProfile();
   loadKeys();
+  loadCustomAIKeyStatus();
+
+async function loadCustomAIKeyStatus() {
+  try {
+    const res = await fetch('/api/user/custom-ai-key', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (!res.ok) return;
+    const data = await res.json();
+    const statusEl = document.getElementById('byok-status');
+    if (statusEl) {
+      if (data.has_custom_key) {
+        statusEl.innerHTML = '<span style="color:#22c55e;font-weight:bold;">Active:</span> Private ' + (data.provider || 'AI') + ' Key Configured. Unlimited generations active.';
+      } else {
+        statusEl.textContent = 'No private AI key configured. Using default plan quota.';
+      }
+    }
+  } catch (e) {}
+}
+
+async function saveCustomAIKey() {
+  const provider = document.getElementById('byok-provider').value;
+  const keyInput = document.getElementById('byok-key-input');
+  const apiKey = keyInput ? keyInput.value.trim() : '';
+  if (!apiKey) return alert("Please enter your API key.");
+
+  try {
+    const res = await fetch('/api/user/custom-ai-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ api_key: apiKey, provider: provider })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to save key");
+    alert(data.message);
+    if (keyInput) keyInput.value = '';
+    loadCustomAIKeyStatus();
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+}
+
 
   const hash = window.location.hash.replace('#', '');
   if (hash && document.getElementById(`section-${hash}`)) {
