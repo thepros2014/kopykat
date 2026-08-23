@@ -2,41 +2,41 @@ name: KopyKat CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   pull_request:
-    branches: ["main"]
+    branches: [ "main" ]
 
 permissions:
   contents: read
 
 jobs:
-  python-syntax:
+  test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Python
+
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Compile Python sources
-        run: python -m compileall -q server
+          cache: "pip"
 
-  frontend-sanity:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Check dashboard JavaScript syntax
+      - name: Install dependencies
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          text = Path('frontend/dashboard.html').read_text(encoding='utf-8')
-          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', text, re.S | re.I)
-          if not scripts:
-              raise SystemExit('No inline script found in dashboard.html')
-          print(f'Found {len(scripts)} inline script block(s).')
-          if 'innerHTML = `\\n' in text or 'innerHTML =' in text:
-              print('WARNING: dashboard still contains innerHTML assignments; review before launch.')
-          PY
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest pytest-asyncio httpx
+
+      - name: Compile Python code
+        run: |
+          python -m compileall server
+
+      - name: Run Pytest suite
+        env:
+          JWT_SECRET_KEY: "ci-testing-jwt-secret-key-12345"
+          INTEGRATION_ENCRYPTION_KEY: "dGVzdC1lbmNyeXB0aW9uLWtleS0xMjM0NTY3ODkwMTI="
+          DATABASE_URL: "sqlite:///:memory:"
+        run: |
+          python -m pytest -v
