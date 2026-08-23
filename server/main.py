@@ -40,6 +40,17 @@ ALLOWED_ORIGINS=[o.strip() for o in os.getenv("ALLOWED_ORIGINS","https://kopykat
 app.add_middleware(CORSMiddleware,allow_origins=ALLOWED_ORIGINS,allow_credentials=True,allow_methods=["GET","POST","DELETE","OPTIONS"],allow_headers=["Authorization","Content-Type","X-Admin-Secret"])
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 app.add_middleware(ProxyHeadersMiddleware,trusted_hosts=["*"])
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
+
 _ALLOWED_TAGS=["p","h2","h3","h4","ul","ol","li","strong","em","b","i","a","br","blockquote"]; _ALLOWED_ATTRS={"a":["href","title","rel"]}
 def sanitize_html(raw:str)->str: return bleach.clean(raw,tags=_ALLOWED_TAGS,attributes=_ALLOWED_ATTRS,strip=True,strip_comments=True)
 

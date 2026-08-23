@@ -47,7 +47,7 @@ def push_to_wordpress(creds: dict, title: str, content: str, meta: dict) -> dict
     data = {"title": title, "content": content, "status": "draft"}
     if meta.get("category_id"):
         data["categories"] = [int(meta["category_id"])]
-    response = requests.post(api_url, headers=headers, json=data, timeout=10)
+    response = requests.post(api_url, headers=headers, json=data, timeout=(5, 10), allow_redirects=False)
     response.raise_for_status()
     return {"success": True, "link": response.json().get("link")}
 
@@ -63,10 +63,10 @@ def push_to_mailchimp(creds: dict, subject: str, content: str, meta: dict) -> di
     list_id = meta.get("list_id") or creds.get("list_id")
     if list_id:
         data["recipients"] = {"list_id": list_id}
-    response = requests.post(api_url, headers=headers, json=data, timeout=10)
+    response = requests.post(api_url, headers=headers, json=data, timeout=(5, 10), allow_redirects=False)
     response.raise_for_status()
     campaign_id = response.json().get("id")
-    content_response = requests.put(f"{api_url}/{campaign_id}/content", headers=headers, json={"html": content}, timeout=10)
+    content_response = requests.put(f"{api_url}/{campaign_id}/content", headers=headers, json={"html": content}, timeout=(5, 10), allow_redirects=False)
     content_response.raise_for_status()
     return {"success": True, "campaign_id": campaign_id}
 
@@ -76,7 +76,7 @@ def push_to_hubspot(creds: dict, title: str, content: str, meta: dict) -> dict:
     if not token:
         raise ValueError("HubSpot access token is required.")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    response = requests.post("https://api.hubapi.com/crm/v3/objects/notes", headers=headers, json={"properties": {"hs_note_body": f"<h1>{title}</h1>{content}"}}, timeout=10)
+    response = requests.post("https://api.hubapi.com/crm/v3/objects/notes", headers=headers, json={"properties": {"hs_note_body": f"<h1>{title}</h1>{content}"}}, timeout=(5, 10), allow_redirects=False)
     response.raise_for_status()
     return {"success": True}
 
@@ -87,7 +87,7 @@ def push_to_shopify(creds: dict, title: str, content: str, meta: dict) -> dict:
     if not token:
         raise ValueError("Shopify access token is required.")
     headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
-    response = requests.post(f"{shop_url}/admin/api/2024-01/products.json", headers=headers, json={"product": {"title": title, "body_html": content, "status": "draft"}}, timeout=10)
+    response = requests.post(f"{shop_url}/admin/api/2024-01/products.json", headers=headers, json={"product": {"title": title, "body_html": content, "status": "draft"}}, timeout=(5, 10), allow_redirects=False)
     response.raise_for_status()
     return {"success": True}
 
@@ -98,7 +98,7 @@ def push_to_webflow(creds: dict, title: str, content: str, meta: dict) -> dict:
     if not token or not collection_id:
         raise ValueError("Webflow access token and collection_id are required.")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "accept-version": "1.0.0"}
-    response = requests.post(f"https://api.webflow.com/collections/{collection_id}/items", headers=headers, json={"fields": {"name": title, "slug": title.lower().replace(" ", "-"), "post-body": content, "_archived": False, "_draft": True}}, timeout=10)
+    response = requests.post(f"https://api.webflow.com/collections/{collection_id}/items", headers=headers, json={"fields": {"name": title, "slug": title.lower().replace(" ", "-"), "post-body": content, "_archived": False, "_draft": True}}, timeout=(5, 10), allow_redirects=False)
     response.raise_for_status()
     return {"success": True}
 
@@ -130,20 +130,20 @@ def fetch_metadata(platform: str, creds: dict) -> list:
             url = _validate_external_url(creds.get("url", ""))
             api_url = f"{url}/wp-json/wp/v2/categories"
             token = b64encode(f"{creds.get('username')}:{creds.get('app_password')}".encode()).decode("utf-8")
-            res = requests.get(api_url, headers={"Authorization": f"Basic {token}"}, timeout=5)
+            res = requests.get(api_url, headers={"Authorization": f"Basic {token}"}, timeout=(3, 5), allow_redirects=False)
             if res.ok:
                 options = [{"id": str(c["id"]), "name": c["name"]} for c in res.json()]
         elif platform == "mailchimp":
             api_key = creds.get("api_key", "")
             dc = api_key.split("-")[1] if "-" in api_key else "us1"
-            res = requests.get(f"https://{dc}.api.mailchimp.com/3.0/lists", headers={"Authorization": f"Bearer {api_key}"}, timeout=5)
+            res = requests.get(f"https://{dc}.api.mailchimp.com/3.0/lists", headers={"Authorization": f"Bearer {api_key}"}, timeout=(3, 5), allow_redirects=False)
             if res.ok:
                 options = [{"id": l["id"], "name": l["name"]} for l in res.json().get("lists", [])]
         elif platform == "webflow":
             token = creds.get("access_token")
             site_id = creds.get("site_id")
             if site_id and token:
-                res = requests.get(f"https://api.webflow.com/sites/{site_id}/collections", headers={"Authorization": f"Bearer {token}", "accept-version": "1.0.0"}, timeout=5)
+                res = requests.get(f"https://api.webflow.com/sites/{site_id}/collections", headers={"Authorization": f"Bearer {token}", "accept-version": "1.0.0"}, timeout=(3, 5), allow_redirects=False)
                 if res.ok:
                     options = [{"id": c["_id"], "name": c["name"]} for c in res.json()]
     except Exception as e:
