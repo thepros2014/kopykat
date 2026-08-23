@@ -89,7 +89,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest pytest-asyncio pytest-cov httpx
 
-      - name: Execute Full 34-Test Pytest Suite
+      - name: Execute Full 65-Test Pytest Suite
         env:
           JWT_SECRET_KEY: "ci-testing-jwt-secret-key-12345"
           INTEGRATION_ENCRYPTION_KEY: "dGVzdC1lbmNyeXB0aW9uLWtleS0xMjM0NTY3ODkwMTI="
