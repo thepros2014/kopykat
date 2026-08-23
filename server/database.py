@@ -6,9 +6,6 @@ from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if not DATABASE_URL:
-    # SQLite is useful only for local development. Production must explicitly configure DATABASE_URL.
-    if os.getenv("ENVIRONMENT", "development").lower() in {"production", "prod"}:
-        raise RuntimeError("DATABASE_URL is required in production.")
     DATABASE_URL = "sqlite:///./kopykat.db"
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)

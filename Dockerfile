@@ -12,8 +12,8 @@ COPY . .
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
-# Expose port
+# Expose default port
 EXPOSE 8000
 
-# Start the server
-CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Start the server with dynamic port fallback for Render ($PORT)
+CMD sh -c "uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"
