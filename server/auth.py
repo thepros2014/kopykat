@@ -12,7 +12,8 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from sqlalchemy.orm import Session
 from cryptography.fernet import Fernet
 
@@ -70,7 +71,7 @@ def create_access_token(user_id: str, email: str) -> str:
 def decode_access_token(token: str) -> Optional[dict]:
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
+    except (PyJWTError, Exception):
         return None
 
 #  API Key helpers 
