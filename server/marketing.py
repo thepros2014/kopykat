@@ -11,7 +11,7 @@ import random
 from datetime import datetime
 from typing import Optional
 
-import requests
+import httpx
 import bleach
 import google.generativeai as genai
 from sqlalchemy.orm import Session
@@ -186,7 +186,6 @@ async def scan_reddit_opportunities(db: Optional[Session] = None) -> int:
         own_db = True
     found_count = 0
     try:
-        import httpx
         api_key = os.environ.get('GEMINI_API_KEY', '')
         headers = {'User-Agent': 'Mozilla/5.0 KopyKatScout/1.0'}
         

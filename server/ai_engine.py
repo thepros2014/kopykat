@@ -14,6 +14,30 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
+import re
+
+def _extract_json_block(text: str) -> dict:
+    """Extracts JSON object from LLM response with regex matching and error resilience."""
+    clean_text = text.strip()
+    if clean_text.startswith("```json"):
+        clean_text = clean_text[7:]
+    if clean_text.startswith("```"):
+        clean_text = clean_text[3:]
+    if clean_text.endswith("```"):
+        clean_text = clean_text[:-3]
+    clean_text = clean_text.strip()
+    
+    try:
+        return json.loads(clean_text)
+    except Exception:
+        match = re.search(r'\{.*\}', clean_text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except Exception:
+                pass
+        return {}
+
 
 from .database import UsageRecord
 
