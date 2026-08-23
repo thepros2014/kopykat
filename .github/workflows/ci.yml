@@ -1,0 +1,42 @@
+name: KopyKat CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  python-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python sources
+        run: python -m compileall -q server
+
+  frontend-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check dashboard JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('frontend/dashboard.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', text, re.S | re.I)
+          if not scripts:
+              raise SystemExit('No inline script found in dashboard.html')
+          print(f'Found {len(scripts)} inline script block(s).')
+          if 'innerHTML = `\\n' in text or 'innerHTML =' in text:
+              print('WARNING: dashboard still contains innerHTML assignments; review before launch.')
+          PY
