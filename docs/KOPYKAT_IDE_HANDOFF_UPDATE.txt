@@ -14,7 +14,7 @@ This file is the single source of truth for project state and next steps.
 ============================================================
 EXECUTIVE SUMMARY & RECOMMENDED NEXT STEPS (START HERE)
 ============================================================
-Current Build Status: 100% Stable, 55/55 Pytest Suite Passing.
+Current Build Status: 100% Stable, 57/57 Pytest Suite Passing.
 Live Deployment: https://kopykat.onrender.com
 Current Version: 1.0.0 (Semantic Release Tags: v0.1.0, v0.2.0, v0.3.0, v0.4.0, v1.0.0)
 
@@ -56,7 +56,7 @@ PRICING & COST OF SERVICES (STRICT TIER ALLOCATION):
 INVESTOR & SOFTWARE ASSET VALUATION DOSSIER (COMPLETED):
 - [x] Technical Asset Dossier: docs/ACQUISITION_DOSSIER.md detailing IP, 6 autonomous engines, 5 modules, and financial unit economics
 - [x] Automated MRR & Valuation Telemetry: GET /admin/mrr-metrics computing live ARR, MRR, active subscriber counts, and software valuation range
-- [x] Test Suite Maturity: 55 / 55 tests passing with 100% green status across all subsystems
+- [x] Test Suite Maturity: 57 / 57 tests passing with 100% green status across all subsystems
 
 
 ENTERPRISE HARDENING & GOVERNANCE LAYER (COMPLETED):
@@ -67,12 +67,18 @@ ENTERPRISE HARDENING & GOVERNANCE LAYER (COMPLETED):
 - [x] Modern Security Headers & CSP: Strict Content-Security-Policy enabled, obsolete headers removed
 
 
+ECONOMIC INTEGRITY & ENTITLEMENT GOVERNANCE (COMPLETED & VERIFIED):
+- [x] Elimination of Purchased-Generation Double-Counting Bug: User.monthly_generations and User.purchased_generations maintain independent remaining balances. Consumed purchased credits are never re-granted on subscription renewal.
+- [x] Schema Migrations in init_db(): Automated column inspections and ALTER TABLE execution for purchased_generations, monthly_generations, and user_entitlements.
+- [x] UserEntitlement System: Full DB persistence for à-la-carte add-on purchases (Brand Voice Training, Marketplace Optimizer, DFY Marketing, Bulk Catalog Pass).
+- [x] 57 / 57 Automated Tests Passing with 100% Green Status across all suites.
+
 PRODUCTION HARDENING & ADVERSARIAL AUDIT (COMPLETED & VERIFIED):
 - [x] Separate Entitlement Accounting: User.purchased_generations tracks permanent packs separately from monthly quotas
 - [x] Renewal & Cancellation Balance Protection: Monthly invoice resets never wipe purchased generation balances
 - [x] Webhook Replay & Idempotency: StripeEvent deduplication protects against duplicate credit grant attacks
 - [x] IDOR Cross-Tenant Boundary Enforcement: Strict user_id ownership verified across all database mutations
-- [x] Test Matrix Expansion: 55 / 55 tests passing with 100% green status
+- [x] Test Matrix Expansion: 57 / 57 tests passing with 100% green status
 
 30-DAY MASTER ROADMAP (FOUNDER EXECUTION PLAN)
 ============================================================

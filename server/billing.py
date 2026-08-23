@@ -10,7 +10,7 @@ import stripe
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from .database import User, Subscription, RevenueRecord, StripeEvent
+from .database import User, Subscription, RevenueRecord, StripeEvent, UserEntitlement
 
 logger = logging.getLogger(__name__)
 
@@ -247,8 +247,8 @@ def _handle_subscription_created(subscription: dict, db: Session):
     period_end = datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None
     user.plan = plan
     user.monthly_limit = info["monthly_generations"]
-    # Preserve separate purchased generations entitlement
-    user.generations = info["monthly_generations"] + (user.purchased_generations or 0)
+    user.monthly_generations = info["monthly_generations"]
+    user.generations = user.monthly_generations + (user.purchased_generations or 0)
 
     existing = db.query(Subscription).filter(Subscription.stripe_subscription_id == subscription.get("id")).first()
     if existing:
@@ -276,6 +276,7 @@ def _handle_invoice_paid(invoice: dict, db: Session):
 
     info = PLANS[sub.plan]
     user.monthly_limit = info["monthly_generations"]
+    user.monthly_generations = info["monthly_generations"]
     user.generations = info["monthly_generations"] + (user.purchased_generations or 0)
     sub.status = "active"
 
@@ -304,8 +305,8 @@ def _handle_subscription_changed(subscription: dict, db: Session):
         if user:
             user.plan = "free"
             user.monthly_limit = PLANS["free"]["monthly_generations"]
-            # Preserve purchased packs on cancellation; revert monthly quota
-            user.generations = PLANS["free"]["monthly_generations"] + (user.purchased_generations or 0)
+            user.monthly_generations = PLANS["free"]["monthly_generations"]
+            user.generations = user.monthly_generations + (user.purchased_generations or 0)
 
 
 def _handle_one_time_purchased(session: dict, db: Session):
@@ -341,7 +342,23 @@ def _handle_one_time_purchased(session: dict, db: Session):
                 currency=session.get("currency", "usd"),
                 plan=f"addon_{addon_key}", type="addon", status="succeeded",
             ))
-        logger.info("Addon fulfilled: user=%s addon=%s", user.email, addon_key)
+        
+        # Grant feature entitlement
+        ent = db.query(UserEntitlement).filter(
+            UserEntitlement.user_id == user.id,
+            UserEntitlement.entitlement_key == addon_key
+        ).first()
+        if ent:
+            ent.active = True
+        else:
+            db.add(UserEntitlement(
+                id=str(uuid.uuid4()),
+                user_id=user.id,
+                entitlement_key=addon_key,
+                entitlement_type="addon",
+                active=True
+            ))
+        logger.info("Addon fulfilled & entitlement granted: user=%s addon=%s", user.email, addon_key)
 
 
 def _handle_payment_failed(invoice: dict, db: Session):
@@ -366,3 +383,14 @@ def get_total_revenue(db: Session) -> dict:
         "monthly_revenue_usd": round(monthly / 100, 2),
         "paying_customers": count,
     }
+
+def user_has_entitlement(user: User, key: str, db: Session) -> bool:
+    """Returns True if user has access to a specific add-on or feature."""
+    if user.plan == "megastore":
+        return True
+    ent = db.query(UserEntitlement).filter(
+        UserEntitlement.user_id == user.id,
+        UserEntitlement.entitlement_key == key,
+        UserEntitlement.active == True
+    ).first()
+    return ent is not None

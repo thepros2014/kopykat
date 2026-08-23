@@ -317,17 +317,77 @@ async def list_api_keys(current_user:User=Depends(get_current_user_jwt),db:Sessi
 async def delete_api_key(key_id:str,current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)):
     if not revoke_api_key(key_id,current_user,db): raise HTTPException(status_code=404,detail="Key not found")
     return {"status":"revoked"}
-@app.post("/api/generate",response_model=GenerateResponse,tags=["Generate"])
+@app.post("/api/generate", response_model=GenerateResponse, tags=["Generate"])
 @limiter.limit("60/minute")
-async def generate(request:Request,body:GenerateRequest,auth:tuple=Depends(get_current_user_apikey),db:Session=Depends(get_db)):
-    user,api_key=auth; cost=body.variations; updated=db.execute(text("UPDATE users SET generations = generations - :cost WHERE id = :uid AND generations >= :cost"),{"cost":cost,"uid":user.id}).rowcount; db.commit()
-    if updated==0: raise HTTPException(status_code=402,detail="No generations remaining. Upgrade your plan or buy a generation pack at /dashboard")
-    try: result=await generate_copy(copy_type=body.type,context=body.context,tone=body.tone or "professional",variations=body.variations,max_tokens=body.max_words,user_id=user.id,db=db)
+async def generate(request: Request, body: GenerateRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
+    user, api_key = auth
+    cost = body.variations
+
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    current_total = (db_user.monthly_generations or 0) + (db_user.purchased_generations or 0)
+    if db_user.generations != current_total:
+        if db_user.generations > (db_user.purchased_generations or 0):
+            db_user.monthly_generations = db_user.generations - (db_user.purchased_generations or 0)
+        else:
+            db_user.monthly_generations = 0
+            db_user.purchased_generations = db_user.generations
+
+    monthly_avail = db_user.monthly_generations or 0
+    purchased_avail = db_user.purchased_generations or 0
+    total_avail = monthly_avail + purchased_avail
+
+    if total_avail < cost:
+        raise HTTPException(status_code=402, detail="No generations remaining. Upgrade your plan or buy a generation pack at /dashboard")
+
+    monthly_used = min(monthly_avail, cost)
+    purchased_used = cost - monthly_used
+
+    db_user.monthly_generations = monthly_avail - monthly_used
+    db_user.purchased_generations = purchased_avail - purchased_used
+    db_user.generations = db_user.monthly_generations + db_user.purchased_generations
+    db.commit()
+
+    try:
+        result = await generate_copy(
+            copy_type=body.type,
+            context=body.context,
+            tone=body.tone or "professional",
+            variations=body.variations,
+            max_tokens=body.max_words,
+            user_id=user.id,
+            db=db
+        )
     except Exception as e:
-        db.execute(text("UPDATE users SET generations = generations + :cost WHERE id = :uid"), {"cost": cost, "uid": user.id})
-        db.commit()
+        db_user = db.query(User).filter(User.id == user.id).first()
+        if db_user:
+            db_user.monthly_generations = (db_user.monthly_generations or 0) + monthly_used
+            db_user.purchased_generations = (db_user.purchased_generations or 0) + purchased_used
+            db_user.generations = db_user.monthly_generations + db_user.purchased_generations
+            db.commit()
         raise HTTPException(status_code=500, detail="AI generation failed. Your credits have been refunded.")
-    db.refresh(user); actual=result.get("generations_used",body.variations); return GenerateResponse(type=body.type,variations=result["variations"],generations_used=actual,generations=user.generations,generation_time_ms=result["generation_time_ms"])
+
+    db.refresh(db_user)
+    actual = result.get("generations_used", body.variations)
+
+    if actual < cost:
+        refund = cost - actual
+        refund_purchased = min(purchased_used, refund)
+        refund_monthly = refund - refund_purchased
+        db_user.purchased_generations = (db_user.purchased_generations or 0) + refund_purchased
+        db_user.monthly_generations = (db_user.monthly_generations or 0) + refund_monthly
+        db_user.generations = db_user.monthly_generations + db_user.purchased_generations
+        db.commit()
+
+    return GenerateResponse(
+        type=body.type,
+        variations=result["variations"],
+        generations_used=actual,
+        generations=db_user.generations,
+        generation_time_ms=result["generation_time_ms"]
+    )
 @app.post("/billing/subscribe",response_model=CheckoutResponse,tags=["Billing"])
 async def subscribe(body:CheckoutRequest,current_user:User=Depends(get_current_user_jwt),db:Session=Depends(get_db)): return CheckoutResponse(**create_subscription_checkout(plan=body.plan,user=current_user,db=db))
 @app.post("/billing/one-time",response_model=CheckoutResponse,tags=["Billing"])

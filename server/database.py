@@ -29,6 +29,7 @@ class User(Base):
     plan = Column(String(20), default="free")
     generations = Column(Integer, default=5)
     monthly_limit = Column(Integer, default=5)
+    monthly_generations = Column(Integer, default=5)
     purchased_generations = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
@@ -248,6 +249,16 @@ class PriceMarginItem(Base):
     recommendation = Column(Text, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class UserEntitlement(Base):
+    __tablename__ = "user_entitlements"
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    entitlement_key = Column(String(100), nullable=False)
+    entitlement_type = Column(String(30), default="addon")
+    active = Column(Boolean, default=True)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class BrandPersona(Base):
     __tablename__ = "brand_personas"
     id = Column(String(36), primary_key=True)
@@ -289,6 +300,10 @@ def init_db():
                 conn.execute(text("ALTER TABLE users RENAME COLUMN generations_remaining TO generations"))
             elif "generations" not in columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN generations INTEGER DEFAULT 5"))
+            if "purchased_generations" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN purchased_generations INTEGER DEFAULT 0"))
+            if "monthly_generations" not in columns:
+                conn.execute(text("ALTER TABLE users ADD COLUMN monthly_generations INTEGER DEFAULT 5"))
     if "usage_records" in inspector.get_table_names():
         columns = {c["name"] for c in inspector.get_columns("usage_records")}
         if "generations_used" not in columns:
