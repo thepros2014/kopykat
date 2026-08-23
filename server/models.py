@@ -123,3 +123,15 @@ class CampaignGenerateRequest(BaseModel):
 class CampaignPushRequest(BaseModel):
     campaign_id: str
     destinations: dict
+
+
+class ConnectorDiscoverRequest(BaseModel):
+    url: str = Field(min_length=5, max_length=2000)
+
+class ConnectorResponse(BaseModel):
+    id: str
+    platform_name: str
+    base_url: str
+    operation_count: int
+    authentication_modes: list[str]
+    status: str

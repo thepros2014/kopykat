@@ -22,7 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
-from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
+from .models import (RequestPasswordReset, ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest, CampaignPushRequest, ConnectorDiscoverRequest, UserRegister, UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated, GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest, CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse)
 from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
@@ -187,6 +187,56 @@ async def api_public_demo(request:Request,body:CampaignGenerateRequest,db:Sessio
     from .campaigns import generate_demo_campaign
     try: return {"assets":generate_demo_campaign(body.keyword,body.product_desc)}
     except Exception as e: logger.error("Public demo failed: %s",e,exc_info=True); raise HTTPException(status_code=500,detail="Demo generation failed due to an internal error.")
+
+@app.post("/api/connector/discover", tags=["Connectors"])
+@limiter.limit("5/minute")
+async def api_connector_discover(
+    request: Request,
+    body: ConnectorDiscoverRequest,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db)
+):
+    from .connector_engine import discover_connector, ConnectorError
+    from .database import CustomConnector
+    import uuid
+    import json
+    
+    user, _ = auth
+    
+    try:
+        spec = discover_connector(body.url)
+    except ConnectorError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An error occurred during discovery.")
+        
+    connector_id = str(uuid.uuid4())
+    ops_count = len(spec.get("operations", []))
+    auth_modes = spec.get("authentication_modes", [])
+    
+    new_connector = CustomConnector(
+        id=connector_id,
+        user_id=user.id,
+        platform_name=spec.get("platform_name", "Unknown Platform"),
+        source_url=spec.get("source_url", body.url),
+        base_url=spec.get("base_url", ""),
+        spec=json.dumps(spec),
+        authentication_modes=",".join(auth_modes),
+        operation_count=ops_count,
+        status="draft"
+    )
+    db.add(new_connector)
+    db.commit()
+    
+    return {
+        "id": connector_id,
+        "platform_name": new_connector.platform_name,
+        "base_url": new_connector.base_url,
+        "operation_count": ops_count,
+        "authentication_modes": auth_modes,
+        "status": "draft"
+    }
+
 @app.post("/api/catalog/parse-csv",tags=["Campaigns"])
 async def api_parse_csv(request:Request,file:UploadFile=File(...),auth:tuple=Depends(get_current_user_apikey)):
     import csv,io; from .ai_engine import analyze_csv_mapping; content=await file.read()

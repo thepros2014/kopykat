@@ -135,6 +135,23 @@ class StripeEvent(Base):
     event_type = Column(String(100), nullable=False)
     processed_at = Column(DateTime, default=datetime.utcnow)
 
+class CustomConnector(Base):
+    """Stores discovered connector specs for the Universal Connector Engine.
+    Credentials are NEVER stored in this table — they live in UserIntegration.
+    """
+    __tablename__ = "custom_connectors"
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), nullable=False)
+    platform_name = Column(String(120), nullable=False)
+    source_url = Column(String(2000), nullable=False)
+    base_url = Column(String(2000), nullable=False)
+    spec = Column(Text, nullable=False)           # JSON connector spec (no credentials)
+    authentication_modes = Column(String(200), nullable=True)  # comma-separated
+    operation_count = Column(Integer, default=0)
+    status = Column(String(30), default="draft")  # draft / validated / active / disabled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class BlogPost(Base):
     __tablename__ = "blog_posts"
     id = Column(String(36), primary_key=True)

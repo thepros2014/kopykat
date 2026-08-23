@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <script>
-    const APP_VERSION = "1.0.8";
+    const APP_VERSION = "1.0.9";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
       localStorage.clear();
       sessionStorage.clear();
@@ -88,6 +88,39 @@ async function startBulkSyndication() {
     }
   }
   btn.textContent = "Syndication Complete!";
+}
+
+
+async function discoverConnector() {
+  const urlInput = document.getElementById('uc-url').value;
+  if (!urlInput) return alert("Please enter an API documentation URL.");
+  
+  const btn = document.getElementById('btn-uc-discover');
+  btn.textContent = "Discovering...";
+  btn.disabled = true;
+  
+  try {
+    const res = await fetch('/api/connector/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+      body: JSON.stringify({ url: urlInput })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Discovery failed.");
+    
+    document.getElementById('uc-res-title').textContent = data.platform_name;
+    document.getElementById('uc-res-base').textContent = data.base_url;
+    document.getElementById('uc-res-auth').textContent = data.authentication_modes.join(', ') || "None";
+    document.getElementById('uc-res-ops').textContent = data.operation_count;
+    
+    document.getElementById('uc-results').classList.remove('hidden');
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.textContent = "Discover API";
+    btn.disabled = false;
+  }
 }
 
 </script>
@@ -547,7 +580,34 @@ async function startBulkSyndication() {
       <div class="page-title">Integrations</div>
       <div class="page-sub">Connect your store and email platforms for 1-click publishing.</div>
       
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
+      
+      <!-- Universal Connector UI -->
+      <div class="card" style="margin-bottom:24px; border:1px solid var(--purple); background: rgba(168, 85, 247, 0.05);">
+        <h3 style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M2 12h20M12 2v20"/></svg>
+          Add Any Platform (Universal Connector)
+        </h3>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
+          Don't see your platform? Paste the URL to its API documentation or OpenAPI/Swagger JSON. KopyKat will automatically discover its capabilities.
+        </p>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <input type="text" id="uc-url" style="flex:1; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text);" placeholder="https://api.myplatform.com/openapi.json">
+          <button class="btn btn-primary" id="btn-uc-discover" onclick="discoverConnector()">Discover API</button>
+        </div>
+        
+        <div id="uc-results" class="hidden" style="margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:6px; background:var(--bg2);">
+          <h4 style="margin-bottom:12px; font-size:14px; color:var(--text);" id="uc-res-title">Platform Name</h4>
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:13px; color:var(--muted); margin-bottom:16px;">
+            <div><strong>Base URL:</strong> <span id="uc-res-base"></span></div>
+            <div><strong>Auth Modes:</strong> <span id="uc-res-auth"></span></div>
+            <div><strong>Operations Found:</strong> <span id="uc-res-ops"></span></div>
+            <div><strong>Status:</strong> <span class="badge badge-draft">Draft</span> (Awaiting Authorization)</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="alert('OAuth and Credential Vault coming soon (Phase 3)!')">Authorize Connection</button>
+        </div>
+      </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
         
         <div class="card">
           <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
@@ -1194,6 +1254,39 @@ async function startBulkSyndication() {
   btn.textContent = "Syndication Complete!";
 }
 
+
+async function discoverConnector() {
+  const urlInput = document.getElementById('uc-url').value;
+  if (!urlInput) return alert("Please enter an API documentation URL.");
+  
+  const btn = document.getElementById('btn-uc-discover');
+  btn.textContent = "Discovering...";
+  btn.disabled = true;
+  
+  try {
+    const res = await fetch('/api/connector/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+      body: JSON.stringify({ url: urlInput })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Discovery failed.");
+    
+    document.getElementById('uc-res-title').textContent = data.platform_name;
+    document.getElementById('uc-res-base').textContent = data.base_url;
+    document.getElementById('uc-res-auth').textContent = data.authentication_modes.join(', ') || "None";
+    document.getElementById('uc-res-ops').textContent = data.operation_count;
+    
+    document.getElementById('uc-results').classList.remove('hidden');
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.textContent = "Discover API";
+    btn.disabled = false;
+  }
+}
+
 </script>
 
 
@@ -1284,6 +1377,39 @@ async function startBulkSyndication() {
     }
   }
   btn.textContent = "Syndication Complete!";
+}
+
+
+async function discoverConnector() {
+  const urlInput = document.getElementById('uc-url').value;
+  if (!urlInput) return alert("Please enter an API documentation URL.");
+  
+  const btn = document.getElementById('btn-uc-discover');
+  btn.textContent = "Discovering...";
+  btn.disabled = true;
+  
+  try {
+    const res = await fetch('/api/connector/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+      body: JSON.stringify({ url: urlInput })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Discovery failed.");
+    
+    document.getElementById('uc-res-title').textContent = data.platform_name;
+    document.getElementById('uc-res-base').textContent = data.base_url;
+    document.getElementById('uc-res-auth').textContent = data.authentication_modes.join(', ') || "None";
+    document.getElementById('uc-res-ops').textContent = data.operation_count;
+    
+    document.getElementById('uc-results').classList.remove('hidden');
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.textContent = "Discover API";
+    btn.disabled = false;
+  }
 }
 
 </script>
