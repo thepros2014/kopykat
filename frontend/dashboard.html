@@ -5,24 +5,19 @@
  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
  <meta http-equiv="Pragma" content="no-cache" />
  <meta http-equiv="Expires" content="0" />
-   <script>
-    const APP_VERSION = "1.2.0";
+     <script>
+    const APP_VERSION = "1.2.1";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
-      localStorage.clear();
-      sessionStorage.clear();
+      // Retain auth session while purging old application cache
+      const savedToken = localStorage.getItem("sc_token");
+      const savedUser = localStorage.getItem("sc_user");
       
-      // Comprehensive Cookie Purge across domains and paths
-      const cookies = document.cookie.split(";");
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i];
-        const eqPos = cookie.indexOf("=");
-        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-        if (name) {
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + window.location.hostname;
-        }
-      }
+      sessionStorage.clear();
+      localStorage.clear();
+      
+      if (savedToken) localStorage.setItem("sc_token", savedToken);
+      if (savedUser) localStorage.setItem("sc_user", savedUser);
+      localStorage.setItem("kopykat_version", APP_VERSION);
       
       // Purge all Service Workers and CacheStorage
       if ('serviceWorker' in navigator) {
@@ -34,12 +29,6 @@
         caches.keys().then(function(names) {
           for (let n of names) { caches.delete(n); }
         });
-      }
-      
-      localStorage.setItem("kopykat_version", APP_VERSION);
-      // Hard reload with cache purge
-      if (window.location.search.indexOf('v=') === -1) {
-        window.location.replace(window.location.pathname + '?v=' + APP_VERSION + window.location.hash);
       }
     }
   </script>
@@ -317,9 +306,9 @@
  "max_tokens": 300 <span style="color:#6a7383;">// optional: 50-1000</span>
 }</code></pre>
  <p style="color:var(--muted);font-size:13px;margin-top:16px;">
- <strong>Copy types:</strong> product_description · email_subject · email_body · 
- social_post · ad_headline · ad_body · landing_page_hero · call_to_action · 
- seo_meta_description · blog_intro
+ <strong>Copy types:</strong> product_description - email_subject - email_body - 
+ social_post - ad_headline - ad_body - landing_page_hero - call_to_action - 
+ seo_meta_description - blog_intro
  </p>
  </div>
 
@@ -644,955 +633,62 @@
 
 <script>
 const API = '';
+let integrationMetadata = { wordpress: [], mailchimp: [], webflow: [] };
+let currentCampaignId = null;
+let bulkItems = [];
+
 function getToken() { return localStorage.getItem('sc_token'); }
 
-// Redirect to home if not logged in 
-if (!getToken()) window.location.href = '/';
+// Redirect to login if unauthenticated
+if (!getToken()) {
+  window.location.href = '/';
+}
 
-// Nav 
+// Navigation & Section Visibility
 function showSection(id, btnElement) {
- const target = document.getElementById(`section-${id}`);
- if (!target) {
- console.error(`Section not found: section-${id}`);
- return;
- }
+  const target = document.getElementById(`section-${id}`);
+  if (!target) {
+    console.warn(`Section not found: section-${id}`);
+    return;
+  }
 
- // Hide all sections
- document.querySelectorAll('.dash-section').forEach(s => {
- s.classList.add('hidden');
- s.style.display = 'none';
- });
+  // Hide all sections
+  document.querySelectorAll('.dash-section').forEach(s => {
+    s.classList.add('hidden');
+    s.style.display = 'none';
+  });
 
- // Display selected section
- target.classList.remove('hidden');
- target.style.display = 'block';
+  // Display selected section
+  target.classList.remove('hidden');
+  target.style.display = 'block';
 
- // Update active state on navigation buttons
- document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
- document.querySelectorAll('.bottom-nav-link').forEach(l => l.classList.remove('active'));
+  // Update active states
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-link').forEach(l => l.classList.remove('active'));
 
- if (btnElement && btnElement.classList) {
- btnElement.classList.add('active');
- }
+  if (btnElement && btnElement.classList) {
+    btnElement.classList.add('active');
+  }
 
- const matchingSidebar = document.querySelector(`.sidebar-link[onclick*="'${id}'"]`);
- if (matchingSidebar) matchingSidebar.classList.add('active');
- const matchingBottom = document.querySelector(`.bottom-nav-link[onclick*="'${id}'"]`);
- if (matchingBottom) matchingBottom.classList.add('active');
+  const matchingSidebar = document.querySelector(`.sidebar-link[onclick*="'${id}'"]`);
+  if (matchingSidebar) matchingSidebar.classList.add('active');
+  const matchingBottom = document.querySelector(`.bottom-nav-link[onclick*="'${id}'"]`);
+  if (matchingBottom) matchingBottom.classList.add('active');
 
- if (window.history && window.history.replaceState) {
- window.history.replaceState(null, null, `#${id}`);
- }
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState(null, null, `#${id}`);
+  }
+}
+
+function activateBottomNav(btn) {
+  document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
 }
 
 function logout() {
- localStorage.removeItem('sc_token');
- window.location.href = '/';
-}
-
-// Load profile 
-async function loadProfile() {
- try {
- const [profile, usage] = await Promise.all([
- fetch(`${API}/auth/me`, {headers:{'Authorization':`Bearer ${getToken()}`}}).then(r=>r.json()),
- fetch(`${API}/api/usage`, {headers:{'Authorization':`Bearer ${getToken()}`}}).then(r=>r.json()),
- ]);
-
- document.getElementById('user-name').textContent = profile.full_name || profile.email.split('@')[0];
-
- // Stats
- const planLabel = profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1);
- const gensRemaining = profile.generations_remaining !== undefined ? profile.generations_remaining : 0;
- const monthlyLimit = profile.monthly_limit;
-
- document.getElementById('stat-plan').innerHTML = `<span class="plan-chip ${profile.plan}">${planLabel}</span>`;
- document.getElementById('stat-credits').textContent = gensRemaining.toLocaleString();
- document.getElementById('stat-limit').textContent = monthlyLimit.toLocaleString();
- document.getElementById('stat-requests').textContent = usage.total_requests.toLocaleString();
-
- // Progress bar
- const used = Math.max(0, monthlyLimit - gensRemaining);
- const pct = monthlyLimit > 0 ? Math.min(100, (used / monthlyLimit) * 100) : 0;
- document.getElementById('usage-bar').style.width = pct + '%';
- document.getElementById('usage-label').textContent = `${used.toLocaleString()} / ${monthlyLimit.toLocaleString()} generations used`;
- document.getElementById('usage-pct').textContent = pct.toFixed(1) + '%';
-
- // Usage section
- const gensUsed = usage.total_generations_used || 0;
- const uGensRemaining = usage.generations_remaining || 0;
- document.getElementById('u-requests').textContent = usage.total_requests.toLocaleString();
- document.getElementById('u-generations-used').textContent = gensUsed.toLocaleString();
- document.getElementById('u-generations-rem').textContent = uGensRemaining.toLocaleString();
- document.getElementById('u-limit').textContent = (usage.monthly_limit || monthlyLimit).toLocaleString();
- if (usage.period_start && usage.period_end) {
- document.getElementById('u-period').textContent =
- `Billing period: ${new Date(usage.period_start).toLocaleDateString()} – ${new Date(usage.period_end).toLocaleDateString()}`;
- }
-
- // Billing section
- const chip = document.getElementById('billing-plan-chip');
- chip.textContent = planLabel;
- chip.className = `plan-chip ${profile.plan}`;
- document.getElementById('billing-plan-detail').textContent = `${monthlyLimit.toLocaleString()} monthly generations`;
-
- // Base URL
- document.getElementById('base-url-display').textContent = window.location.origin;
-
- } catch(e) {
- console.error('Failed to load profile', e);
- }
-}
-
-// API Keys 
-async function loadKeys() {
- const list = document.getElementById('keys-list');
- try {
- const res = await fetch(`${API}/api/keys`, {headers:{'Authorization':`Bearer ${getToken()}`}});
- const keys = await res.json();
-
- if (!keys.length) {
- list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px 0;">No API keys yet. Create one above.</div>';
- return;
- }
-
- list.innerHTML = keys.map(k => `
- <div class="key-row">
- <div>
- <div class="key-name">${k.name}</div>
- <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} · ${k.requests_today} requests today</div>
- </div>
- <code class="key-prefix">${k.key_prefix}•••••••••••••••••••••••••••</code>
- <button class="key-delete" onclick="deleteKey('${k.id}')" title="Revoke key"></button>
- </div>
- `).join('');
- } catch(e) {
- list.innerHTML = '<div style="color:#ff6b6b;font-size:14px;">Failed to load keys.</div>';
- }
-}
-
-async function createApiKey() {
- const name = document.getElementById('key-name-input').value.trim() || 'My Key';
- try {
- const res = await fetch(`${API}/api/keys`, {
- method: 'POST',
- headers: {'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
- body: JSON.stringify({name}),
- });
- const data = await res.json();
- if (!res.ok) { alert(data.detail || 'Failed to create key'); return; }
-
- // Show new key once
- const box = document.getElementById('new-key-box');
- document.getElementById('new-key-value').textContent = data.raw_key;
- box.classList.add('visible');
- box.scrollIntoView({behavior:'smooth'});
- loadKeys();
- } catch(e) {
- alert('Error creating key. Please try again.');
- }
-}
-
-async function deleteKey(id) {
- if (!confirm('Revoke this API key? This cannot be undone.')) return;
- await fetch(`${API}/api/keys/${id}`, {
- method:'DELETE',
- headers:{'Authorization':`Bearer ${getToken()}`}
- });
- loadKeys();
-}
-
-function copyKey() {
- const val = document.getElementById('new-key-value').textContent;
- navigator.clipboard.writeText(val).then(() => {
- const btn = document.querySelector('.copy-btn');
- btn.textContent = ' Copied!';
- setTimeout(() => btn.textContent = ' Copy Key', 2000);
- });
-}
-
-// Billing 
-async function startCheckout(plan) {
- const res = await fetch(`${API}/billing/subscribe`, {
- method:'POST',
- headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
- body: JSON.stringify({
- plan,
- success_url: window.location.origin + '/dashboard?success=1',
- cancel_url: window.location.origin + '/dashboard#billing',
- }),
- });
- const data = await res.json();
- if (data.checkout_url) window.location.href = data.checkout_url;
- else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
-}
-
-async function buyGenerations(tier) {
- const res = await fetch(`${API}/billing/one-time`, {
- method:'POST',
- headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
- body: JSON.stringify({
- tier,
- success_url: window.location.origin + '/dashboard?success=1',
- cancel_url: window.location.origin + '/dashboard#billing',
- }),
- });
- const data = await res.json();
- if (data.checkout_url) window.location.href = data.checkout_url;
- else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
-}
-
-// Init 
-loadProfile();
-loadKeys();
-
-// Check initial URL hash
-window.addEventListener('DOMContentLoaded', () => {
- const hash = window.location.hash.replace('#', '');
- if (hash && document.getElementById(`section-${hash}`)) {
- showSection(hash);
- } else {
- showSection('overview');
- }
-});
-
-
-// Show success banner from Stripe redirect
-if (new URLSearchParams(window.location.search).get('success')) {
- document.getElementById('success-banner').style.display = 'block';
- window.history.replaceState({}, '', '/dashboard');
-}
-
-async function saveIntegration(platform) {
- let creds = {};
- if (platform === 'wordpress') {
- creds = {
- url: document.getElementById('wp-url').value,
- username: document.getElementById('wp-user').value,
- app_password: document.getElementById('wp-pass').value
- };
- } else if (platform === 'mailchimp') {
- creds = {
- api_key: document.getElementById('mc-key').value
- };
- } else if (platform === 'hubspot') {
- creds = { access_token: document.getElementById('hs-token').value };
- } else if (platform === 'shopify') {
- creds = { shop_url: document.getElementById('sh-url').value, access_token: document.getElementById('sh-token').value };
- } else if (platform === 'webflow') {
- creds = { site_id: document.getElementById('wf-site').value, access_token: document.getElementById('wf-token').value };
- }
-
- try {
- const res = await fetch('/api/integrations', {
- method: 'POST',
- headers: {
- 'Content-Type': 'application/json',
- 'Authorization': 'Bearer ' + getToken()
- },
- body: JSON.stringify({ platform, credentials: creds })
- });
- const data = await res.json();
- if (res.ok) {
- alert(data.message);
- } else {
- let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
- }
- } catch (err) {
- alert("Integration error");
- }
-}
-
-async function pushContent(platform, text, btnElement, meta={}) {
- let originalText = "";
- if (btnElement) {
- originalText = btnElement.innerText;
- btnElement.innerText = "Pushing...";
- btnElement.disabled = true;
- }
- 
- try {
- const res = await fetch('/api/push', {
- method: 'POST',
- headers: {
- 'Content-Type': 'application/json',
- 'Authorization': 'Bearer ' + getToken()
- },
- body: JSON.stringify({ platform, content: text, metadata: meta })
- });
- const data = await res.json();
- if (res.status === 202) {
- pollJobStatus(data.job_id, btnElement, originalText, platform);
- } else {
- let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
- if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
- }
- } catch (err) {
- alert("Push error");
- if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
- }
-}
-
-function pollJobStatus(jobId, btnElement, originalText, platform) {
- const interval = setInterval(async () => {
- try {
- const res = await fetch('/api/push/status/' + jobId, {
- headers: { 'Authorization': 'Bearer ' + getToken() }
- });
- const data = await res.json();
- 
- if (data.status === 'success') {
- clearInterval(interval);
- alert(' Successfully pushed to ' + platform + '!');
- if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
- } else if (data.status === 'failed') {
- clearInterval(interval);
- alert(' Push failed: ' + data.details);
- if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
- }
- } catch (err) {
- clearInterval(interval);
- if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
- }
- }, 2000);
-}
-
-
-async function runGenerator() {
- const btn = document.getElementById('btn-generate');
- btn.textContent = "Generating...";
- btn.disabled = true;
-
- const type = document.getElementById('gen-type').value;
- const context = document.getElementById('gen-context').value;
- const tone = document.getElementById('gen-tone').value;
-
- try {
- const res = await fetch('/api/generate', {
- method: 'POST',
- headers: {
- 'Content-Type': 'application/json',
- 'Authorization': 'Bearer ' + getToken()
- },
- body: JSON.stringify({ type, context, tone, variations: 1, max_words: 300 })
- });
- 
- const data = await res.json();
- const resDiv = document.getElementById('gen-results');
- 
- if (res.ok) {
- const text = data.variations[0];
- const encodedText = encodeURIComponent(text);
- resDiv.innerHTML = `
- <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;">${text}</div>
- <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
- 
- <div style="display:flex;gap:4px;">
- <button class="btn" style="background:#0073aa;color:#fff;" onclick="pushWP(this, decodeURIComponent('${encodedText}'))">WP </button>
- <select id="wp-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
- <option value="">No Category</option>
- ${(integrationMetadata.wordpress || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
- </select>
- </div>
-
- <div style="display:flex;gap:4px;">
- <button class="btn" style="background:#FFE01B;color:#241C15;" onclick="pushMC(this, decodeURIComponent('${encodedText}'))">Mailchimp </button>
- <select id="mc-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
- <option value="">Default List</option>
- ${(integrationMetadata.mailchimp || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
- </select>
- </div>
- 
- <button class="btn" style="background:#ff7a59;color:#fff;" onclick="pushContent('hubspot', decodeURIComponent('${encodedText}'), this)">HubSpot </button>
- <button class="btn" style="background:#95bf47;color:#fff;" onclick="pushContent('shopify', decodeURIComponent('${encodedText}'), this)">Shopify </button>
- 
- <div style="display:flex;gap:4px;">
- <button class="btn" style="background:#4353ff;color:#fff;" onclick="pushWF(this, decodeURIComponent('${encodedText}'))">Webflow </button>
- <select id="wf-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
- <option value="">Collection</option>
- ${(integrationMetadata.webflow || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
- </select>
- </div>
-
- </div>
- `;
- loadProfile(); // refresh stats
- } else {
- resDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail}</span>`;
- }
- } catch (err) {
- document.getElementById('gen-results').innerHTML = `<span style="color:#ff6b6b;">Failed to generate</span>`;
- }
- 
- btn.textContent = " Generate Options";
- btn.disabled = false;
-}
-
-
-function pushWP(btn, text) {
- let cat = document.getElementById('wp-meta').value;
- pushContent('wordpress', text, btn, cat ? {category_id: cat} : {});
-}
-function pushMC(btn, text) {
- let lst = document.getElementById('mc-meta').value;
- pushContent('mailchimp', text, btn, lst ? {list_id: lst} : {});
-}
-function pushWF(btn, text) {
- let col = document.getElementById('wf-meta').value;
- pushContent('webflow', text, btn, col ? {collection_id: col} : {});
-}
-
-
-let currentCampaignId = null;
-
-
-function fillTemplate(type) {
- const desc = document.getElementById('omni-desc');
- const kw = document.getElementById('omni-kw');
- 
- if (type === 'saas') {
- kw.value = 'B2B SaaS Automation';
- desc.value = 'A new B2B SaaS platform that automates invoice processing for small agencies. It integrates with QuickBooks and Xero, saving 10 hours a week.';
- } else if (type === 'ecommerce') {
- kw.value = 'Organic Coffee Beans';
- desc.value = 'Premium, fair-trade organic coffee beans sourced directly from Colombia. Dark roast with notes of chocolate and caramel.';
- } else if (type === 'realestate') {
- kw.value = 'Luxury Condo Downtown';
- desc.value = 'A newly renovated 2-bedroom luxury condo in the heart of downtown. Features floor-to-ceiling windows, smart home integration, and a rooftop pool.';
- } else if (type === 'fitness') {
- kw.value = 'Online Fitness Coaching';
- desc.value = 'A 12-week personalized online fitness coaching program designed for busy professionals. Includes custom meal plans and weekly 1-on-1 Zoom check-ins.';
- }
-}
-
-async function runOmniGenerate() {
- const btn = document.getElementById('btn-omni-generate');
- btn.textContent = "Scraping Market & Generating...";
- btn.disabled = true;
-
- const desc = document.getElementById('omni-desc').value;
- const kw = document.getElementById('omni-kw').value;
-
- try {
- const res = await fetch('/api/campaign/generate', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ keyword: kw, product_desc: desc })
- });
- 
- const data = await res.json();
- if (res.ok) {
- currentCampaignId = data.id;
- const assets = data.assets;
- 
- document.getElementById('omni-blog-title').textContent = assets.blog_post.title;
- document.getElementById('omni-blog-content').innerHTML = assets.blog_post.content;
- 
- let emailsHtml = "";
- assets.email_drip.forEach((e, i) => {
- emailsHtml += `<strong>${i+1}. ${e.subject}</strong><br/>${e.body}<hr/>`;
- });
- document.getElementById('omni-email-content').innerHTML = emailsHtml;
- 
- document.getElementById('omni-results-wrapper').style.display = 'block';
- } else {
- let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
- }
- } catch (err) {
- alert("Generation failed.");
- }
- 
- btn.textContent = "1. Generate Campaign";
- btn.disabled = false;
-}
-
-
-async function runOmniVisionGenerate() {
- const fileInput = document.getElementById('omni-image-file');
- if (!fileInput.files.length) return alert("Please select a product image first.");
- 
- const file = fileInput.files[0];
- const btn = document.getElementById('btn-omni-vision');
- btn.textContent = "Analyzing Photo & Generating...";
- btn.disabled = true;
- 
- const reader = new FileReader();
- reader.onload = async function(e) {
- const base64Data = e.target.result;
- const kw = document.getElementById('omni-kw').value;
- const desc = document.getElementById('omni-desc').value;
- 
- try {
- const res = await fetch('/api/campaign/generate-vision', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({
- image_base64: base64Data,
- mime_type: file.type || 'image/jpeg',
- keyword: kw,
- extra_context: desc
- })
- });
- 
- const data = await res.json();
- if (res.ok) {
- currentCampaignId = data.id;
- const assets = data.assets;
- 
- if (assets.detected_product_name && !kw) {
- document.getElementById('omni-kw').value = assets.detected_product_name;
- }
- if (assets.detected_description && !desc) {
- document.getElementById('omni-desc').value = assets.detected_description;
- }
- 
- document.getElementById('omni-blog-title').textContent = assets.blog_post.title;
- document.getElementById('omni-blog-content').innerHTML = assets.blog_post.content;
- 
- let emailsHtml = "";
- (assets.email_drip || []).forEach((item, i) => {
- emailsHtml += `<strong>${i+1}. ${item.subject}</strong><br/>${item.body}<hr/>`;
- });
- document.getElementById('omni-email-content').innerHTML = emailsHtml;
- document.getElementById('omni-results-wrapper').style.display = 'block';
- loadProfile();
- } else {
- let msg = data.detail; if (Array.isArray(msg)) msg = msg[0].msg;
- alert("Error: " + msg);
- }
- } catch (err) {
- alert("Vision campaign generation failed.");
- } finally {
- btn.textContent = "Generate From Photo";
- btn.disabled = false;
- }
- };
- reader.readAsDataURL(file);
-}
-
-async function runOmniPush() {
- const btn = document.getElementById('btn-omni-push');
- btn.textContent = "Deploying...";
- btn.disabled = true;
- 
- const productDests = Array.from(document.querySelectorAll('.dest-product:checked')).map(el => el.value);
- const blogDests = Array.from(document.querySelectorAll('.dest-blog:checked')).map(el => el.value);
- const emailDests = Array.from(document.querySelectorAll('.dest-email:checked')).map(el => el.value);
- 
- const kw = document.getElementById('omni-kw').value;
- const blogTitle = document.getElementById('omni-blog-title').textContent;
- const blogHTML = document.getElementById('omni-blog-content').innerHTML;
- const emailHTML = document.getElementById('omni-email-content').innerHTML;
- 
- let promises = [];
- productDests.forEach(dest => {
- promises.push(fetch('/api/push', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ platform: dest, content: blogHTML, title: kw })
- }));
- });
- blogDests.forEach(dest => {
- promises.push(fetch('/api/push', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ platform: dest, content: blogHTML, title: blogTitle })
- }));
- });
- emailDests.forEach(dest => {
- promises.push(fetch('/api/push', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ platform: dest, content: emailHTML, title: "Omni-Campaign Emails" })
- }));
- });
- 
- if (promises.length === 0) {
- alert("Please select at least one syndication destination.");
- btn.textContent = "2. Deploy Omni-Campaign";
- btn.disabled = false;
- return;
- }
- 
- try {
- const results = await Promise.all(promises);
- let allOk = true;
- for (let r of results) {
- if (!r.ok) allOk = false;
- }
- if (allOk) {
- alert("Syndication Started! Successfully queued " + promises.length + " push jobs in the background.");
- } else {
- alert("Some platform pushes failed. Check your API credentials in Integrations.");
- }
- } catch (err) {
- alert("Syndication error.");
- } finally {
- btn.textContent = "2. Deploy Omni-Campaign";
- btn.disabled = false;
- }
-}
-
-
-
-function activateBottomNav(btn) {
- document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
- if (btn) btn.classList.add('active');
-}
-
-
-// --- BULK SYNC LOGIC ---
-let bulkItems = [];
-async function parseCSV() {
- const fileInput = document.getElementById('csv-file');
- if (!fileInput.files.length) return alert("Please select a CSV file.");
- const file = fileInput.files[0];
- 
- const formData = new FormData();
- formData.append("file", file);
- 
- try {
- const res = await fetch('/api/catalog/parse-csv', {
- method: 'POST',
- headers: { 'Authorization': 'Bearer ' + getToken() },
- body: formData
- });
- 
- const data = await res.json();
- if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
- 
- bulkItems = data.items;
- const tbody = document.getElementById('bulk-table-body');
- tbody.innerHTML = '';
- 
- for (let i = 0; i < bulkItems.length; i++) {
- const item = bulkItems[i];
- item.status = 'Ready';
- const tr = document.createElement('tr');
- tr.style.borderBottom = '1px solid var(--border)';
- tr.id = `bulk-row-${i}`;
- tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;font-weight:bold;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${item.name}</td><td style="padding:12px 8px; color:var(--muted);">${item.desc.substring(0, 80)}...</td>`;
- tbody.appendChild(tr);
- }
- document.getElementById('bulk-preview-area').classList.remove('hidden');
- 
- alert(`AI successfully mapped columns:\nName = '${data.mapping_used.name_col}'\nDescription = '${data.mapping_used.desc_col}'\n\nFound ${bulkItems.length} products.`);
- } catch (err) {
- alert("Error parsing CSV: " + err.message);
- }
-}
-async function startBulkSyndication() {
- const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
- if (dests.length === 0) return alert("Please select at least one syndication destination.");
- const btn = document.getElementById('btn-start-bulk');
- btn.disabled = true;
- btn.textContent = "Syndicating Catalog...";
- for (let i = 0; i < bulkItems.length; i++) {
- const item = bulkItems[i];
- const row = document.getElementById(`bulk-row-${i}`);
- const statusCell = row.querySelector('.status-cell');
- try {
- statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
- const genRes = await fetch('/api/campaign/generate', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
- });
- if (!genRes.ok) throw new Error("Generation failed");
- const genData = await genRes.json();
- const blogHTML = genData.campaign.assets.blog_post.content;
- statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
- let pushPromises = [];
- dests.forEach(dest => {
- pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
- });
- await Promise.all(pushPromises);
- statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
- } catch (err) {
- statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">? Failed</span>';
- }
- }
- btn.textContent = "Syndication Complete!";
-}
-
-
-async function discoverConnector() {
- const urlInput = document.getElementById('uc-url').value;
- if (!urlInput) return alert("Please enter an API documentation URL.");
- 
- const btn = document.getElementById('btn-uc-discover');
- btn.textContent = "Discovering...";
- btn.disabled = true;
- 
- try {
- const res = await fetch('/api/connector/discover', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ url: urlInput })
- });
- 
- const data = await res.json();
- if (!res.ok) throw new Error(data.detail || "Discovery failed.");
- 
- document.getElementById('uc-res-title').textContent = data.platform_name;
- document.getElementById('uc-res-base').textContent = data.base_url;
- document.getElementById('uc-res-auth').textContent = data.authentication_modes.join(', ') || "None";
- document.getElementById('uc-res-ops').textContent = data.operation_count;
- 
- document.getElementById('uc-results').classList.remove('hidden');
- } catch (err) {
- alert(err.message);
- } finally {
- btn.textContent = "Discover API";
- btn.disabled = false;
- }
-}
-
-</script>
-
-
-
-<script>
- if ('serviceWorker' in navigator) {
- window.addEventListener('load', () => {
- navigator.serviceWorker.register('/sw.js').catch(err => {
- console.log('SW registration failed: ', err);
- });
- });
- }
-
-function activateBottomNav(btn) {
- document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
- if (btn) btn.classList.add('active');
-}
-
-// --- BULK SYNC LOGIC (XSS-Safe DOM construction) ---
-let bulkItems = [];
-async function parseCSV() {
- const fileInput = document.getElementById('csv-file');
- if (!fileInput.files.length) return alert("Please select a CSV file.");
- const file = fileInput.files[0];
- 
- const formData = new FormData();
- formData.append("file", file);
- 
- try {
- const res = await fetch('/api/catalog/parse-csv', {
- method: 'POST',
- headers: { 'Authorization': 'Bearer ' + getToken() },
- body: formData
- });
- 
- const data = await res.json();
- if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
- 
- bulkItems = data.items || [];
- const tbody = document.getElementById('bulk-table-body');
- tbody.innerHTML = '';
- 
- for (let i = 0; i < bulkItems.length; i++) {
- const item = bulkItems[i];
- item.status = 'Ready';
- const tr = document.createElement('tr');
- tr.style.borderBottom = '1px solid var(--border)';
- tr.id = `bulk-row-${i}`;
- 
- const tdStatus = document.createElement('td');
- tdStatus.style.padding = '12px 8px';
- tdStatus.className = 'status-cell';
- const badge = document.createElement('span');
- badge.style.color = '#eab308';
- badge.style.fontWeight = 'bold';
- badge.textContent = 'Ready';
- tdStatus.appendChild(badge);
-
- const tdName = document.createElement('td');
- tdName.style.padding = '12px 8px';
- tdName.style.fontWeight = 'bold';
- tdName.textContent = item.name || '';
-
- const tdDesc = document.createElement('td');
- tdDesc.style.padding = '12px 8px';
- tdDesc.style.color = 'var(--muted)';
- const rawDesc = item.desc || '';
- tdDesc.textContent = rawDesc.length > 80 ? rawDesc.substring(0, 80) + '...' : rawDesc;
-
- tr.appendChild(tdStatus);
- tr.appendChild(tdName);
- tr.appendChild(tdDesc);
- tbody.appendChild(tr);
- }
- document.getElementById('bulk-preview-area').classList.remove('hidden');
- 
- const mapName = (data.mapping_used && data.mapping_used.name_col) ? data.mapping_used.name_col : 'Auto';
- const mapDesc = (data.mapping_used && data.mapping_used.desc_col) ? data.mapping_used.desc_col : 'Auto';
- alert("AI successfully mapped columns:\nName = '" + mapName + "'\nDescription = '" + mapDesc + "'\n\nFound " + bulkItems.length + " products.");
- } catch (err) {
- alert("Error parsing CSV: " + err.message);
- }
-}
-
-async function startBulkSyndication() {
- const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
- if (dests.length === 0) return alert("Please select at least one syndication destination.");
- const btn = document.getElementById('btn-start-bulk');
- btn.disabled = true;
- btn.textContent = "Syndicating Catalog...";
- 
- for (let i = 0; i < bulkItems.length; i++) {
- const item = bulkItems[i];
- const row = document.getElementById(`bulk-row-${i}`);
- if (!row) continue;
- const statusCell = row.querySelector('.status-cell');
- try {
- if (statusCell) {
- statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
- }
- const genRes = await fetch('/api/campaign/generate', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
- });
- if (!genRes.ok) throw new Error("Generation failed");
- const genData = await genRes.json();
- const blogHTML = genData.campaign && genData.campaign.assets && genData.campaign.assets.blog_post ? genData.campaign.assets.blog_post.content : '';
- 
- if (statusCell) {
- statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
- }
- let pushPromises = [];
- dests.forEach(dest => {
- pushPromises.push(fetch('/api/push', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name })
- }));
- });
- await Promise.all(pushPromises);
- if (statusCell) {
- statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">Syndicated</span>';
- }
- } catch (err) {
- if (statusCell) {
- statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">Failed</span>';
- }
- }
- }
- btn.textContent = "Syndication Complete!";
- btn.disabled = false;
-}
-
-async function discoverConnector() {
- const urlInput = document.getElementById('uc-url').value;
- if (!urlInput) return alert("Please enter an API documentation URL.");
- 
- const btn = document.getElementById('btn-uc-discover');
- btn.textContent = "Discovering...";
- btn.disabled = true;
- 
- try {
- const res = await fetch('/api/connector/discover', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
- body: JSON.stringify({ url: urlInput })
- });
- 
- const data = await res.json();
- if (!res.ok) throw new Error(data.detail || "Discovery failed.");
- 
- document.getElementById('uc-res-title').textContent = data.platform_name || 'Custom Platform';
- document.getElementById('uc-res-base').textContent = data.base_url || '';
- document.getElementById('uc-res-auth').textContent = (data.authentication_modes && data.authentication_modes.length) ? data.authentication_modes.join(', ') : "None";
- document.getElementById('uc-res-ops').textContent = data.operation_count !== undefined ? data.operation_count : 0;
- 
- document.getElementById('uc-results').classList.remove('hidden');
- } catch (err) {
- alert(err.message);
- } finally {
- btn.textContent = "Discover API";
- btn.disabled = false;
- }
-}
-
-async function runReviewMiner() {
-  const prod = document.getElementById('miner-product').value.trim();
-  const comp = document.getElementById('miner-competitor').value.trim();
-  const reviews = document.getElementById('miner-reviews').value.trim();
-
-  if (!prod) return alert("Please enter your product name.");
-  if (!reviews || reviews.length < 10) return alert("Please paste at least one detailed competitor review.");
-
-  const btn = document.getElementById('btn-mine-reviews');
-  btn.textContent = "Analyzing Reviews & Crafting Copy...";
-  btn.disabled = true;
-
-  try {
-    const res = await fetch('/api/competitor/mine-reviews', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ product_name: prod, competitor_name: comp, reviews_text: reviews })
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Review mining failed.");
-
-    // Render Flaws (DOM textContent safe)
-    const flawsContainer = document.getElementById('miner-flaws-list');
-    flawsContainer.innerHTML = '';
-    (data.extracted_flaws || []).forEach((flaw, i) => {
-      const div = document.createElement('div');
-      div.style.padding = '8px 12px';
-      div.style.background = 'rgba(239, 68, 68, 0.08)';
-      div.style.border = '1px solid rgba(239, 68, 68, 0.2)';
-      div.style.borderRadius = '6px';
-      div.style.fontSize = '13px';
-      div.textContent = flaw;
-      flawsContainer.appendChild(div);
-    });
-
-    // Render Counter Description
-    document.getElementById('miner-counter-desc').textContent = data.counter_description || '';
-
-    // Render Ad Hooks
-    const hooksText = (data.ad_hooks || []).map((h, i) => `${i+1}. ${h}`).join('\n\n');
-    document.getElementById('miner-ad-hooks').textContent = hooksText;
-
-    // Render Comparison Table (DOM textContent safe)
-    const compBody = document.getElementById('miner-comparison-body');
-    compBody.innerHTML = '';
-    (data.comparison_points || []).forEach(row => {
-      const tr = document.createElement('tr');
-      tr.style.borderBottom = '1px solid var(--border)';
-      
-      const tdAspect = document.createElement('td');
-      tdAspect.style.padding = '10px 8px';
-      tdAspect.style.fontWeight = '600';
-      tdAspect.textContent = row.aspect || '';
-
-      const tdFlaw = document.createElement('td');
-      tdFlaw.style.padding = '10px 8px';
-      tdFlaw.style.color = 'var(--muted)';
-      tdFlaw.textContent = row.competitor_flaw || '';
-
-      const tdAdv = document.createElement('td');
-      tdAdv.style.padding = '10px 8px';
-      tdAdv.style.fontWeight = '600';
-      tdAdv.style.color = '#22c55e';
-      tdAdv.textContent = row.our_advantage || '';
-
-      tr.appendChild(tdAspect);
-      tr.appendChild(tdFlaw);
-      tr.appendChild(tdAdv);
-      compBody.appendChild(tr);
-    });
-
-    document.getElementById('miner-results-area').classList.remove('hidden');
-    loadProfile();
-  } catch (err) {
-    alert("Error: " + err.message);
-  } finally {
-    btn.textContent = "Mine Reviews & Generate Angles";
-    btn.disabled = false;
-  }
+  localStorage.removeItem('sc_token');
+  localStorage.removeItem('sc_user');
+  window.location.href = '/';
 }
 
 function copyElementText(elemId) {
@@ -1603,6 +699,665 @@ function copyElementText(elemId) {
   });
 }
 
+function copyKey() {
+  const el = document.getElementById('new-key-value');
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    if (btn) {
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy Key', 2000);
+    }
+  });
+}
+
+// -- PROFILE & USAGE ----------------------------------------------------------
+async function loadProfile() {
+  try {
+    const [profileRes, usageRes] = await Promise.all([
+      fetch(`${API}/auth/me`, { headers: { 'Authorization': `Bearer ${getToken()}` } }),
+      fetch(`${API}/api/usage`, { headers: { 'Authorization': `Bearer ${getToken()}` } })
+    ]);
+
+    if (profileRes.status === 401 || usageRes.status === 401) {
+      logout();
+      return;
+    }
+
+    const profile = await profileRes.json();
+    const usage = await usageRes.json();
+
+    const userNameEl = document.getElementById('user-name');
+    if (userNameEl) userNameEl.textContent = profile.full_name || (profile.email ? profile.email.split('@')[0] : 'User');
+
+    const planLabel = profile.plan ? (profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1)) : 'Free';
+    const gensRemaining = profile.generations_remaining !== undefined ? profile.generations_remaining : (profile.generations || 0);
+    const monthlyLimit = profile.monthly_limit || 250;
+
+    const statPlanEl = document.getElementById('stat-plan');
+    if (statPlanEl) statPlanEl.innerHTML = `<span class="plan-chip ${profile.plan || 'free'}">${planLabel}</span>`;
+
+    const statGensEl = document.getElementById('stat-generations-rem');
+    if (statGensEl) statGensEl.textContent = gensRemaining.toLocaleString();
+
+    const statLimitEl = document.getElementById('stat-limit');
+    if (statLimitEl) statLimitEl.textContent = monthlyLimit.toLocaleString();
+
+    const statReqsEl = document.getElementById('stat-requests');
+    if (statReqsEl) statReqsEl.textContent = (usage.total_requests || 0).toLocaleString();
+
+    // Progress bar
+    const used = Math.max(0, monthlyLimit - gensRemaining);
+    const pct = monthlyLimit > 0 ? Math.min(100, (used / monthlyLimit) * 100) : 0;
+    const bar = document.getElementById('usage-bar');
+    if (bar) bar.style.width = pct + '%';
+    const label = document.getElementById('usage-label');
+    if (label) label.textContent = `${used.toLocaleString()} / ${monthlyLimit.toLocaleString()} campaigns used`;
+    const pctLabel = document.getElementById('usage-pct');
+    if (pctLabel) pctLabel.textContent = pct.toFixed(1) + '%';
+
+    // Usage tab elements
+    const uReqs = document.getElementById('u-requests');
+    if (uReqs) uReqs.textContent = (usage.total_requests || 0).toLocaleString();
+    const uUsed = document.getElementById('u-generations-used');
+    if (uUsed) uUsed.textContent = (usage.total_generations_used || 0).toLocaleString();
+    const uRem = document.getElementById('u-generations-rem');
+    if (uRem) uRem.textContent = gensRemaining.toLocaleString();
+    const uLim = document.getElementById('u-limit');
+    if (uLim) uLim.textContent = monthlyLimit.toLocaleString();
+
+    if (usage.period_start && usage.period_end) {
+      const uPeriod = document.getElementById('u-period');
+      if (uPeriod) {
+        uPeriod.textContent = `Billing period: ${new Date(usage.period_start).toLocaleDateString()} – ${new Date(usage.period_end).toLocaleDateString()}`;
+      }
+    }
+
+    // Billing tab elements
+    const chip = document.getElementById('billing-plan-chip');
+    if (chip) {
+      chip.textContent = planLabel;
+      chip.className = `plan-chip ${profile.plan || 'free'}`;
+    }
+    const billingDetail = document.getElementById('billing-plan-detail');
+    if (billingDetail) billingDetail.textContent = `${monthlyLimit.toLocaleString()} monthly generations`;
+
+    const baseUrlDisp = document.getElementById('base-url-display');
+    if (baseUrlDisp) baseUrlDisp.textContent = window.location.origin;
+
+  } catch (e) {
+    console.error('Failed to load profile', e);
+  }
+}
+
+// -- API KEYS ----------------------------------------------------------------
+async function loadKeys() {
+  const list = document.getElementById('keys-list');
+  if (!list) return;
+  try {
+    const res = await fetch(`${API}/api/keys`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
+    if (!res.ok) throw new Error("Failed to fetch keys");
+    const keys = await res.json();
+
+    if (!keys || !keys.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px 0;">No API keys yet. Create one above.</div>';
+      return;
+    }
+
+    list.innerHTML = keys.map(k => `
+      <div class="key-row">
+        <div>
+          <div class="key-name">${k.name}</div>
+          <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} &middot; ${k.requests_today || 0} requests today</div>
+        </div>
+        <code class="key-prefix">${k.key_prefix}&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</code>
+        <button class="key-delete" onclick="deleteKey('${k.id}')" title="Revoke key">&times;</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = '<div style="color:#ff6b6b;font-size:14px;">Failed to load keys.</div>';
+  }
+}
+
+async function createApiKey() {
+  const nameInput = document.getElementById('key-name-input');
+  const name = (nameInput && nameInput.value.trim()) || 'My Key';
+  try {
+    const res = await fetch(`${API}/api/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to create key'); return; }
+
+    const box = document.getElementById('new-key-box');
+    const valEl = document.getElementById('new-key-value');
+    if (valEl) valEl.textContent = data.raw_key;
+    if (box) {
+      box.classList.add('visible');
+      box.scrollIntoView({ behavior: 'smooth' });
+    }
+    if (nameInput) nameInput.value = '';
+    loadKeys();
+  } catch (e) {
+    alert('Error creating key. Please try again.');
+  }
+}
+
+async function deleteKey(id) {
+  if (!confirm('Revoke this API key? This cannot be undone.')) return;
+  try {
+    await fetch(`${API}/api/keys/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${getToken()}` }
+    });
+    loadKeys();
+  } catch (e) {
+    alert('Failed to delete key.');
+  }
+}
+
+// -- BILLING CHECKOUT --------------------------------------------------------
+async function startCheckout(plan) {
+  try {
+    const res = await fetch(`${API}/billing/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+      body: JSON.stringify({ plan })
+    });
+    const data = await res.json();
+    if (data.checkout_url) {
+      window.location.href = data.checkout_url;
+    } else {
+      alert(data.detail || 'Checkout unavailable.');
+    }
+  } catch (err) {
+    alert('Failed to start checkout.');
+  }
+}
+
+async function buyGenerations(pack) {
+  try {
+    const res = await fetch(`${API}/billing/one-time`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+      body: JSON.stringify({ pack })
+    });
+    const data = await res.json();
+    if (data.checkout_url) {
+      window.location.href = data.checkout_url;
+    } else {
+      alert(data.detail || 'Checkout unavailable.');
+    }
+  } catch (err) {
+    alert('Failed to start purchase.');
+  }
+}
+
+// -- COPY GENERATOR ----------------------------------------------------------
+async function runGenerator() {
+  const btn = document.getElementById('btn-generate');
+  if (btn) { btn.textContent = "Generating..."; btn.disabled = true; }
+
+  const type = document.getElementById('gen-type').value;
+  const context = document.getElementById('gen-context').value;
+  const tone = document.getElementById('gen-tone').value;
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ type, context, tone, variations: 1, max_words: 300 })
+    });
+    const data = await res.json();
+    const resDiv = document.getElementById('gen-results');
+
+    if (res.ok && data.variations && data.variations.length) {
+      const text = data.variations[0];
+      resDiv.innerHTML = '';
+      
+      const copyContent = document.createElement('div');
+      copyContent.style.fontSize = '14px';
+      copyContent.style.lineHeight = '1.6';
+      copyContent.style.whiteSpace = 'pre-wrap';
+      copyContent.textContent = text;
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.style.marginTop = '16px';
+      actionsDiv.style.paddingTop = '16px';
+      actionsDiv.style.borderTop = '1px solid var(--border)';
+      actionsDiv.style.display = 'flex';
+      actionsDiv.style.gap = '8px';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'btn btn-outline btn-sm';
+      copyBtn.textContent = 'Copy Text';
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
+      };
+
+      actionsDiv.appendChild(copyBtn);
+      resDiv.appendChild(copyContent);
+      resDiv.appendChild(actionsDiv);
+      loadProfile();
+    } else {
+      resDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail || 'Generation failed'}</span>`;
+    }
+  } catch (err) {
+    document.getElementById('gen-results').innerHTML = `<span style="color:#ff6b6b;">Failed to generate copy.</span>`;
+  } finally {
+    if (btn) { btn.textContent = "Generate Options"; btn.disabled = false; }
+  }
+}
+
+// -- OMNI-CAMPAIGN WIZARD -----------------------------------------------------
+function fillTemplate(type) {
+  const desc = document.getElementById('omni-desc');
+  const kw = document.getElementById('omni-kw');
+  if (!desc || !kw) return;
+
+  if (type === 'saas') {
+    kw.value = 'B2B SaaS Automation';
+    desc.value = 'A new B2B SaaS platform that automates invoice processing for small agencies. Integrates with QuickBooks and Xero.';
+  } else if (type === 'ecommerce') {
+    kw.value = 'Organic Coffee Beans';
+    desc.value = 'Premium, fair-trade organic coffee beans sourced directly from Colombia. Dark roast with notes of chocolate and caramel.';
+  } else if (type === 'realestate') {
+    kw.value = 'Luxury Condo Downtown';
+    desc.value = 'A newly renovated 2-bedroom luxury condo in the heart of downtown with floor-to-ceiling windows and rooftop pool.';
+  } else if (type === 'fitness') {
+    kw.value = 'Online Fitness Coaching';
+    desc.value = 'A 12-week personalized online fitness coaching program designed for busy professionals. Includes custom meal plans.';
+  }
+}
+
+async function runOmniGenerate() {
+  const btn = document.getElementById('btn-omni-generate');
+  if (btn) { btn.textContent = "Scraping Market & Generating..."; btn.disabled = true; }
+
+  const desc = document.getElementById('omni-desc').value;
+  const kw = document.getElementById('omni-kw').value;
+
+  try {
+    const res = await fetch('/api/campaign/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ keyword: kw, product_desc: desc })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      currentCampaignId = data.id;
+      const assets = data.assets || {};
+
+      document.getElementById('omni-blog-title').textContent = (assets.blog_post && assets.blog_post.title) || '';
+      document.getElementById('omni-blog-content').innerHTML = (assets.blog_post && assets.blog_post.content) || '';
+
+      let emailsHtml = "";
+      (assets.email_drip || []).forEach((e, i) => {
+        emailsHtml += `<strong>${i + 1}. ${e.subject}</strong><br/>${e.body}<hr/>`;
+      });
+      document.getElementById('omni-email-content').innerHTML = emailsHtml;
+      document.getElementById('omni-results-wrapper').style.display = 'block';
+      loadProfile();
+    } else {
+      let msg = data.detail; if (Array.isArray(msg)) msg = msg[0].msg;
+      alert("Error: " + msg);
+    }
+  } catch (err) {
+    alert("Campaign generation failed.");
+  } finally {
+    if (btn) { btn.textContent = "1. Generate Campaign"; btn.disabled = false; }
+  }
+}
+
+async function runOmniVisionGenerate() {
+  const fileInput = document.getElementById('omni-image-file');
+  if (!fileInput || !fileInput.files.length) return alert("Please select a product image first.");
+
+  const file = fileInput.files[0];
+  const btn = document.getElementById('btn-omni-vision');
+  if (btn) { btn.textContent = "Analyzing Photo & Generating..."; btn.disabled = true; }
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const base64Data = e.target.result;
+    const kw = document.getElementById('omni-kw').value;
+    const desc = document.getElementById('omni-desc').value;
+
+    try {
+      const res = await fetch('/api/campaign/generate-vision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+        body: JSON.stringify({
+          image_base64: base64Data,
+          mime_type: file.type || 'image/jpeg',
+          keyword: kw,
+          extra_context: desc
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        currentCampaignId = data.id;
+        const assets = data.assets || {};
+
+        if (assets.detected_product_name && !kw) {
+          document.getElementById('omni-kw').value = assets.detected_product_name;
+        }
+        if (assets.detected_description && !desc) {
+          document.getElementById('omni-desc').value = assets.detected_description;
+        }
+
+        document.getElementById('omni-blog-title').textContent = (assets.blog_post && assets.blog_post.title) || '';
+        document.getElementById('omni-blog-content').innerHTML = (assets.blog_post && assets.blog_post.content) || '';
+
+        let emailsHtml = "";
+        (assets.email_drip || []).forEach((item, i) => {
+          emailsHtml += `<strong>${i + 1}. ${item.subject}</strong><br/>${item.body}<hr/>`;
+        });
+        document.getElementById('omni-email-content').innerHTML = emailsHtml;
+        document.getElementById('omni-results-wrapper').style.display = 'block';
+        loadProfile();
+      } else {
+        let msg = data.detail; if (Array.isArray(msg)) msg = msg[0].msg;
+        alert("Error: " + msg);
+      }
+    } catch (err) {
+      alert("Vision generation failed.");
+    } finally {
+      if (btn) { btn.textContent = "Generate From Photo"; btn.disabled = false; }
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runOmniPush() {
+  const btn = document.getElementById('btn-omni-push');
+  if (btn) { btn.textContent = "Deploying..."; btn.disabled = true; }
+
+  const productDests = Array.from(document.querySelectorAll('.dest-product:checked')).map(el => el.value);
+  const blogDests = Array.from(document.querySelectorAll('.dest-blog:checked')).map(el => el.value);
+  const emailDests = Array.from(document.querySelectorAll('.dest-email:checked')).map(el => el.value);
+
+  const kw = document.getElementById('omni-kw').value;
+  const blogTitle = document.getElementById('omni-blog-title').textContent;
+  const blogHTML = document.getElementById('omni-blog-content').innerHTML;
+  const emailHTML = document.getElementById('omni-email-content').innerHTML;
+
+  let promises = [];
+  productDests.forEach(dest => {
+    promises.push(fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ platform: dest, content: blogHTML, title: kw })
+    }));
+  });
+  blogDests.forEach(dest => {
+    promises.push(fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ platform: dest, content: blogHTML, title: blogTitle })
+    }));
+  });
+  emailDests.forEach(dest => {
+    promises.push(fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ platform: dest, content: emailHTML, title: "Omni-Campaign Emails" })
+    }));
+  });
+
+  if (promises.length === 0) {
+    alert("Please select at least one syndication destination.");
+    if (btn) { btn.textContent = "2. Deploy Omni-Campaign"; btn.disabled = false; }
+    return;
+  }
+
+  try {
+    const results = await Promise.all(promises);
+    let allOk = results.every(r => r.ok);
+    if (allOk) {
+      alert("Syndication Started! Successfully queued " + promises.length + " push jobs in the background.");
+    } else {
+      alert("Some platform pushes failed. Check your API credentials in Integrations.");
+    }
+  } catch (err) {
+    alert("Syndication error.");
+  } finally {
+    if (btn) { btn.textContent = "2. Deploy Omni-Campaign"; btn.disabled = false; }
+  }
+}
+
+// -- BULK CATALOG SYNC -------------------------------------------------------
+async function parseCSV() {
+  const fileInput = document.getElementById('csv-file');
+  if (!fileInput || !fileInput.files.length) return alert("Please select a CSV file.");
+  const file = fileInput.files[0];
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch('/api/catalog/parse-csv', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken() },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
+
+    bulkItems = data.items || [];
+    const tbody = document.getElementById('bulk-table-body');
+    if (tbody) {
+      tbody.innerHTML = '';
+      for (let i = 0; i < bulkItems.length; i++) {
+        const item = bulkItems[i];
+        item.status = 'Ready';
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        tr.id = `bulk-row-${i}`;
+
+        const tdStatus = document.createElement('td');
+        tdStatus.style.padding = '12px 8px';
+        tdStatus.className = 'status-cell';
+        const badge = document.createElement('span');
+        badge.style.color = '#eab308';
+        badge.style.fontWeight = 'bold';
+        badge.textContent = 'Ready';
+        tdStatus.appendChild(badge);
+
+        const tdName = document.createElement('td');
+        tdName.style.padding = '12px 8px';
+        tdName.style.fontWeight = 'bold';
+        tdName.textContent = item.name || '';
+
+        const tdDesc = document.createElement('td');
+        tdDesc.style.padding = '12px 8px';
+        tdDesc.style.color = 'var(--muted)';
+        const rawDesc = item.desc || '';
+        tdDesc.textContent = rawDesc.length > 80 ? rawDesc.substring(0, 80) + '...' : rawDesc;
+
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdName);
+        tr.appendChild(tdDesc);
+        tbody.appendChild(tr);
+      }
+    }
+    document.getElementById('bulk-preview-area').classList.remove('hidden');
+    const mapName = (data.mapping_used && data.mapping_used.name_col) ? data.mapping_used.name_col : 'Auto';
+    const mapDesc = (data.mapping_used && data.mapping_used.desc_col) ? data.mapping_used.desc_col : 'Auto';
+    alert("AI mapped columns:
+Name = '" + mapName + "'
+Description = '" + mapDesc + "'
+Found " + bulkItems.length + " products.");
+  } catch (err) {
+    alert("Error parsing CSV: " + err.message);
+  }
+}
+
+async function startBulkSyndication() {
+  const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
+  if (dests.length === 0) return alert("Please select at least one syndication destination.");
+  const btn = document.getElementById('btn-start-bulk');
+  if (btn) { btn.disabled = true; btn.textContent = "Syndicating Catalog..."; }
+
+  for (let i = 0; i < bulkItems.length; i++) {
+    const item = bulkItems[i];
+    const row = document.getElementById(`bulk-row-${i}`);
+    if (!row) continue;
+    const statusCell = row.querySelector('.status-cell');
+    try {
+      if (statusCell) statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
+      const genRes = await fetch('/api/campaign/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+        body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
+      });
+      if (!genRes.ok) throw new Error("Generation failed");
+      const genData = await genRes.json();
+      const blogHTML = genData.campaign && genData.campaign.assets && genData.campaign.assets.blog_post ? genData.campaign.assets.blog_post.content : '';
+
+      if (statusCell) statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
+      let pushPromises = dests.map(dest => fetch('/api/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+        body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name })
+      }));
+      await Promise.all(pushPromises);
+      if (statusCell) statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">Syndicated</span>';
+    } catch (err) {
+      if (statusCell) statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">Failed</span>';
+    }
+  }
+  if (btn) { btn.textContent = "Syndication Complete!"; btn.disabled = false; }
+}
+
+// -- UNIVERSAL CONNECTOR DISCOVERY -------------------------------------------
+async function discoverConnector() {
+  const urlInput = document.getElementById('uc-url').value;
+  if (!urlInput) return alert("Please enter an API documentation URL.");
+
+  const btn = document.getElementById('btn-uc-discover');
+  if (btn) { btn.textContent = "Discovering..."; btn.disabled = true; }
+
+  try {
+    const res = await fetch('/api/connector/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ url: urlInput })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Discovery failed.");
+
+    document.getElementById('uc-res-title').textContent = data.platform_name || 'Custom Platform';
+    document.getElementById('uc-res-base').textContent = data.base_url || '';
+    document.getElementById('uc-res-auth').textContent = (data.authentication_modes && data.authentication_modes.length) ? data.authentication_modes.join(', ') : "None";
+    document.getElementById('uc-res-ops').textContent = data.operation_count !== undefined ? data.operation_count : 0;
+    document.getElementById('uc-results').classList.remove('hidden');
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    if (btn) { btn.textContent = "Discover API"; btn.disabled = false; }
+  }
+}
+
+// -- COMPETITOR REVIEW MINER -------------------------------------------------
+async function runReviewMiner() {
+  const prod = document.getElementById('miner-product').value.trim();
+  const comp = document.getElementById('miner-competitor').value.trim();
+  const reviews = document.getElementById('miner-reviews').value.trim();
+
+  if (!prod) return alert("Please enter your product name.");
+  if (!reviews || reviews.length < 10) return alert("Please paste at least one detailed competitor review.");
+
+  const btn = document.getElementById('btn-mine-reviews');
+  if (btn) { btn.textContent = "Analyzing Reviews & Crafting Copy..."; btn.disabled = true; }
+
+  try {
+    const res = await fetch('/api/competitor/mine-reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ product_name: prod, competitor_name: comp, reviews_text: reviews })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Review mining failed.");
+
+    const flawsContainer = document.getElementById('miner-flaws-list');
+    if (flawsContainer) {
+      flawsContainer.innerHTML = '';
+      (data.extracted_flaws || []).forEach(flaw => {
+        const div = document.createElement('div');
+        div.style.padding = '8px 12px';
+        div.style.background = 'rgba(239, 68, 68, 0.08)';
+        div.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+        div.style.borderRadius = '6px';
+        div.style.fontSize = '13px';
+        div.textContent = flaw;
+        flawsContainer.appendChild(div);
+      });
+    }
+
+    document.getElementById('miner-counter-desc').textContent = data.counter_description || '';
+    const hooksText = (data.ad_hooks || []).map((h, i) => `${i + 1}. ${h}`).join('\n\n');
+    document.getElementById('miner-ad-hooks').textContent = hooksText;
+
+    const compBody = document.getElementById('miner-comparison-body');
+    if (compBody) {
+      compBody.innerHTML = '';
+      (data.comparison_points || []).forEach(row => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        const tdAspect = document.createElement('td');
+        tdAspect.style.padding = '10px 8px';
+        tdAspect.style.fontWeight = '600';
+        tdAspect.textContent = row.aspect || '';
+
+        const tdFlaw = document.createElement('td');
+        tdFlaw.style.padding = '10px 8px';
+        tdFlaw.style.color = 'var(--muted)';
+        tdFlaw.textContent = row.competitor_flaw || '';
+
+        const tdAdv = document.createElement('td');
+        tdAdv.style.padding = '10px 8px';
+        tdAdv.style.fontWeight = '600';
+        tdAdv.style.color = '#22c55e';
+        tdAdv.textContent = row.our_advantage || '';
+
+        tr.appendChild(tdAspect);
+        tr.appendChild(tdFlaw);
+        tr.appendChild(tdAdv);
+        compBody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('miner-results-area').classList.remove('hidden');
+    loadProfile();
+  } catch (err) {
+    alert("Error: " + err.message);
+  } finally {
+    if (btn) { btn.textContent = "Mine Reviews & Generate Angles"; btn.disabled = false; }
+  }
+}
+
+// -- INITIALIZATION ----------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  loadProfile();
+  loadKeys();
+
+  const hash = window.location.hash.replace('#', '');
+  if (hash && document.getElementById(`section-${hash}`)) {
+    showSection(hash);
+  } else {
+    showSection('overview');
+  }
+
+  if (new URLSearchParams(window.location.search).get('success')) {
+    const banner = document.getElementById('success-banner');
+    if (banner) banner.style.display = 'block';
+    window.history.replaceState({}, '', '/dashboard');
+  }
+});
 </script>
 </body>
 </html>
