@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet
 
 from .database import get_db, User, APIKey
 
-# ── Config ────────────────────────────────────────────────────────────────────
+#  Config 
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not SECRET_KEY:
@@ -30,7 +30,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
 
-# ── Password helpers ──────────────────────────────────────────────────────────
+#  Password helpers 
 
 def hash_password(password: str) -> str:
     """Hash password using bcrypt directly."""
@@ -55,7 +55,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     except Exception:
         return False
 
-# ── JWT helpers ───────────────────────────────────────────────────────────────
+#  JWT helpers 
 
 def create_access_token(user_id: str, email: str) -> str:
     payload = {
@@ -72,7 +72,7 @@ def decode_access_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
-# ── API Key helpers ───────────────────────────────────────────────────────────
+#  API Key helpers 
 
 def generate_api_key() -> tuple[str, str, str]:
     """Returns (raw_key, key_hash, key_prefix)."""
@@ -85,7 +85,7 @@ def generate_api_key() -> tuple[str, str, str]:
 def hash_api_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
-# ── FastAPI dependencies ──────────────────────────────────────────────────────
+#  FastAPI dependencies 
 
 def get_current_user_jwt(
     token: Optional[str] = Depends(oauth2_scheme),
@@ -141,7 +141,7 @@ def get_current_user_apikey(
     db.commit()
     return user, api_key
 
-# ── Business logic ────────────────────────────────────────────────────────────
+#  Business logic 
 
 def register_user(email: str, password: str, full_name: Optional[str], db: Session) -> User:
     existing = db.query(User).filter(User.email == email).first()
@@ -202,7 +202,7 @@ def revoke_api_key(key_id: str, user: User, db: Session) -> bool:
     db.commit()
     return True
 
-# ── Integration credential encryption ─────────────────────────────────────────
+#  Integration credential encryption 
 _INTEGRATION_KEY = os.getenv("INTEGRATION_ENCRYPTION_KEY")
 if not _INTEGRATION_KEY:
     raise RuntimeError("INTEGRATION_ENCRYPTION_KEY must be configured; refusing to generate a new credential-encryption key")

@@ -1,4 +1,4 @@
-# 🛠 KopyKat — Owner's Tutorial & Manual
+# KopyKat — Owner's Tutorial & Manual
 
 This guide explains how to operate, manage, and modify your automated SaaS business.
 
@@ -50,9 +50,9 @@ If you ever want to test changes on your Windows machine before pushing them liv
 1. Open PowerShell.
 2. Navigate to your project: `cd C:\Users\plumb\Desktop\claude-project`
 3. Activate virtual environment (if you use one), or just run:
-   `pip install -r requirements.txt`
+ `pip install -r requirements.txt`
 4. Start the server:
-   `python -m uvicorn server.main:app --reload`
+ `python -m uvicorn server.main:app --reload`
 5. Open your browser to `http://127.0.0.1:8000`.
 
 ## 7. Adding New Copywriting Formats

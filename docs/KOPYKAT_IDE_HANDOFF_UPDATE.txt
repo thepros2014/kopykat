@@ -170,6 +170,10 @@ FRONTEND/BACKEND CONTRACT
   to trigger client-side cache wipe. Current version: 1.1.0
 - Bulk CSV preview renders exclusively via safe DOM textContent (XSS protected).
 
+EMOJI POLICY INVARIANT
+- Zero emojis across all repository files (.html, .py, .js, .css, .json).
+- Any emoji character introduced will fail CI test_zero_emojis_in_codebase.
+
 ============================================================
 PROJECT VISION
 ============================================================
@@ -203,7 +207,10 @@ WORKING PRINCIPLES (DO NOT VIOLATE)
 5. Never execute arbitrary AI-generated code.
 6. Never expose customer credentials to the AI model.
 7. Fail closed when authentication, validation, or platform behavior is ambiguous.
-8. No emojis in code or HTML — the user has explicitly banned them.
+8. ABSOLUTE ZERO EMOJI POLICY (MANDATORY & ENFORCED):
+   No emojis anywhere in this project — not in code, HTML, CSS, logs, docstrings,
+   comments, UI, or prompts. The user has strictly banned all emojis.
+   Enforced permanently via automated pytest test (tests/test_no_emojis.py).
 9. Never blindly retry non-idempotent writes.
 10. Never report "published/synchronized" unless destination confirms success.
 

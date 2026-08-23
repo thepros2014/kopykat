@@ -97,7 +97,7 @@ The important distinction is that you actually built a SaaS, not just an AI demo
 
 ---
 
-🔴 1. Biggest issue: your credit accounting can be abused
+ 1. Biggest issue: your credit accounting can be abused
 
 This is the first thing I'd fix.
 
@@ -128,7 +128,7 @@ WHERE id = ?
 AND credits >= estimated_cost
 
 IF affected_rows != 1:
-    reject request
+ reject request
 
 COMMIT
 
@@ -138,7 +138,7 @@ I'd also put a per-user rate limiter around /api/generate.
 
 ---
 
-🔴 2. Business plan is effectively unlimited
+ 2. Business plan is effectively unlimited
 
 This line is concerning:
 
@@ -162,7 +162,7 @@ If you actually want unlimited, advertise Unlimited and price it accordingly.
 
 ---
 
-🔴 3. Stripe webhook needs idempotency
+ 3. Stripe webhook needs idempotency
 
 This is a major SaaS accounting issue.
 
@@ -203,7 +203,7 @@ processed_at
 Before processing:
 
 if event_id exists:
-    return already_processed
+ return already_processed
 
 insert event_id
 
@@ -215,7 +215,7 @@ This should be considered mandatory before serious revenue volume.
 
 ---
 
-🔴 4. Your checkout URLs are user-controlled
+ 4. Your checkout URLs are user-controlled
 
 Your models accept:
 
@@ -241,13 +241,13 @@ APP_BASE_URL
 server-side:
 
 success = APP_BASE_URL + "/dashboard?payment=success"
-cancel  = APP_BASE_URL + "/dashboard?payment=cancelled"
+cancel = APP_BASE_URL + "/dashboard?payment=cancelled"
 
 Much cleaner.
 
 ---
 
-🔴 5. CORS is too permissive
+ 5. CORS is too permissive
 
 You have:
 
@@ -344,25 +344,25 @@ Your ai_engine.py contains ten predefined prompt templates and a common system p
 I'd evolve this into:
 
 USER INPUT
-     ↓
+ ↓
 Intent extraction
-     ↓
+ ↓
 Audience extraction
-     ↓
+ ↓
 Product/value proposition extraction
-     ↓
+ ↓
 Competitive positioning
-     ↓
+ ↓
 Copy strategy
-     ↓
+ ↓
 Generation
-     ↓
+ ↓
 Critic
-     ↓
+ ↓
 Revision
-     ↓
+ ↓
 Quality scoring
-     ↓
+ ↓
 FINAL COPY
 
 That changes KopyKat from:
@@ -422,21 +422,21 @@ It doesn't work that simply.
 I'd add:
 
 keyword selection
-        ↓
+ ↓
 search intent classification
-        ↓
+ ↓
 SERP/competitor analysis
-        ↓
+ ↓
 outline
-        ↓
+ ↓
 generation
-        ↓
+ ↓
 fact checking
-        ↓
+ ↓
 internal linking
-        ↓
+ ↓
 quality scoring
-        ↓
+ ↓
 publish
 
 And importantly:
@@ -636,41 +636,41 @@ That has substantially more upside than competing purely with consumer-facing AI
 
 ---
 
-🔥 What I would build next
+ What I would build next
 
 I'd make the architecture:
 
 SNAPCOPY AI
-                         │
-              ┌──────────┴──────────┐
-              │                     │
-          WEB APP                API
-              │                     │
-              └──────────┬──────────┘
-                         │
-                   COPY ENGINE
-                         │
-              ┌──────────┼──────────┐
-              │          │          │
-           Strategy    Writer     Critic
-              │          │          │
-              └──────────┼──────────┘
-                         │
-                    Quality Score
-                         │
-                    Final Output
-                         │
-             ┌───────────┼───────────┐
-             │           │           │
-           SEO         Email       Social
-             │           │           │
-             └───────────┼───────────┘
-                         │
-                  AUTOMATION ENGINE
-                         │
-                ┌────────┴────────┐
-                │                 │
-             Leads             Analytics
+ 
+ 
+ 
+ WEB APP API
+ 
+ 
+ 
+ COPY ENGINE
+ 
+ 
+ 
+ Strategy Writer Critic
+ 
+ 
+ 
+ Quality Score
+ 
+ Final Output
+ 
+ 
+ 
+ SEO Email Social
+ 
+ 
+ 
+ AUTOMATION ENGINE
+ 
+ 
+ 
+ Leads Analytics
 
 That would be a real AI marketing platform, not just another wrapper around an LLM.
 
@@ -868,13 +868,13 @@ $2.5M–$5M
 
 This is the range I'd initially target once you've hardened the platform and have demonstrable usage.
 
-🔵 Corporate outright purchase
+ Corporate outright purchase
 
 $5M–$10M
 
 I'd pursue this when you can demonstrate meaningful customer adoption, recurring revenue, strong unit economics, and clean IP/security.
 
-🔴 "Take everything" acquisition
+ "Take everything" acquisition
 
 $10M–$25M+
 

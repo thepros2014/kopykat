@@ -81,10 +81,10 @@ def _send_daily_revenue_report():
         new_users = db.query(func.count(User.id)).filter(User.created_at >= day_start).scalar() or 0
         paying = db.query(func.count(User.id)).filter(User.plan != "free").scalar() or 0
         req_count = db.query(func.count(UsageRecord.id)).filter(UsageRecord.created_at >= day_start).scalar() or 0
-        subject = f"💰 KopyKat Daily Report — ${today_rev/100:.2f} earned today"
+        subject = f" KopyKat Daily Report — ${today_rev/100:.2f} earned today"
         body = f"""
         <html><body style="font-family:Arial;max-width:600px;margin:0 auto;padding:20px;">
-        <h2>📊 Daily Revenue Report</h2><p>{now.strftime('%B %d, %Y')}</p>
+        <h2> Daily Revenue Report</h2><p>{now.strftime('%B %d, %Y')}</p>
         <table style="width:100%;border-collapse:collapse">
         <tr><td>Revenue Today</td><td>${today_rev/100:.2f}</td></tr>
         <tr><td>Revenue This Month</td><td>${month_rev/100:.2f}</td></tr>

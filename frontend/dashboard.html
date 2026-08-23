@@ -1,617 +1,617 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Force Cache & State Wipe on Update -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <script>
-    const APP_VERSION = "1.1.1";
-    if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
-      localStorage.clear();
-      sessionStorage.clear();
-      // Clear cookies
-      document.cookie.split(";").forEach(function(c) { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
-      localStorage.setItem("kopykat_version", APP_VERSION);
-      window.location.href = "/"; // Force redirect to refresh state
-    }
-  
+ <!-- Force Cache & State Wipe on Update -->
+ <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+ <meta http-equiv="Pragma" content="no-cache" />
+ <meta http-equiv="Expires" content="0" />
+ <script>
+ const APP_VERSION = "1.1.1";
+ if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
+ localStorage.clear();
+ sessionStorage.clear();
+ // Clear cookies
+ document.cookie.split(";").forEach(function(c) { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
+ localStorage.setItem("kopykat_version", APP_VERSION);
+ window.location.href = "/"; // Force redirect to refresh state
+ }
+ 
 </script>
 
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Dashboard — KopyKat</title>
+ <meta charset="UTF-8"/>
+ <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+ <title>Dashboard — KopyKat</title>
 
-  <link rel="manifest" href="/manifest.json"/>
-  <meta name="theme-color" content="#8e44ad"/>
-  <link rel="apple-touch-icon" href="/static/icon.png"/>
+ <link rel="manifest" href="/manifest.json"/>
+ <meta name="theme-color" content="#8e44ad"/>
+ <link rel="apple-touch-icon" href="/static/icon.png"/>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="/static/styles.css"/>
+ <link rel="preconnect" href="https://fonts.googleapis.com"/>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+ <link rel="stylesheet" href="/static/styles.css"/>
 </head>
 <body>
 
 <div class="dash-layout">
 
-  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">KopyKat</div>
-    <button class="sidebar-link active" onclick="showSection('overview', this)">Overview</button>
-    <button class="sidebar-link" onclick="showSection('generator', this)">Copy Generator</button>
-    <button class="sidebar-link" onclick="showSection('omni', this)">Omni-Campaigns</button>
-    <button class="sidebar-link" onclick="showSection('apikeys', this)">API Keys</button>
-    <button class="sidebar-link" onclick="showSection('usage', this)">Usage</button>
-    <button class="sidebar-link" onclick="showSection('billing', this)">Billing</button>
-    <button class="sidebar-link" onclick="showSection('docs', this)">API Docs</button>
-    <button class="sidebar-link" onclick="showSection('integrations', this)">Integrations</button>
-    <button class="sidebar-link" onclick="showSection('bulk', this)" style="font-weight:600; color:var(--purple);">Bulk Sync CSV</button>
-    <div style="flex:1;"></div>
-    <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
-  </aside>
+ <!-- Sidebar -->
+ <aside class="sidebar">
+ <div class="sidebar-logo">KopyKat</div>
+ <button class="sidebar-link active" onclick="showSection('overview', this)">Overview</button>
+ <button class="sidebar-link" onclick="showSection('generator', this)">Copy Generator</button>
+ <button class="sidebar-link" onclick="showSection('omni', this)">Omni-Campaigns</button>
+ <button class="sidebar-link" onclick="showSection('apikeys', this)">API Keys</button>
+ <button class="sidebar-link" onclick="showSection('usage', this)">Usage</button>
+ <button class="sidebar-link" onclick="showSection('billing', this)">Billing</button>
+ <button class="sidebar-link" onclick="showSection('docs', this)">API Docs</button>
+ <button class="sidebar-link" onclick="showSection('integrations', this)">Integrations</button>
+ <button class="sidebar-link" onclick="showSection('bulk', this)" style="font-weight:600; color:var(--purple);">Bulk Sync CSV</button>
+ <div style="flex:1;"></div>
+ <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
+ </aside>
 
-  <!-- ── Main ─────────────────────────────────────────────────────────────── -->
-  <main class="main-content">
+ <!-- Main -->
+ <main class="main-content">
 
-    <!-- SUCCESS BANNER (after Stripe checkout) -->
-    <div id="success-banner" class="card" style="background:rgba(34,197,94,0.08);border-color:#22c55e;display:none;margin-bottom:24px;">
-      <strong style="color:#22c55e;"> Payment successful!</strong>
-      Your plan and usage balance have been updated. Thank you!
-    </div>
+ <!-- SUCCESS BANNER (after Stripe checkout) -->
+ <div id="success-banner" class="card" style="background:rgba(34,197,94,0.08);border-color:#22c55e;display:none;margin-bottom:24px;">
+ <strong style="color:#22c55e;"> Payment successful!</strong>
+ Your plan and usage balance have been updated. Thank you!
+ </div>
 
-    <!-- ── OVERVIEW ──────────────────────────────────────────────────────── -->
-    <section id="section-overview" class="dash-section">
-      <div class="page-title">Good to see you, <span id="user-name">—</span></div>
-      <div class="page-sub">Here's your account at a glance.</div>
+ <!-- OVERVIEW -->
+ <section id="section-overview" class="dash-section">
+ <div class="page-title">Good to see you, <span id="user-name">—</span></div>
+ <div class="page-sub">Here's your account at a glance.</div>
 
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-card-label">Current Plan</div>
-          <div class="stat-card-value" id="stat-plan">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-label">Campaigns Remaining</div>
-          <div class="stat-card-value purple" id="stat-generations-rem">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-label">Monthly Limit</div>
-          <div class="stat-card-value" id="stat-limit">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-label">Total Requests</div>
-          <div class="stat-card-value green" id="stat-requests">—</div>
-        </div>
-      </div>
+ <div class="stats-row">
+ <div class="stat-card">
+ <div class="stat-card-label">Current Plan</div>
+ <div class="stat-card-value" id="stat-plan">—</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-card-label">Campaigns Remaining</div>
+ <div class="stat-card-value purple" id="stat-generations-rem">—</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-card-label">Monthly Limit</div>
+ <div class="stat-card-value" id="stat-limit">—</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-card-label">Total Requests</div>
+ <div class="stat-card-value green" id="stat-requests">—</div>
+ </div>
+ </div>
 
-      <!-- Usage progress bar -->
-      <div class="card">
-        <h3>Campaigns This Period</h3>
-        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);">
-          <span id="usage-label">Loading...</span>
-          <span id="usage-pct">—</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="usage-bar" style="width:0%"></div>
-        </div>
-      </div>
+ <!-- Usage progress bar -->
+ <div class="card">
+ <h3>Campaigns This Period</h3>
+ <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);">
+ <span id="usage-label">Loading...</span>
+ <span id="usage-pct">—</span>
+ </div>
+ <div class="progress-bar">
+ <div class="progress-fill" id="usage-bar" style="width:0%"></div>
+ </div>
+ </div>
 
-      <!-- Onboarding Pipeline -->
-      <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(180deg, rgba(142,68,173,0.03) 0%, transparent 100%);">
-        <h3 style="display:flex; align-items:center; gap:8px;">
-          <svg width="20" height="20" fill="none" stroke="var(--purple)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-          Your Autonomous Marketing Employee is Ready
-        </h3>
-        <p style="color:var(--muted); margin-bottom:24px; font-size:14px; line-height:1.5;">
-          Welcome to KopyKat. Follow this 3-step pipeline to put your marketing on autopilot.
-        </p>
-        
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
-          
-          <!-- Step 1 -->
-          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
-            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 1</div>
-            <h4 style="margin:10px 0 8px 0; font-size:16px;">Connect Your Store</h4>
-            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
-              Link KopyKat to your Shopify, WordPress, or Email provider so it can publish for you automatically.
-            </p>
-            <button class="btn btn-outline btn-sm btn-full" onclick="showSection('integrations')">Go to Integrations</button>
-          </div>
+ <!-- Onboarding Pipeline -->
+ <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(180deg, rgba(142,68,173,0.03) 0%, transparent 100%);">
+ <h3 style="display:flex; align-items:center; gap:8px;">
+ <svg width="20" height="20" fill="none" stroke="var(--purple)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+ Your Autonomous Marketing Employee is Ready
+ </h3>
+ <p style="color:var(--muted); margin-bottom:24px; font-size:14px; line-height:1.5;">
+ Welcome to KopyKat. Follow this 3-step pipeline to put your marketing on autopilot.
+ </p>
+ 
+ <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
+ 
+ <!-- Step 1 -->
+ <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+ <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 1</div>
+ <h4 style="margin:10px 0 8px 0; font-size:16px;">Connect Your Store</h4>
+ <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+ Link KopyKat to your Shopify, WordPress, or Email provider so it can publish for you automatically.
+ </p>
+ <button class="btn btn-outline btn-sm btn-full" onclick="showSection('integrations')">Go to Integrations</button>
+ </div>
 
-          <!-- Step 2 -->
-          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
-            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 2</div>
-            <h4 style="margin:10px 0 8px 0; font-size:16px;">Train the AI</h4>
-            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
-              Tell KopyKat what you're selling. It will scrape the market and write an entire campaign in 30 seconds.
-            </p>
-            <button class="btn btn-primary btn-sm btn-full" onclick="showSection('omni')">Start Omni-Campaign</button>
-          </div>
+ <!-- Step 2 -->
+ <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+ <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 2</div>
+ <h4 style="margin:10px 0 8px 0; font-size:16px;">Train the AI</h4>
+ <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+ Tell KopyKat what you're selling. It will scrape the market and write an entire campaign in 30 seconds.
+ </p>
+ <button class="btn btn-primary btn-sm btn-full" onclick="showSection('omni')">Start Omni-Campaign</button>
+ </div>
 
-          <!-- Step 3 -->
-          <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
-            <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 3</div>
-            <h4 style="margin:10px 0 8px 0; font-size:16px;">1-Click Deploy</h4>
-            <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
-              Review the generated copy and click Deploy. KopyKat handles the formatting and publishing across all channels.
-            </p>
-            <button class="btn btn-outline btn-sm btn-full" disabled style="opacity:0.6; cursor:not-allowed;">(Available after generation)</button>
-          </div>
-          
-        </div>
-      </div>
-    </section>
+ <!-- Step 3 -->
+ <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--border); position:relative;">
+ <div style="position:absolute; top:-10px; left:20px; background:var(--purple); color:#fff; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px;">Step 3</div>
+ <h4 style="margin:10px 0 8px 0; font-size:16px;">1-Click Deploy</h4>
+ <p style="font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;">
+ Review the generated copy and click Deploy. KopyKat handles the formatting and publishing across all channels.
+ </p>
+ <button class="btn btn-outline btn-sm btn-full" disabled style="opacity:0.6; cursor:not-allowed;">(Available after generation)</button>
+ </div>
+ 
+ </div>
+ </div>
+ </section>
 
-    <!-- ── API KEYS ──────────────────────────────────────────────────────── -->
-    <section id="section-apikeys" class="dash-section hidden">
-      <div class="page-title">API Keys</div>
-      <div class="page-sub">Use these keys to authenticate API requests. Keys are shown once — save them securely.</div>
+ <!-- API KEYS -->
+ <section id="section-apikeys" class="dash-section hidden">
+ <div class="page-title">API Keys</div>
+ <div class="page-sub">Use these keys to authenticate API requests. Keys are shown once — save them securely.</div>
 
-      <!-- New key display -->
-      <div id="new-key-box" class="new-key-box">
-        <div class="new-key-warning">️ Copy this key now — it won't be shown again!</div>
-        <div class="new-key-value" id="new-key-value"></div>
-        <button class="copy-btn" onclick="copyKey()"> Copy Key</button>
-      </div>
+ <!-- New key display -->
+ <div id="new-key-box" class="new-key-box">
+ <div class="new-key-warning"> Copy this key now — it won't be shown again!</div>
+ <div class="new-key-value" id="new-key-value"></div>
+ <button class="copy-btn" onclick="copyKey()"> Copy Key</button>
+ </div>
 
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-          <h3 style="margin:0;">Your Keys</h3>
-          <div style="display:flex;gap:10px;align-items:center;">
-            <input type="text" id="key-name-input" placeholder="Key name" class="input" style="width:180px;"/>
-            <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ New Key</button>
-          </div>
-        </div>
-        <div id="keys-list">
-          <div style="color:var(--muted);font-size:14px;padding:20px 0;">Loading keys...</div>
-        </div>
-      </div>
-    </section>
+ <div class="card">
+ <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+ <h3 style="margin:0;">Your Keys</h3>
+ <div style="display:flex;gap:10px;align-items:center;">
+ <input type="text" id="key-name-input" placeholder="Key name" class="input" style="width:180px;"/>
+ <button class="btn btn-primary btn-sm" onclick="createApiKey()">+ New Key</button>
+ </div>
+ </div>
+ <div id="keys-list">
+ <div style="color:var(--muted);font-size:14px;padding:20px 0;">Loading keys...</div>
+ </div>
+ </div>
+ </section>
 
-    <!-- ── USAGE ─────────────────────────────────────────────────────────── -->
-    <section id="section-usage" class="dash-section hidden">
-      <div class="page-title">Usage Analytics</div>
-      <div class="page-sub">Your API usage for the current billing period.</div>
+ <!-- USAGE -->
+ <section id="section-usage" class="dash-section hidden">
+ <div class="page-title">Usage Analytics</div>
+ <div class="page-sub">Your API usage for the current billing period.</div>
 
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-card-label">Total API Calls</div>
-          <div class="stat-card-value purple" id="u-requests">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-label">Campaigns Used</div>
-          <div class="stat-card-value" id="u-generations-used">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-label">Campaigns Remaining</div>
-          <div class="stat-card-value green" id="u-generations-rem">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card-label">Monthly Limit</div>
-          <div class="stat-card-value" id="u-limit">—</div>
-        </div>
-      </div>
+ <div class="stats-row">
+ <div class="stat-card">
+ <div class="stat-card-label">Total API Calls</div>
+ <div class="stat-card-value purple" id="u-requests">—</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-card-label">Campaigns Used</div>
+ <div class="stat-card-value" id="u-generations-used">—</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-card-label">Campaigns Remaining</div>
+ <div class="stat-card-value green" id="u-generations-rem">—</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-card-label">Monthly Limit</div>
+ <div class="stat-card-value" id="u-limit">—</div>
+ </div>
+ </div>
 
-      <div class="card">
-        <h3>Billing Period</h3>
-        <p style="color:var(--muted);font-size:14px;" id="u-period">Loading...</p>
-      </div>
+ <div class="card">
+ <h3>Billing Period</h3>
+ <p style="color:var(--muted);font-size:14px;" id="u-period">Loading...</p>
+ </div>
 
-      <div class="card">
-        <h3>Need more generations?</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
-          Buy a one-time generation tier or upgrade your plan.
-        </p>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-outline btn-sm" onclick="buyGenerations('starter')">Starter — 250 generations — $5</button>
-          <button class="btn btn-primary btn-sm" onclick="buyGenerations('growth')">Growth — 1,000 generations — $15</button>
-          <button class="btn btn-outline btn-sm" onclick="buyGenerations('scale')">Scale — 3,000 generations — $40</button>
-        </div>
-      </div>
-    </section>
+ <div class="card">
+ <h3>Need more generations?</h3>
+ <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
+ Buy a one-time generation tier or upgrade your plan.
+ </p>
+ <div style="display:flex;gap:12px;flex-wrap:wrap;">
+ <button class="btn btn-outline btn-sm" onclick="buyGenerations('starter')">Starter — 250 generations — $5</button>
+ <button class="btn btn-primary btn-sm" onclick="buyGenerations('growth')">Growth — 1,000 generations — $15</button>
+ <button class="btn btn-outline btn-sm" onclick="buyGenerations('scale')">Scale — 3,000 generations — $40</button>
+ </div>
+ </div>
+ </section>
 
-    <!-- ── BILLING ───────────────────────────────────────────────────────── -->
-    <section id="section-billing" class="dash-section hidden">
-      <div class="page-title">Billing & Plan</div>
-      <div class="page-sub">Manage your subscription and campaign allowance.</div>
+ <!-- BILLING -->
+ <section id="section-billing" class="dash-section hidden">
+ <div class="page-title">Billing & Plan</div>
+ <div class="page-sub">Manage your subscription and campaign allowance.</div>
 
-      <div class="card">
-        <h3>Current Plan</h3>
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
-          <span class="plan-chip" id="billing-plan-chip">Free</span>
-          <span style="color:var(--muted);font-size:14px;" id="billing-plan-detail">5 monthly campaigns</span>
-        </div>
-        <p style="color:var(--muted);font-size:13px;" id="billing-period-end"></p>
-      </div>
+ <div class="card">
+ <h3>Current Plan</h3>
+ <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+ <span class="plan-chip" id="billing-plan-chip">Free</span>
+ <span style="color:var(--muted);font-size:14px;" id="billing-plan-detail">5 monthly campaigns</span>
+ </div>
+ <p style="color:var(--muted);font-size:13px;" id="billing-period-end"></p>
+ </div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:24px;">
-        <div class="pricing-card">
-          <div class="plan-badge">Boutique</div>
-          <div class="plan-name">Store</div>
-          <div class="plan-price">$97<span>/mo</span></div>
-          <ul class="plan-features">
-            <li>✔️ 250 monthly campaigns</li>
-            <li>✔️ Top 5 Integrations</li>
-            <li>✔️ Email support</li>
-          </ul>
-          <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('boutique')">Upgrade to Boutique</button>
-        </div>
-        <div class="pricing-card featured">
-          <div class="plan-badge popular">Most Popular</div>
-          <div class="plan-name">Standard</div>
-          <div class="plan-price">$297<span>/mo</span></div>
-          <ul class="plan-features">
-            <li>✔️ 1,000 monthly campaigns</li>
-            <li>✔️ Priority speed</li>
-            <li>✔️ Priority support</li>
-          </ul>
-          <button class="btn btn-primary btn-full btn-sm" onclick="startCheckout('standard')">Upgrade to Standard</button>
-        </div>
-        <div class="pricing-card">
-          <div class="plan-badge">Megastore</div>
-          <div class="plan-name">Agency</div>
-          <div class="plan-price">$897<span>/mo</span></div>
-          <ul class="plan-features">
-            <li>✔️ 5,000 monthly campaigns</li>
-            <li>✔️ Unlimited Webhooks</li>
-            <li>✔️ 24/7 support</li>
-          </ul>
-          <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('megastore')">Upgrade to Megastore</button>
-        </div>
-      </div>
-    </section>
+ <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:24px;">
+ <div class="pricing-card">
+ <div class="plan-badge">Boutique</div>
+ <div class="plan-name">Store</div>
+ <div class="plan-price">$97<span>/mo</span></div>
+ <ul class="plan-features">
+ <li> 250 monthly campaigns</li>
+ <li> Top 5 Integrations</li>
+ <li> Email support</li>
+ </ul>
+ <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('boutique')">Upgrade to Boutique</button>
+ </div>
+ <div class="pricing-card featured">
+ <div class="plan-badge popular">Most Popular</div>
+ <div class="plan-name">Standard</div>
+ <div class="plan-price">$297<span>/mo</span></div>
+ <ul class="plan-features">
+ <li> 1,000 monthly campaigns</li>
+ <li> Priority speed</li>
+ <li> Priority support</li>
+ </ul>
+ <button class="btn btn-primary btn-full btn-sm" onclick="startCheckout('standard')">Upgrade to Standard</button>
+ </div>
+ <div class="pricing-card">
+ <div class="plan-badge">Megastore</div>
+ <div class="plan-name">Agency</div>
+ <div class="plan-price">$897<span>/mo</span></div>
+ <ul class="plan-features">
+ <li> 5,000 monthly campaigns</li>
+ <li> Unlimited Webhooks</li>
+ <li> 24/7 support</li>
+ </ul>
+ <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('megastore')">Upgrade to Megastore</button>
+ </div>
+ </div>
+ </section>
 
-    <!-- ── DOCS ──────────────────────────────────────────────────────────── -->
-    <section id="section-docs" class="dash-section hidden">
-      <div class="page-title">API Documentation</div>
-      <div class="page-sub">Everything you need to integrate KopyKat into your application.</div>
+ <!-- DOCS -->
+ <section id="section-docs" class="dash-section hidden">
+ <div class="page-title">API Documentation</div>
+ <div class="page-sub">Everything you need to integrate KopyKat into your application.</div>
 
-      <div class="card">
-        <h3>Base URL</h3>
-        <code style="color:var(--purple);font-size:15px;" id="base-url-display">https://your-app.onrender.com</code>
-      </div>
+ <div class="card">
+ <h3>Base URL</h3>
+ <code style="color:var(--purple);font-size:15px;" id="base-url-display">https://your-app.onrender.com</code>
+ </div>
 
-      <div class="card">
-        <h3>Authentication</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
-          Pass your API key in the <code>Authorization</code> header as a Bearer token.
-        </p>
-        <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;">Authorization: Bearer sc_your_api_key_here</pre>
-      </div>
+ <div class="card">
+ <h3>Authentication</h3>
+ <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
+ Pass your API key in the <code>Authorization</code> header as a Bearer token.
+ </p>
+ <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;">Authorization: Bearer sc_your_api_key_here</pre>
+ </div>
 
-      <div class="card">
-        <h3>POST /api/generate</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">Generate marketing copy.</p>
-        <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto;">
+ <div class="card">
+ <h3>POST /api/generate</h3>
+ <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">Generate marketing copy.</p>
+ <pre style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:13px;line-height:1.8;overflow-x:auto;">
 <code>{
-  "type": "product_description",   <span style="color:#6a7383;">// required</span>
-  "context": "Your product info",  <span style="color:#6a7383;">// required (5-2000 chars)</span>
-  "tone": "professional",          <span style="color:#6a7383;">// optional: professional|casual|urgent|friendly|bold</span>
-  "variations": 1,                 <span style="color:#6a7383;">// optional: 1-5</span>
-  "max_tokens": 300                <span style="color:#6a7383;">// optional: 50-1000</span>
+ "type": "product_description", <span style="color:#6a7383;">// required</span>
+ "context": "Your product info", <span style="color:#6a7383;">// required (5-2000 chars)</span>
+ "tone": "professional", <span style="color:#6a7383;">// optional: professional|casual|urgent|friendly|bold</span>
+ "variations": 1, <span style="color:#6a7383;">// optional: 1-5</span>
+ "max_tokens": 300 <span style="color:#6a7383;">// optional: 50-1000</span>
 }</code></pre>
-        <p style="color:var(--muted);font-size:13px;margin-top:16px;">
-          <strong>Copy types:</strong> product_description · email_subject · email_body · 
-          social_post · ad_headline · ad_body · landing_page_hero · call_to_action · 
-          seo_meta_description · blog_intro
-        </p>
-      </div>
+ <p style="color:var(--muted);font-size:13px;margin-top:16px;">
+ <strong>Copy types:</strong> product_description · email_subject · email_body · 
+ social_post · ad_headline · ad_body · landing_page_hero · call_to_action · 
+ seo_meta_description · blog_intro
+ </p>
+ </div>
 
-      <div class="card">
-        <h3>Interactive Docs</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
-          Test every endpoint directly in your browser.
-        </p>
-        <a href="/api/docs" target="_blank" class="btn btn-primary">Open Swagger UI →</a>
-      </div>
-    </section>
-
-
-
-    <!--  COPY GENERATOR  -->
-    <section id="section-generator" class="dash-section hidden">
-      <div class="page-title">Copy Generator</div>
-      <div class="page-sub">Generate individual pieces of highly optimized copy.</div>
-      
-      <div class="card">
-        <div style="margin-bottom:16px;">
-          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Copy Type</label>
-          <select id="gen-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
-            <option value="product_description">Product Description</option>
-            <option value="facebook_ad">Facebook Ad</option>
-            <option value="google_ad">Google Ad</option>
-            <option value="email_subject">Email Subject Line</option>
-            <option value="cold_email">Cold Email</option>
-            <option value="seo_blog">SEO Blog Post</option>
-            <option value="landing_page_hero">Landing Page Hero</option>
-          </select>
-        </div>
-        
-        <div style="margin-bottom:16px;">
-          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Context / Product Description</label>
-          <textarea id="gen-context" rows="4" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="E.g., Wireless earbuds with 40h battery, active noise cancellation, water resistant."></textarea>
-        </div>
-        
-        <div style="margin-bottom:20px;">
-          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Tone of Voice</label>
-          <select id="gen-tone" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
-            <option value="professional">Professional</option>
-            <option value="witty">Witty</option>
-            <option value="persuasive">Persuasive</option>
-            <option value="urgent">Urgent</option>
-            <option value="luxury">Luxury</option>
-          </select>
-        </div>
-        
-        <button id="btn-generate" class="btn btn-primary" onclick="runGenerator()">?? Generate Copy</button>
-      </div>
-      
-      <div id="gen-results" class="card" style="margin-top:20px; min-height:100px; display:block;">
-        <span style="color:var(--muted);">Results will appear here...</span>
-      </div>
-    </section>
-
-    <!--  OMNI-CAMPAIGN WIZARD  -->
-    <section id="section-omni" class="dash-section hidden">
-      <div class="page-title">Omni-Campaign Wizard</div>
-      <div class="page-sub">Type a keyword, and we'll build a blog, email drip, and social posts.</div>
-      
-      <div class="card">
-        <div style="background:var(--bg2); border:1px dashed var(--purple); border-radius:8px; padding:16px; margin-bottom:20px;">
-          <label style="display:block;margin-bottom:6px;font-size:14px;font-weight:600;color:var(--purple);">
-            Optional: Image-to-Copy (Vision AI)
-          </label>
-          <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">
-            Upload a product photo. KopyKat Vision will automatically identify the product, analyze materials and style, and write the full campaign.
-          </p>
-          <div style="display:flex; gap:12px; align-items:center;">
-            <input type="file" id="omni-image-file" accept="image/*" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);">
-            <button id="btn-omni-vision" class="btn btn-outline" onclick="runOmniVisionGenerate()">Generate From Photo</button>
-          </div>
-        </div>
-
-        <div style="margin-bottom:16px;">
-          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Target Keyword</label>
-          <input type="text" id="omni-kw" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. Leather Wallet">
-        </div>
-        
-        <div style="margin-bottom:20px;">
-          <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Product Description</label>
-          <textarea id="omni-desc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Describe your product..."></textarea>
-        </div>
-        
-        <button id="btn-omni-generate" class="btn btn-primary" onclick="runOmniGenerate()">1. Generate From Text</button>
-      </div>
-      
-      <div id="omni-results-wrapper" style="display:none; margin-top:24px;">
-        <div class="card" style="margin-bottom:24px; border:1px solid var(--purple);">
-          <h3 style="margin-bottom:16px;">Omni-Push Deploy</h3>
-          <div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
-            <!-- Product Multi-Select -->
-            <div style="flex:1; min-width:200px;">
-              <label style="display:block;margin-bottom:8px;font-size:13px;">Product Syndication</label>
-              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="shopify"> Shopify Store</label>
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="amazon"> Amazon Seller Central</label>
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="ebay"> eBay Inventory</label>
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="walmart"> Walmart Marketplace</label>
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="temu"> Temu Seller Center</label>
-              </div>
-            </div>
-            
-            <!-- Blog Multi-Select -->
-            <div style="flex:1; min-width:200px;">
-              <label style="display:block;margin-bottom:8px;font-size:13px;">Blog Syndication</label>
-              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="wordpress"> WordPress</label>
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="webflow"> Webflow</label>
-              </div>
-            </div>
-            
-            <!-- Email Multi-Select -->
-            <div style="flex:1; min-width:200px;">
-              <label style="display:block;margin-bottom:8px;font-size:13px;">Email Drip Syndication</label>
-              <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="mailchimp"> Mailchimp</label>
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="hubspot"> HubSpot CRM</label>
-              </div>
-            </div>
-          </div>
-          <button id="btn-omni-push" class="btn btn-outline btn-full" onclick="runOmniPush()">2. Deploy Omni-Campaign</button>
-        </div>
-      
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-          <div class="card">
-            <h3 id="omni-blog-title" style="margin-bottom:12px; font-size:16px;"></h3>
-            <div id="omni-blog-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
-          </div>
-          <div class="card">
-            <h3 style="margin-bottom:12px; font-size:16px;">Email Drip (3 parts)</h3>
-            <div id="omni-email-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
-          </div>
-        </div>
-      </div>
-    </section>
+ <div class="card">
+ <h3>Interactive Docs</h3>
+ <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
+ Test every endpoint directly in your browser.
+ </p>
+ <a href="/api/docs" target="_blank" class="btn btn-primary">Open Swagger UI →</a>
+ </div>
+ </section>
 
 
-    <!--  BULK SYNC CSV  -->
-    <section id="section-bulk" class="dash-section hidden">
-      <div class="page-title">Bulk Catalog Sync</div>
-      <div class="page-sub">Upload an inventory CSV. The AI will rewrite every description and syndicate to all marketplaces.</div>
-      
-      <div class="card" style="margin-bottom: 24px;">
-        <h3 style="margin-bottom: 16px;">1. Upload Inventory CSV</h3>
-        <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">
-          Format: <strong>Product Name, Description</strong>, Price, Image URL.
-        </p>
-        <div style="display:flex; gap:16px; align-items:center;">
-          <input type="file" id="csv-file" accept=".csv" style="padding:8px; border:1px dashed var(--border); border-radius:6px; background:var(--bg2); width:100%;">
-          <button class="btn btn-primary" onclick="parseCSV()">Preview Data</button>
-        </div>
-      </div>
-      
-      <div id="bulk-preview-area" class="card hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-          <h3>2. Bulk AI Syndication</h3>
-          <button id="btn-start-bulk" class="btn btn-primary" onclick="startBulkSyndication()">Start Syndication</button>
-        </div>
-        
-        <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:16px;">
-          <h4 style="margin-bottom:8px; font-size:14px;">Select destinations for the entire catalog:</h4>
-          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:13px;">
-            <label><input type="checkbox" class="bulk-dest" value="shopify"> Shopify</label>
-            <label><input type="checkbox" class="bulk-dest" value="amazon"> Amazon</label>
-            <label><input type="checkbox" class="bulk-dest" value="ebay"> eBay</label>
-            <label><input type="checkbox" class="bulk-dest" value="walmart"> Walmart</label>
-            <label><input type="checkbox" class="bulk-dest" value="temu"> Temu</label>
-          </div>
-        </div>
-        
-        <div style="overflow-x:auto;">
-          <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
-            <thead>
-              <tr style="border-bottom:1px solid var(--border);">
-                <th style="padding:12px 8px;">Status</th>
-                <th style="padding:12px 8px;">Product Name</th>
-                <th style="padding:12px 8px;">Raw Description</th>
-              </tr>
-            </thead>
-            <tbody id="bulk-table-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
 
-    <!--  INTEGRATIONS  -->
-    <section id="section-integrations" class="dash-section hidden">
-      <div class="page-title">Integrations</div>
-      <div class="page-sub">Connect your store and email platforms for 1-click publishing.</div>
-      
-      
-      <!-- Universal Connector UI -->
-      <div class="card" style="margin-bottom:24px; border:1px solid var(--purple); background: rgba(168, 85, 247, 0.05);">
-        <h3 style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M2 12h20M12 2v20"/></svg>
-          Add Any Platform (Universal Connector)
-        </h3>
-        <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
-          Don't see your platform? Paste the URL to its API documentation or OpenAPI/Swagger JSON. KopyKat will automatically discover its capabilities.
-        </p>
-        <div style="display:flex; gap:12px; align-items:center;">
-          <input type="text" id="uc-url" style="flex:1; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text);" placeholder="https://api.myplatform.com/openapi.json">
-          <button class="btn btn-primary" id="btn-uc-discover" onclick="discoverConnector()">Discover API</button>
-        </div>
-        
-        <div id="uc-results" class="hidden" style="margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:6px; background:var(--bg2);">
-          <h4 style="margin-bottom:12px; font-size:14px; color:var(--text);" id="uc-res-title">Platform Name</h4>
-          <div style="display:flex; flex-direction:column; gap:8px; font-size:13px; color:var(--muted); margin-bottom:16px;">
-            <div><strong>Base URL:</strong> <span id="uc-res-base"></span></div>
-            <div><strong>Auth Modes:</strong> <span id="uc-res-auth"></span></div>
-            <div><strong>Operations Found:</strong> <span id="uc-res-ops"></span></div>
-            <div><strong>Status:</strong> <span class="badge badge-draft">Draft</span> (Awaiting Authorization)</div>
-          </div>
-          <button class="btn btn-outline btn-sm" onclick="alert('OAuth and Credential Vault coming soon (Phase 3)!')">Authorize Connection</button>
-        </div>
-      </div>
+ <!-- COPY GENERATOR -->
+ <section id="section-generator" class="dash-section hidden">
+ <div class="page-title">Copy Generator</div>
+ <div class="page-sub">Generate individual pieces of highly optimized copy.</div>
+ 
+ <div class="card">
+ <div style="margin-bottom:16px;">
+ <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Copy Type</label>
+ <select id="gen-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+ <option value="product_description">Product Description</option>
+ <option value="facebook_ad">Facebook Ad</option>
+ <option value="google_ad">Google Ad</option>
+ <option value="email_subject">Email Subject Line</option>
+ <option value="cold_email">Cold Email</option>
+ <option value="seo_blog">SEO Blog Post</option>
+ <option value="landing_page_hero">Landing Page Hero</option>
+ </select>
+ </div>
+ 
+ <div style="margin-bottom:16px;">
+ <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Context / Product Description</label>
+ <textarea id="gen-context" rows="4" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="E.g., Wireless earbuds with 40h battery, active noise cancellation, water resistant."></textarea>
+ </div>
+ 
+ <div style="margin-bottom:20px;">
+ <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Tone of Voice</label>
+ <select id="gen-tone" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);">
+ <option value="professional">Professional</option>
+ <option value="witty">Witty</option>
+ <option value="persuasive">Persuasive</option>
+ <option value="urgent">Urgent</option>
+ <option value="luxury">Luxury</option>
+ </select>
+ </div>
+ 
+ <button id="btn-generate" class="btn btn-primary" onclick="runGenerator()">?? Generate Copy</button>
+ </div>
+ 
+ <div id="gen-results" class="card" style="margin-top:20px; min-height:100px; display:block;">
+ <span style="color:var(--muted);">Results will appear here...</span>
+ </div>
+ </section>
 
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
-        
-        <div class="card">
-          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            WordPress
-          </h3>
-          <div style="margin-bottom:12px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">Site URL</label>
-            <input type="text" id="wp-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="https://myblog.com">
-          </div>
-          <div style="margin-bottom:12px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">Username</label>
-            <input type="text" id="wp-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="admin">
-          </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">App Password</label>
-            <input type="password" id="wp-pass" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxx xxxx xxxx xxxx">
-          </div>
-          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('wordpress')">Connect WordPress</button>
-        </div>
+ <!-- OMNI-CAMPAIGN WIZARD -->
+ <section id="section-omni" class="dash-section hidden">
+ <div class="page-title">Omni-Campaign Wizard</div>
+ <div class="page-sub">Type a keyword, and we'll build a blog, email drip, and social posts.</div>
+ 
+ <div class="card">
+ <div style="background:var(--bg2); border:1px dashed var(--purple); border-radius:8px; padding:16px; margin-bottom:20px;">
+ <label style="display:block;margin-bottom:6px;font-size:14px;font-weight:600;color:var(--purple);">
+ Optional: Image-to-Copy (Vision AI)
+ </label>
+ <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+ Upload a product photo. KopyKat Vision will automatically identify the product, analyze materials and style, and write the full campaign.
+ </p>
+ <div style="display:flex; gap:12px; align-items:center;">
+ <input type="file" id="omni-image-file" accept="image/*" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text);">
+ <button id="btn-omni-vision" class="btn btn-outline" onclick="runOmniVisionGenerate()">Generate From Photo</button>
+ </div>
+ </div>
 
-        <!-- Shopify -->
-        <div class="card">
-          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            Shopify
-          </h3>
-          <div style="margin-bottom:12px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">Store URL</label>
-            <input type="text" id="shopify-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="mystore.myshopify.com">
-          </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">Admin Access Token</label>
-            <input type="password" id="shopify-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="shpat_...">
-          </div>
-          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('shopify')">Connect Shopify</button>
-        </div>
+ <div style="margin-bottom:16px;">
+ <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Target Keyword</label>
+ <input type="text" id="omni-kw" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. Leather Wallet">
+ </div>
+ 
+ <div style="margin-bottom:20px;">
+ <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;">Product Description</label>
+ <textarea id="omni-desc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Describe your product..."></textarea>
+ </div>
+ 
+ <button id="btn-omni-generate" class="btn btn-primary" onclick="runOmniGenerate()">1. Generate From Text</button>
+ </div>
+ 
+ <div id="omni-results-wrapper" style="display:none; margin-top:24px;">
+ <div class="card" style="margin-bottom:24px; border:1px solid var(--purple);">
+ <h3 style="margin-bottom:16px;">Omni-Push Deploy</h3>
+ <div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+ <!-- Product Multi-Select -->
+ <div style="flex:1; min-width:200px;">
+ <label style="display:block;margin-bottom:8px;font-size:13px;">Product Syndication</label>
+ <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="shopify"> Shopify Store</label>
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="amazon"> Amazon Seller Central</label>
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="ebay"> eBay Inventory</label>
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="walmart"> Walmart Marketplace</label>
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-product" value="temu"> Temu Seller Center</label>
+ </div>
+ </div>
+ 
+ <!-- Blog Multi-Select -->
+ <div style="flex:1; min-width:200px;">
+ <label style="display:block;margin-bottom:8px;font-size:13px;">Blog Syndication</label>
+ <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="wordpress"> WordPress</label>
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-blog" value="webflow"> Webflow</label>
+ </div>
+ </div>
+ 
+ <!-- Email Multi-Select -->
+ <div style="flex:1; min-width:200px;">
+ <label style="display:block;margin-bottom:8px;font-size:13px;">Email Drip Syndication</label>
+ <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; height:140px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;">
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="mailchimp"> Mailchimp</label>
+ <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="dest-email" value="hubspot"> HubSpot CRM</label>
+ </div>
+ </div>
+ </div>
+ <button id="btn-omni-push" class="btn btn-outline btn-full" onclick="runOmniPush()">2. Deploy Omni-Campaign</button>
+ </div>
+ 
+ <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+ <div class="card">
+ <h3 id="omni-blog-title" style="margin-bottom:12px; font-size:16px;"></h3>
+ <div id="omni-blog-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
+ </div>
+ <div class="card">
+ <h3 style="margin-bottom:12px; font-size:16px;">Email Drip (3 parts)</h3>
+ <div id="omni-email-content" style="font-size:13px; line-height:1.6; color:var(--muted); max-height:400px; overflow-y:auto;"></div>
+ </div>
+ </div>
+ </div>
+ </section>
 
-        <div class="card">
-          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            Mailchimp
-          </h3>
-          <div style="margin-bottom:12px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">API Key</label>
-            <input type="password" id="mc-key" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="your-mailchimp-api-key">
-          </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">List ID (Audience)</label>
-            <input type="text" id="mc-list" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. 1a2b3c4d">
-          </div>
-          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('mailchimp')">Connect Mailchimp</button>
-        </div>
 
-        <!-- Amazon Seller Central -->
-        <div class="card">
-          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            Amazon Seller Central
-          </h3>
-          <div style="margin-bottom:12px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client ID</label>
-            <input type="text" id="amz-client" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="amzn1.application-oa2-client...">
-          </div>
-          <div style="margin-bottom:12px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client Secret</label>
-            <input type="password" id="amz-secret" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxxxxxxxxxxxxxxx">
-          </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">Refresh Token</label>
-            <input type="password" id="amz-refresh" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Atzr|IwEBI...">
-          </div>
-          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('amazon')">Connect Amazon SP-API</button>
-        </div>
-        
-        <!-- eBay -->
-        <div class="card">
-          <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            eBay
-          </h3>
-          <div style="margin-bottom:12px;">
-            <label style="display:block;margin-bottom:4px;font-size:13px;">OAuth User Token</label>
-            <input type="password" id="ebay-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="v^1.1#i^1#r^0...">
-          </div>
-          <p style="font-size: 11px; color: var(--muted); margin-bottom: 16px;">
-            To get your OAuth User Token, generate an access token via the eBay Developer Portal with the Sell.Inventory scope.
-          </p>
-          <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('ebay')">Connect eBay API</button>
-        </div>
+ <!-- BULK SYNC CSV -->
+ <section id="section-bulk" class="dash-section hidden">
+ <div class="page-title">Bulk Catalog Sync</div>
+ <div class="page-sub">Upload an inventory CSV. The AI will rewrite every description and syndicate to all marketplaces.</div>
+ 
+ <div class="card" style="margin-bottom: 24px;">
+ <h3 style="margin-bottom: 16px;">1. Upload Inventory CSV</h3>
+ <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">
+ Format: <strong>Product Name, Description</strong>, Price, Image URL.
+ </p>
+ <div style="display:flex; gap:16px; align-items:center;">
+ <input type="file" id="csv-file" accept=".csv" style="padding:8px; border:1px dashed var(--border); border-radius:6px; background:var(--bg2); width:100%;">
+ <button class="btn btn-primary" onclick="parseCSV()">Preview Data</button>
+ </div>
+ </div>
+ 
+ <div id="bulk-preview-area" class="card hidden">
+ <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+ <h3>2. Bulk AI Syndication</h3>
+ <button id="btn-start-bulk" class="btn btn-primary" onclick="startBulkSyndication()">Start Syndication</button>
+ </div>
+ 
+ <div style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:16px;">
+ <h4 style="margin-bottom:8px; font-size:14px;">Select destinations for the entire catalog:</h4>
+ <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:13px;">
+ <label><input type="checkbox" class="bulk-dest" value="shopify"> Shopify</label>
+ <label><input type="checkbox" class="bulk-dest" value="amazon"> Amazon</label>
+ <label><input type="checkbox" class="bulk-dest" value="ebay"> eBay</label>
+ <label><input type="checkbox" class="bulk-dest" value="walmart"> Walmart</label>
+ <label><input type="checkbox" class="bulk-dest" value="temu"> Temu</label>
+ </div>
+ </div>
+ 
+ <div style="overflow-x:auto;">
+ <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
+ <thead>
+ <tr style="border-bottom:1px solid var(--border);">
+ <th style="padding:12px 8px;">Status</th>
+ <th style="padding:12px 8px;">Product Name</th>
+ <th style="padding:12px 8px;">Raw Description</th>
+ </tr>
+ </thead>
+ <tbody id="bulk-table-body"></tbody>
+ </table>
+ </div>
+ </div>
+ </section>
 
-      </div>
-    </section>
+ <!-- INTEGRATIONS -->
+ <section id="section-integrations" class="dash-section hidden">
+ <div class="page-title">Integrations</div>
+ <div class="page-sub">Connect your store and email platforms for 1-click publishing.</div>
+ 
+ 
+ <!-- Universal Connector UI -->
+ <div class="card" style="margin-bottom:24px; border:1px solid var(--purple); background: rgba(168, 85, 247, 0.05);">
+ <h3 style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M2 12h20M12 2v20"/></svg>
+ Add Any Platform (Universal Connector)
+ </h3>
+ <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
+ Don't see your platform? Paste the URL to its API documentation or OpenAPI/Swagger JSON. KopyKat will automatically discover its capabilities.
+ </p>
+ <div style="display:flex; gap:12px; align-items:center;">
+ <input type="text" id="uc-url" style="flex:1; padding:10px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text);" placeholder="https://api.myplatform.com/openapi.json">
+ <button class="btn btn-primary" id="btn-uc-discover" onclick="discoverConnector()">Discover API</button>
+ </div>
+ 
+ <div id="uc-results" class="hidden" style="margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:6px; background:var(--bg2);">
+ <h4 style="margin-bottom:12px; font-size:14px; color:var(--text);" id="uc-res-title">Platform Name</h4>
+ <div style="display:flex; flex-direction:column; gap:8px; font-size:13px; color:var(--muted); margin-bottom:16px;">
+ <div><strong>Base URL:</strong> <span id="uc-res-base"></span></div>
+ <div><strong>Auth Modes:</strong> <span id="uc-res-auth"></span></div>
+ <div><strong>Operations Found:</strong> <span id="uc-res-ops"></span></div>
+ <div><strong>Status:</strong> <span class="badge badge-draft">Draft</span> (Awaiting Authorization)</div>
+ </div>
+ <button class="btn btn-outline btn-sm" onclick="alert('OAuth and Credential Vault coming soon (Phase 3)!')">Authorize Connection</button>
+ </div>
+ </div>
 
-  </main>
+ <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:24px;">
+ 
+ <div class="card">
+ <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+ WordPress
+ </h3>
+ <div style="margin-bottom:12px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">Site URL</label>
+ <input type="text" id="wp-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="https://myblog.com">
+ </div>
+ <div style="margin-bottom:12px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">Username</label>
+ <input type="text" id="wp-user" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="admin">
+ </div>
+ <div style="margin-bottom:16px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">App Password</label>
+ <input type="password" id="wp-pass" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxx xxxx xxxx xxxx">
+ </div>
+ <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('wordpress')">Connect WordPress</button>
+ </div>
 
-  <!--  Bottom Mobile Nav -->
-  <nav class="bottom-nav">
-    <button class="bottom-nav-link active" onclick="showSection('overview'); activateBottomNav(this);">Overview</button>
-    <button class="bottom-nav-link" onclick="showSection('generator'); activateBottomNav(this);">Create</button>
-    <button class="bottom-nav-link" onclick="showSection('omni'); activateBottomNav(this);">Omni</button>
-    <button class="bottom-nav-link" onclick="showSection('apikeys'); activateBottomNav(this);">Keys</button>
-  </nav>
+ <!-- Shopify -->
+ <div class="card">
+ <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+ Shopify
+ </h3>
+ <div style="margin-bottom:12px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">Store URL</label>
+ <input type="text" id="shopify-url" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="mystore.myshopify.com">
+ </div>
+ <div style="margin-bottom:16px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">Admin Access Token</label>
+ <input type="password" id="shopify-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="shpat_...">
+ </div>
+ <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('shopify')">Connect Shopify</button>
+ </div>
+
+ <div class="card">
+ <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+ Mailchimp
+ </h3>
+ <div style="margin-bottom:12px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">API Key</label>
+ <input type="password" id="mc-key" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="your-mailchimp-api-key">
+ </div>
+ <div style="margin-bottom:16px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">List ID (Audience)</label>
+ <input type="text" id="mc-list" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="e.g. 1a2b3c4d">
+ </div>
+ <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('mailchimp')">Connect Mailchimp</button>
+ </div>
+
+ <!-- Amazon Seller Central -->
+ <div class="card">
+ <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+ Amazon Seller Central
+ </h3>
+ <div style="margin-bottom:12px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client ID</label>
+ <input type="text" id="amz-client" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="amzn1.application-oa2-client...">
+ </div>
+ <div style="margin-bottom:12px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">LWA Client Secret</label>
+ <input type="password" id="amz-secret" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="xxxxxxxxxxxxxxxxx">
+ </div>
+ <div style="margin-bottom:16px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">Refresh Token</label>
+ <input type="password" id="amz-refresh" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="Atzr|IwEBI...">
+ </div>
+ <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('amazon')">Connect Amazon SP-API</button>
+ </div>
+ 
+ <!-- eBay -->
+ <div class="card">
+ <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+ eBay
+ </h3>
+ <div style="margin-bottom:12px;">
+ <label style="display:block;margin-bottom:4px;font-size:13px;">OAuth User Token</label>
+ <input type="password" id="ebay-token" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);" placeholder="v^1.1#i^1#r^0...">
+ </div>
+ <p style="font-size: 11px; color: var(--muted); margin-bottom: 16px;">
+ To get your OAuth User Token, generate an access token via the eBay Developer Portal with the Sell.Inventory scope.
+ </p>
+ <button class="btn btn-outline btn-full btn-sm" onclick="saveIntegration('ebay')">Connect eBay API</button>
+ </div>
+
+ </div>
+ </section>
+
+ </main>
+
+ <!-- Bottom Mobile Nav -->
+ <nav class="bottom-nav">
+ <button class="bottom-nav-link active" onclick="showSection('overview'); activateBottomNav(this);">Overview</button>
+ <button class="bottom-nav-link" onclick="showSection('generator'); activateBottomNav(this);">Create</button>
+ <button class="bottom-nav-link" onclick="showSection('omni'); activateBottomNav(this);">Omni</button>
+ <button class="bottom-nav-link" onclick="showSection('apikeys'); activateBottomNav(this);">Keys</button>
+ </nav>
 
 </div>
 
@@ -619,399 +619,399 @@
 const API = '';
 function getToken() { return localStorage.getItem('sc_token'); }
 
-// ── Redirect to home if not logged in ─────────────────────────────────────
+// Redirect to home if not logged in 
 if (!getToken()) window.location.href = '/';
 
-// ── Nav ───────────────────────────────────────────────────────────────────
+// Nav 
 function showSection(id, btnElement) {
-  const target = document.getElementById(`section-${id}`);
-  if (!target) {
-    console.error(`Section not found: section-${id}`);
-    return;
-  }
+ const target = document.getElementById(`section-${id}`);
+ if (!target) {
+ console.error(`Section not found: section-${id}`);
+ return;
+ }
 
-  // Hide all sections
-  document.querySelectorAll('.dash-section').forEach(s => {
-    s.classList.add('hidden');
-    s.style.display = 'none';
-  });
+ // Hide all sections
+ document.querySelectorAll('.dash-section').forEach(s => {
+ s.classList.add('hidden');
+ s.style.display = 'none';
+ });
 
-  // Display selected section
-  target.classList.remove('hidden');
-  target.style.display = 'block';
+ // Display selected section
+ target.classList.remove('hidden');
+ target.style.display = 'block';
 
-  // Update active state on navigation buttons
-  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-  document.querySelectorAll('.bottom-nav-link').forEach(l => l.classList.remove('active'));
+ // Update active state on navigation buttons
+ document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+ document.querySelectorAll('.bottom-nav-link').forEach(l => l.classList.remove('active'));
 
-  if (btnElement && btnElement.classList) {
-    btnElement.classList.add('active');
-  }
+ if (btnElement && btnElement.classList) {
+ btnElement.classList.add('active');
+ }
 
-  const matchingSidebar = document.querySelector(`.sidebar-link[onclick*="'${id}'"]`);
-  if (matchingSidebar) matchingSidebar.classList.add('active');
-  const matchingBottom = document.querySelector(`.bottom-nav-link[onclick*="'${id}'"]`);
-  if (matchingBottom) matchingBottom.classList.add('active');
+ const matchingSidebar = document.querySelector(`.sidebar-link[onclick*="'${id}'"]`);
+ if (matchingSidebar) matchingSidebar.classList.add('active');
+ const matchingBottom = document.querySelector(`.bottom-nav-link[onclick*="'${id}'"]`);
+ if (matchingBottom) matchingBottom.classList.add('active');
 
-  if (window.history && window.history.replaceState) {
-    window.history.replaceState(null, null, `#${id}`);
-  }
+ if (window.history && window.history.replaceState) {
+ window.history.replaceState(null, null, `#${id}`);
+ }
 }
 
 function logout() {
-  localStorage.removeItem('sc_token');
-  window.location.href = '/';
+ localStorage.removeItem('sc_token');
+ window.location.href = '/';
 }
 
-// ── Load profile ──────────────────────────────────────────────────────────
+// Load profile 
 async function loadProfile() {
-  try {
-    const [profile, usage] = await Promise.all([
-      fetch(`${API}/auth/me`, {headers:{'Authorization':`Bearer ${getToken()}`}}).then(r=>r.json()),
-      fetch(`${API}/api/usage`, {headers:{'Authorization':`Bearer ${getToken()}`}}).then(r=>r.json()),
-    ]);
+ try {
+ const [profile, usage] = await Promise.all([
+ fetch(`${API}/auth/me`, {headers:{'Authorization':`Bearer ${getToken()}`}}).then(r=>r.json()),
+ fetch(`${API}/api/usage`, {headers:{'Authorization':`Bearer ${getToken()}`}}).then(r=>r.json()),
+ ]);
 
-    document.getElementById('user-name').textContent = profile.full_name || profile.email.split('@')[0];
+ document.getElementById('user-name').textContent = profile.full_name || profile.email.split('@')[0];
 
-    // Stats
-    const planLabel = profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1);
-    const gensRemaining = profile.generations_remaining !== undefined ? profile.generations_remaining : 0;
-    const monthlyLimit  = profile.monthly_limit;
+ // Stats
+ const planLabel = profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1);
+ const gensRemaining = profile.generations_remaining !== undefined ? profile.generations_remaining : 0;
+ const monthlyLimit = profile.monthly_limit;
 
-    document.getElementById('stat-plan').innerHTML = `<span class="plan-chip ${profile.plan}">${planLabel}</span>`;
-    document.getElementById('stat-credits').textContent = gensRemaining.toLocaleString();
-    document.getElementById('stat-limit').textContent = monthlyLimit.toLocaleString();
-    document.getElementById('stat-requests').textContent = usage.total_requests.toLocaleString();
+ document.getElementById('stat-plan').innerHTML = `<span class="plan-chip ${profile.plan}">${planLabel}</span>`;
+ document.getElementById('stat-credits').textContent = gensRemaining.toLocaleString();
+ document.getElementById('stat-limit').textContent = monthlyLimit.toLocaleString();
+ document.getElementById('stat-requests').textContent = usage.total_requests.toLocaleString();
 
-    // Progress bar
-    const used = Math.max(0, monthlyLimit - gensRemaining);
-    const pct  = monthlyLimit > 0 ? Math.min(100, (used / monthlyLimit) * 100) : 0;
-    document.getElementById('usage-bar').style.width = pct + '%';
-    document.getElementById('usage-label').textContent = `${used.toLocaleString()} / ${monthlyLimit.toLocaleString()} generations used`;
-    document.getElementById('usage-pct').textContent = pct.toFixed(1) + '%';
+ // Progress bar
+ const used = Math.max(0, monthlyLimit - gensRemaining);
+ const pct = monthlyLimit > 0 ? Math.min(100, (used / monthlyLimit) * 100) : 0;
+ document.getElementById('usage-bar').style.width = pct + '%';
+ document.getElementById('usage-label').textContent = `${used.toLocaleString()} / ${monthlyLimit.toLocaleString()} generations used`;
+ document.getElementById('usage-pct').textContent = pct.toFixed(1) + '%';
 
-    // Usage section
-    const gensUsed = usage.total_generations_used || 0;
-    const uGensRemaining = usage.generations_remaining || 0;
-    document.getElementById('u-requests').textContent = usage.total_requests.toLocaleString();
-    document.getElementById('u-generations-used').textContent = gensUsed.toLocaleString();
-    document.getElementById('u-generations-rem').textContent = uGensRemaining.toLocaleString();
-    document.getElementById('u-limit').textContent    = (usage.monthly_limit || monthlyLimit).toLocaleString();
-    if (usage.period_start && usage.period_end) {
-      document.getElementById('u-period').textContent =
-        `Billing period: ${new Date(usage.period_start).toLocaleDateString()} – ${new Date(usage.period_end).toLocaleDateString()}`;
-    }
+ // Usage section
+ const gensUsed = usage.total_generations_used || 0;
+ const uGensRemaining = usage.generations_remaining || 0;
+ document.getElementById('u-requests').textContent = usage.total_requests.toLocaleString();
+ document.getElementById('u-generations-used').textContent = gensUsed.toLocaleString();
+ document.getElementById('u-generations-rem').textContent = uGensRemaining.toLocaleString();
+ document.getElementById('u-limit').textContent = (usage.monthly_limit || monthlyLimit).toLocaleString();
+ if (usage.period_start && usage.period_end) {
+ document.getElementById('u-period').textContent =
+ `Billing period: ${new Date(usage.period_start).toLocaleDateString()} – ${new Date(usage.period_end).toLocaleDateString()}`;
+ }
 
-    // Billing section
-    const chip = document.getElementById('billing-plan-chip');
-    chip.textContent = planLabel;
-    chip.className = `plan-chip ${profile.plan}`;
-    document.getElementById('billing-plan-detail').textContent = `${monthlyLimit.toLocaleString()} monthly generations`;
+ // Billing section
+ const chip = document.getElementById('billing-plan-chip');
+ chip.textContent = planLabel;
+ chip.className = `plan-chip ${profile.plan}`;
+ document.getElementById('billing-plan-detail').textContent = `${monthlyLimit.toLocaleString()} monthly generations`;
 
-    // Base URL
-    document.getElementById('base-url-display').textContent = window.location.origin;
+ // Base URL
+ document.getElementById('base-url-display').textContent = window.location.origin;
 
-  } catch(e) {
-    console.error('Failed to load profile', e);
-  }
+ } catch(e) {
+ console.error('Failed to load profile', e);
+ }
 }
 
-// ── API Keys ──────────────────────────────────────────────────────────────
+// API Keys 
 async function loadKeys() {
-  const list = document.getElementById('keys-list');
-  try {
-    const res  = await fetch(`${API}/api/keys`, {headers:{'Authorization':`Bearer ${getToken()}`}});
-    const keys = await res.json();
+ const list = document.getElementById('keys-list');
+ try {
+ const res = await fetch(`${API}/api/keys`, {headers:{'Authorization':`Bearer ${getToken()}`}});
+ const keys = await res.json();
 
-    if (!keys.length) {
-      list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px 0;">No API keys yet. Create one above.</div>';
-      return;
-    }
+ if (!keys.length) {
+ list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px 0;">No API keys yet. Create one above.</div>';
+ return;
+ }
 
-    list.innerHTML = keys.map(k => `
-      <div class="key-row">
-        <div>
-          <div class="key-name">${k.name}</div>
-          <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} · ${k.requests_today} requests today</div>
-        </div>
-        <code class="key-prefix">${k.key_prefix}•••••••••••••••••••••••••••</code>
-        <button class="key-delete" onclick="deleteKey('${k.id}')" title="Revoke key"></button>
-      </div>
-    `).join('');
-  } catch(e) {
-    list.innerHTML = '<div style="color:#ff6b6b;font-size:14px;">Failed to load keys.</div>';
-  }
+ list.innerHTML = keys.map(k => `
+ <div class="key-row">
+ <div>
+ <div class="key-name">${k.name}</div>
+ <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} · ${k.requests_today} requests today</div>
+ </div>
+ <code class="key-prefix">${k.key_prefix}•••••••••••••••••••••••••••</code>
+ <button class="key-delete" onclick="deleteKey('${k.id}')" title="Revoke key"></button>
+ </div>
+ `).join('');
+ } catch(e) {
+ list.innerHTML = '<div style="color:#ff6b6b;font-size:14px;">Failed to load keys.</div>';
+ }
 }
 
 async function createApiKey() {
-  const name = document.getElementById('key-name-input').value.trim() || 'My Key';
-  try {
-    const res  = await fetch(`${API}/api/keys`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
-      body: JSON.stringify({name}),
-    });
-    const data = await res.json();
-    if (!res.ok) { alert(data.detail || 'Failed to create key'); return; }
+ const name = document.getElementById('key-name-input').value.trim() || 'My Key';
+ try {
+ const res = await fetch(`${API}/api/keys`, {
+ method: 'POST',
+ headers: {'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
+ body: JSON.stringify({name}),
+ });
+ const data = await res.json();
+ if (!res.ok) { alert(data.detail || 'Failed to create key'); return; }
 
-    // Show new key once
-    const box = document.getElementById('new-key-box');
-    document.getElementById('new-key-value').textContent = data.raw_key;
-    box.classList.add('visible');
-    box.scrollIntoView({behavior:'smooth'});
-    loadKeys();
-  } catch(e) {
-    alert('Error creating key. Please try again.');
-  }
+ // Show new key once
+ const box = document.getElementById('new-key-box');
+ document.getElementById('new-key-value').textContent = data.raw_key;
+ box.classList.add('visible');
+ box.scrollIntoView({behavior:'smooth'});
+ loadKeys();
+ } catch(e) {
+ alert('Error creating key. Please try again.');
+ }
 }
 
 async function deleteKey(id) {
-  if (!confirm('Revoke this API key? This cannot be undone.')) return;
-  await fetch(`${API}/api/keys/${id}`, {
-    method:'DELETE',
-    headers:{'Authorization':`Bearer ${getToken()}`}
-  });
-  loadKeys();
+ if (!confirm('Revoke this API key? This cannot be undone.')) return;
+ await fetch(`${API}/api/keys/${id}`, {
+ method:'DELETE',
+ headers:{'Authorization':`Bearer ${getToken()}`}
+ });
+ loadKeys();
 }
 
 function copyKey() {
-  const val = document.getElementById('new-key-value').textContent;
-  navigator.clipboard.writeText(val).then(() => {
-    const btn = document.querySelector('.copy-btn');
-    btn.textContent = ' Copied!';
-    setTimeout(() => btn.textContent = ' Copy Key', 2000);
-  });
+ const val = document.getElementById('new-key-value').textContent;
+ navigator.clipboard.writeText(val).then(() => {
+ const btn = document.querySelector('.copy-btn');
+ btn.textContent = ' Copied!';
+ setTimeout(() => btn.textContent = ' Copy Key', 2000);
+ });
 }
 
-// ── Billing ───────────────────────────────────────────────────────────────
+// Billing 
 async function startCheckout(plan) {
-  const res  = await fetch(`${API}/billing/subscribe`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
-    body: JSON.stringify({
-      plan,
-      success_url: window.location.origin + '/dashboard?success=1',
-      cancel_url:  window.location.origin + '/dashboard#billing',
-    }),
-  });
-  const data = await res.json();
-  if (data.checkout_url) window.location.href = data.checkout_url;
-  else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
+ const res = await fetch(`${API}/billing/subscribe`, {
+ method:'POST',
+ headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
+ body: JSON.stringify({
+ plan,
+ success_url: window.location.origin + '/dashboard?success=1',
+ cancel_url: window.location.origin + '/dashboard#billing',
+ }),
+ });
+ const data = await res.json();
+ if (data.checkout_url) window.location.href = data.checkout_url;
+ else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
 }
 
 async function buyGenerations(tier) {
-  const res  = await fetch(`${API}/billing/one-time`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
-    body: JSON.stringify({
-      tier,
-      success_url: window.location.origin + '/dashboard?success=1',
-      cancel_url:  window.location.origin + '/dashboard#billing',
-    }),
-  });
-  const data = await res.json();
-  if (data.checkout_url) window.location.href = data.checkout_url;
-  else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
+ const res = await fetch(`${API}/billing/one-time`, {
+ method:'POST',
+ headers:{'Content-Type':'application/json','Authorization':`Bearer ${getToken()}`},
+ body: JSON.stringify({
+ tier,
+ success_url: window.location.origin + '/dashboard?success=1',
+ cancel_url: window.location.origin + '/dashboard#billing',
+ }),
+ });
+ const data = await res.json();
+ if (data.checkout_url) window.location.href = data.checkout_url;
+ else alert(data.detail || 'Checkout unavailable — billing not yet configured.');
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────
+// Init 
 loadProfile();
 loadKeys();
 
 // Check initial URL hash
 window.addEventListener('DOMContentLoaded', () => {
-  const hash = window.location.hash.replace('#', '');
-  if (hash && document.getElementById(`section-${hash}`)) {
-    showSection(hash);
-  } else {
-    showSection('overview');
-  }
+ const hash = window.location.hash.replace('#', '');
+ if (hash && document.getElementById(`section-${hash}`)) {
+ showSection(hash);
+ } else {
+ showSection('overview');
+ }
 });
 
 
 // Show success banner from Stripe redirect
 if (new URLSearchParams(window.location.search).get('success')) {
-  document.getElementById('success-banner').style.display = 'block';
-  window.history.replaceState({}, '', '/dashboard');
+ document.getElementById('success-banner').style.display = 'block';
+ window.history.replaceState({}, '', '/dashboard');
 }
 
 async function saveIntegration(platform) {
-  let creds = {};
-  if (platform === 'wordpress') {
-    creds = {
-      url: document.getElementById('wp-url').value,
-      username: document.getElementById('wp-user').value,
-      app_password: document.getElementById('wp-pass').value
-    };
-  } else if (platform === 'mailchimp') {
-    creds = {
-      api_key: document.getElementById('mc-key').value
-    };
-  } else if (platform === 'hubspot') {
-    creds = { access_token: document.getElementById('hs-token').value };
-  } else if (platform === 'shopify') {
-    creds = { shop_url: document.getElementById('sh-url').value, access_token: document.getElementById('sh-token').value };
-  } else if (platform === 'webflow') {
-    creds = { site_id: document.getElementById('wf-site').value, access_token: document.getElementById('wf-token').value };
-  }
+ let creds = {};
+ if (platform === 'wordpress') {
+ creds = {
+ url: document.getElementById('wp-url').value,
+ username: document.getElementById('wp-user').value,
+ app_password: document.getElementById('wp-pass').value
+ };
+ } else if (platform === 'mailchimp') {
+ creds = {
+ api_key: document.getElementById('mc-key').value
+ };
+ } else if (platform === 'hubspot') {
+ creds = { access_token: document.getElementById('hs-token').value };
+ } else if (platform === 'shopify') {
+ creds = { shop_url: document.getElementById('sh-url').value, access_token: document.getElementById('sh-token').value };
+ } else if (platform === 'webflow') {
+ creds = { site_id: document.getElementById('wf-site').value, access_token: document.getElementById('wf-token').value };
+ }
 
-  try {
-    const res = await fetch('/api/integrations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + getToken()
-      },
-      body: JSON.stringify({ platform, credentials: creds })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert(data.message);
-    } else {
-      let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
-    }
-  } catch (err) {
-    alert("Integration error");
-  }
+ try {
+ const res = await fetch('/api/integrations', {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ 'Authorization': 'Bearer ' + getToken()
+ },
+ body: JSON.stringify({ platform, credentials: creds })
+ });
+ const data = await res.json();
+ if (res.ok) {
+ alert(data.message);
+ } else {
+ let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
+ }
+ } catch (err) {
+ alert("Integration error");
+ }
 }
 
 async function pushContent(platform, text, btnElement, meta={}) {
-  let originalText = "";
-  if (btnElement) {
-    originalText = btnElement.innerText;
-    btnElement.innerText = "Pushing...";
-    btnElement.disabled = true;
-  }
-  
-  try {
-    const res = await fetch('/api/push', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + getToken()
-      },
-      body: JSON.stringify({ platform, content: text, metadata: meta })
-    });
-    const data = await res.json();
-    if (res.status === 202) {
-      pollJobStatus(data.job_id, btnElement, originalText, platform);
-    } else {
-      let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
-      if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
-    }
-  } catch (err) {
-    alert("Push error");
-    if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
-  }
+ let originalText = "";
+ if (btnElement) {
+ originalText = btnElement.innerText;
+ btnElement.innerText = "Pushing...";
+ btnElement.disabled = true;
+ }
+ 
+ try {
+ const res = await fetch('/api/push', {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ 'Authorization': 'Bearer ' + getToken()
+ },
+ body: JSON.stringify({ platform, content: text, metadata: meta })
+ });
+ const data = await res.json();
+ if (res.status === 202) {
+ pollJobStatus(data.job_id, btnElement, originalText, platform);
+ } else {
+ let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
+ if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
+ }
+ } catch (err) {
+ alert("Push error");
+ if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
+ }
 }
 
 function pollJobStatus(jobId, btnElement, originalText, platform) {
-  const interval = setInterval(async () => {
-    try {
-      const res = await fetch('/api/push/status/' + jobId, {
-        headers: { 'Authorization': 'Bearer ' + getToken() }
-      });
-      const data = await res.json();
-      
-      if (data.status === 'success') {
-        clearInterval(interval);
-        alert(' Successfully pushed to ' + platform + '!');
-        if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
-      } else if (data.status === 'failed') {
-        clearInterval(interval);
-        alert(' Push failed: ' + data.details);
-        if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
-      }
-    } catch (err) {
-      clearInterval(interval);
-      if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
-    }
-  }, 2000);
+ const interval = setInterval(async () => {
+ try {
+ const res = await fetch('/api/push/status/' + jobId, {
+ headers: { 'Authorization': 'Bearer ' + getToken() }
+ });
+ const data = await res.json();
+ 
+ if (data.status === 'success') {
+ clearInterval(interval);
+ alert(' Successfully pushed to ' + platform + '!');
+ if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
+ } else if (data.status === 'failed') {
+ clearInterval(interval);
+ alert(' Push failed: ' + data.details);
+ if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
+ }
+ } catch (err) {
+ clearInterval(interval);
+ if (btnElement) { btnElement.innerText = originalText; btnElement.disabled = false; }
+ }
+ }, 2000);
 }
 
 
 async function runGenerator() {
-  const btn = document.getElementById('btn-generate');
-  btn.textContent = "Generating...";
-  btn.disabled = true;
+ const btn = document.getElementById('btn-generate');
+ btn.textContent = "Generating...";
+ btn.disabled = true;
 
-  const type = document.getElementById('gen-type').value;
-  const context = document.getElementById('gen-context').value;
-  const tone = document.getElementById('gen-tone').value;
+ const type = document.getElementById('gen-type').value;
+ const context = document.getElementById('gen-context').value;
+ const tone = document.getElementById('gen-tone').value;
 
-  try {
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + getToken()
-      },
-      body: JSON.stringify({ type, context, tone, variations: 1, max_words: 300 })
-    });
-    
-    const data = await res.json();
-    const resDiv = document.getElementById('gen-results');
-    
-    if (res.ok) {
-      const text = data.variations[0];
-      const encodedText = encodeURIComponent(text);
-      resDiv.innerHTML = `
-        <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;">${text}</div>
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
-          
-          <div style="display:flex;gap:4px;">
-            <button class="btn" style="background:#0073aa;color:#fff;" onclick="pushWP(this, decodeURIComponent('${encodedText}'))">WP </button>
-            <select id="wp-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
-              <option value="">No Category</option>
-              ${(integrationMetadata.wordpress || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
-            </select>
-          </div>
+ try {
+ const res = await fetch('/api/generate', {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ 'Authorization': 'Bearer ' + getToken()
+ },
+ body: JSON.stringify({ type, context, tone, variations: 1, max_words: 300 })
+ });
+ 
+ const data = await res.json();
+ const resDiv = document.getElementById('gen-results');
+ 
+ if (res.ok) {
+ const text = data.variations[0];
+ const encodedText = encodeURIComponent(text);
+ resDiv.innerHTML = `
+ <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;">${text}</div>
+ <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;">
+ 
+ <div style="display:flex;gap:4px;">
+ <button class="btn" style="background:#0073aa;color:#fff;" onclick="pushWP(this, decodeURIComponent('${encodedText}'))">WP </button>
+ <select id="wp-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
+ <option value="">No Category</option>
+ ${(integrationMetadata.wordpress || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+ </select>
+ </div>
 
-          <div style="display:flex;gap:4px;">
-            <button class="btn" style="background:#FFE01B;color:#241C15;" onclick="pushMC(this, decodeURIComponent('${encodedText}'))">Mailchimp </button>
-            <select id="mc-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
-              <option value="">Default List</option>
-              ${(integrationMetadata.mailchimp || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
-            </select>
-          </div>
-          
-          <button class="btn" style="background:#ff7a59;color:#fff;" onclick="pushContent('hubspot', decodeURIComponent('${encodedText}'), this)">HubSpot </button>
-          <button class="btn" style="background:#95bf47;color:#fff;" onclick="pushContent('shopify', decodeURIComponent('${encodedText}'), this)">Shopify </button>
-          
-          <div style="display:flex;gap:4px;">
-            <button class="btn" style="background:#4353ff;color:#fff;" onclick="pushWF(this, decodeURIComponent('${encodedText}'))">Webflow </button>
-            <select id="wf-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
-              <option value="">Collection</option>
-              ${(integrationMetadata.webflow || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
-            </select>
-          </div>
+ <div style="display:flex;gap:4px;">
+ <button class="btn" style="background:#FFE01B;color:#241C15;" onclick="pushMC(this, decodeURIComponent('${encodedText}'))">Mailchimp </button>
+ <select id="mc-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
+ <option value="">Default List</option>
+ ${(integrationMetadata.mailchimp || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+ </select>
+ </div>
+ 
+ <button class="btn" style="background:#ff7a59;color:#fff;" onclick="pushContent('hubspot', decodeURIComponent('${encodedText}'), this)">HubSpot </button>
+ <button class="btn" style="background:#95bf47;color:#fff;" onclick="pushContent('shopify', decodeURIComponent('${encodedText}'), this)">Shopify </button>
+ 
+ <div style="display:flex;gap:4px;">
+ <button class="btn" style="background:#4353ff;color:#fff;" onclick="pushWF(this, decodeURIComponent('${encodedText}'))">Webflow </button>
+ <select id="wf-meta" class="form-group" style="margin:0;padding:4px;font-size:12px;">
+ <option value="">Collection</option>
+ ${(integrationMetadata.webflow || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+ </select>
+ </div>
 
-        </div>
-      `;
-      loadProfile(); // refresh stats
-    } else {
-      resDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail}</span>`;
-    }
-  } catch (err) {
-    document.getElementById('gen-results').innerHTML = `<span style="color:#ff6b6b;">Failed to generate</span>`;
-  }
-  
-  btn.textContent = " Generate Options";
-  btn.disabled = false;
+ </div>
+ `;
+ loadProfile(); // refresh stats
+ } else {
+ resDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail}</span>`;
+ }
+ } catch (err) {
+ document.getElementById('gen-results').innerHTML = `<span style="color:#ff6b6b;">Failed to generate</span>`;
+ }
+ 
+ btn.textContent = " Generate Options";
+ btn.disabled = false;
 }
 
 
 function pushWP(btn, text) {
-    let cat = document.getElementById('wp-meta').value;
-    pushContent('wordpress', text, btn, cat ? {category_id: cat} : {});
+ let cat = document.getElementById('wp-meta').value;
+ pushContent('wordpress', text, btn, cat ? {category_id: cat} : {});
 }
 function pushMC(btn, text) {
-    let lst = document.getElementById('mc-meta').value;
-    pushContent('mailchimp', text, btn, lst ? {list_id: lst} : {});
+ let lst = document.getElementById('mc-meta').value;
+ pushContent('mailchimp', text, btn, lst ? {list_id: lst} : {});
 }
 function pushWF(btn, text) {
-    let col = document.getElementById('wf-meta').value;
-    pushContent('webflow', text, btn, col ? {collection_id: col} : {});
+ let col = document.getElementById('wf-meta').value;
+ pushContent('webflow', text, btn, col ? {collection_id: col} : {});
 }
 
 
@@ -1019,305 +1019,305 @@ let currentCampaignId = null;
 
 
 function fillTemplate(type) {
-  const desc = document.getElementById('omni-desc');
-  const kw = document.getElementById('omni-kw');
-  
-  if (type === 'saas') {
-    kw.value = 'B2B SaaS Automation';
-    desc.value = 'A new B2B SaaS platform that automates invoice processing for small agencies. It integrates with QuickBooks and Xero, saving 10 hours a week.';
-  } else if (type === 'ecommerce') {
-    kw.value = 'Organic Coffee Beans';
-    desc.value = 'Premium, fair-trade organic coffee beans sourced directly from Colombia. Dark roast with notes of chocolate and caramel.';
-  } else if (type === 'realestate') {
-    kw.value = 'Luxury Condo Downtown';
-    desc.value = 'A newly renovated 2-bedroom luxury condo in the heart of downtown. Features floor-to-ceiling windows, smart home integration, and a rooftop pool.';
-  } else if (type === 'fitness') {
-    kw.value = 'Online Fitness Coaching';
-    desc.value = 'A 12-week personalized online fitness coaching program designed for busy professionals. Includes custom meal plans and weekly 1-on-1 Zoom check-ins.';
-  }
+ const desc = document.getElementById('omni-desc');
+ const kw = document.getElementById('omni-kw');
+ 
+ if (type === 'saas') {
+ kw.value = 'B2B SaaS Automation';
+ desc.value = 'A new B2B SaaS platform that automates invoice processing for small agencies. It integrates with QuickBooks and Xero, saving 10 hours a week.';
+ } else if (type === 'ecommerce') {
+ kw.value = 'Organic Coffee Beans';
+ desc.value = 'Premium, fair-trade organic coffee beans sourced directly from Colombia. Dark roast with notes of chocolate and caramel.';
+ } else if (type === 'realestate') {
+ kw.value = 'Luxury Condo Downtown';
+ desc.value = 'A newly renovated 2-bedroom luxury condo in the heart of downtown. Features floor-to-ceiling windows, smart home integration, and a rooftop pool.';
+ } else if (type === 'fitness') {
+ kw.value = 'Online Fitness Coaching';
+ desc.value = 'A 12-week personalized online fitness coaching program designed for busy professionals. Includes custom meal plans and weekly 1-on-1 Zoom check-ins.';
+ }
 }
 
 async function runOmniGenerate() {
-  const btn = document.getElementById('btn-omni-generate');
-  btn.textContent = "Scraping Market & Generating...";
-  btn.disabled = true;
+ const btn = document.getElementById('btn-omni-generate');
+ btn.textContent = "Scraping Market & Generating...";
+ btn.disabled = true;
 
-  const desc = document.getElementById('omni-desc').value;
-  const kw = document.getElementById('omni-kw').value;
+ const desc = document.getElementById('omni-desc').value;
+ const kw = document.getElementById('omni-kw').value;
 
-  try {
-    const res = await fetch('/api/campaign/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ keyword: kw, product_desc: desc })
-    });
-    
-    const data = await res.json();
-    if (res.ok) {
-      currentCampaignId = data.id;
-      const assets = data.assets;
-      
-      document.getElementById('omni-blog-title').textContent = assets.blog_post.title;
-      document.getElementById('omni-blog-content').innerHTML = assets.blog_post.content;
-      
-      let emailsHtml = "";
-      assets.email_drip.forEach((e, i) => {
-        emailsHtml += `<strong>${i+1}. ${e.subject}</strong><br/>${e.body}<hr/>`;
-      });
-      document.getElementById('omni-email-content').innerHTML = emailsHtml;
-      
-      document.getElementById('omni-results-wrapper').style.display = 'block';
-    } else {
-      let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
-    }
-  } catch (err) {
-    alert("Generation failed.");
-  }
-  
-  btn.textContent = "1. Generate Campaign";
-  btn.disabled = false;
+ try {
+ const res = await fetch('/api/campaign/generate', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ keyword: kw, product_desc: desc })
+ });
+ 
+ const data = await res.json();
+ if (res.ok) {
+ currentCampaignId = data.id;
+ const assets = data.assets;
+ 
+ document.getElementById('omni-blog-title').textContent = assets.blog_post.title;
+ document.getElementById('omni-blog-content').innerHTML = assets.blog_post.content;
+ 
+ let emailsHtml = "";
+ assets.email_drip.forEach((e, i) => {
+ emailsHtml += `<strong>${i+1}. ${e.subject}</strong><br/>${e.body}<hr/>`;
+ });
+ document.getElementById('omni-email-content').innerHTML = emailsHtml;
+ 
+ document.getElementById('omni-results-wrapper').style.display = 'block';
+ } else {
+ let msg = data.detail; if(Array.isArray(msg)) msg = msg[0].msg; alert("Error: " + msg);
+ }
+ } catch (err) {
+ alert("Generation failed.");
+ }
+ 
+ btn.textContent = "1. Generate Campaign";
+ btn.disabled = false;
 }
 
 
 async function runOmniVisionGenerate() {
-  const fileInput = document.getElementById('omni-image-file');
-  if (!fileInput.files.length) return alert("Please select a product image first.");
-  
-  const file = fileInput.files[0];
-  const btn = document.getElementById('btn-omni-vision');
-  btn.textContent = "Analyzing Photo & Generating...";
-  btn.disabled = true;
-  
-  const reader = new FileReader();
-  reader.onload = async function(e) {
-    const base64Data = e.target.result;
-    const kw = document.getElementById('omni-kw').value;
-    const desc = document.getElementById('omni-desc').value;
-    
-    try {
-      const res = await fetch('/api/campaign/generate-vision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-        body: JSON.stringify({
-          image_base64: base64Data,
-          mime_type: file.type || 'image/jpeg',
-          keyword: kw,
-          extra_context: desc
-        })
-      });
-      
-      const data = await res.json();
-      if (res.ok) {
-        currentCampaignId = data.id;
-        const assets = data.assets;
-        
-        if (assets.detected_product_name && !kw) {
-          document.getElementById('omni-kw').value = assets.detected_product_name;
-        }
-        if (assets.detected_description && !desc) {
-          document.getElementById('omni-desc').value = assets.detected_description;
-        }
-        
-        document.getElementById('omni-blog-title').textContent = assets.blog_post.title;
-        document.getElementById('omni-blog-content').innerHTML = assets.blog_post.content;
-        
-        let emailsHtml = "";
-        (assets.email_drip || []).forEach((item, i) => {
-          emailsHtml += `<strong>${i+1}. ${item.subject}</strong><br/>${item.body}<hr/>`;
-        });
-        document.getElementById('omni-email-content').innerHTML = emailsHtml;
-        document.getElementById('omni-results-wrapper').style.display = 'block';
-        loadProfile();
-      } else {
-        let msg = data.detail; if (Array.isArray(msg)) msg = msg[0].msg;
-        alert("Error: " + msg);
-      }
-    } catch (err) {
-      alert("Vision campaign generation failed.");
-    } finally {
-      btn.textContent = "Generate From Photo";
-      btn.disabled = false;
-    }
-  };
-  reader.readAsDataURL(file);
+ const fileInput = document.getElementById('omni-image-file');
+ if (!fileInput.files.length) return alert("Please select a product image first.");
+ 
+ const file = fileInput.files[0];
+ const btn = document.getElementById('btn-omni-vision');
+ btn.textContent = "Analyzing Photo & Generating...";
+ btn.disabled = true;
+ 
+ const reader = new FileReader();
+ reader.onload = async function(e) {
+ const base64Data = e.target.result;
+ const kw = document.getElementById('omni-kw').value;
+ const desc = document.getElementById('omni-desc').value;
+ 
+ try {
+ const res = await fetch('/api/campaign/generate-vision', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({
+ image_base64: base64Data,
+ mime_type: file.type || 'image/jpeg',
+ keyword: kw,
+ extra_context: desc
+ })
+ });
+ 
+ const data = await res.json();
+ if (res.ok) {
+ currentCampaignId = data.id;
+ const assets = data.assets;
+ 
+ if (assets.detected_product_name && !kw) {
+ document.getElementById('omni-kw').value = assets.detected_product_name;
+ }
+ if (assets.detected_description && !desc) {
+ document.getElementById('omni-desc').value = assets.detected_description;
+ }
+ 
+ document.getElementById('omni-blog-title').textContent = assets.blog_post.title;
+ document.getElementById('omni-blog-content').innerHTML = assets.blog_post.content;
+ 
+ let emailsHtml = "";
+ (assets.email_drip || []).forEach((item, i) => {
+ emailsHtml += `<strong>${i+1}. ${item.subject}</strong><br/>${item.body}<hr/>`;
+ });
+ document.getElementById('omni-email-content').innerHTML = emailsHtml;
+ document.getElementById('omni-results-wrapper').style.display = 'block';
+ loadProfile();
+ } else {
+ let msg = data.detail; if (Array.isArray(msg)) msg = msg[0].msg;
+ alert("Error: " + msg);
+ }
+ } catch (err) {
+ alert("Vision campaign generation failed.");
+ } finally {
+ btn.textContent = "Generate From Photo";
+ btn.disabled = false;
+ }
+ };
+ reader.readAsDataURL(file);
 }
 
 async function runOmniPush() {
-  const btn = document.getElementById('btn-omni-push');
-  btn.textContent = "Deploying...";
-  btn.disabled = true;
-  
-  const productDests = Array.from(document.querySelectorAll('.dest-product:checked')).map(el => el.value);
-  const blogDests = Array.from(document.querySelectorAll('.dest-blog:checked')).map(el => el.value);
-  const emailDests = Array.from(document.querySelectorAll('.dest-email:checked')).map(el => el.value);
-  
-  const kw = document.getElementById('omni-kw').value;
-  const blogTitle = document.getElementById('omni-blog-title').textContent;
-  const blogHTML = document.getElementById('omni-blog-content').innerHTML;
-  const emailHTML = document.getElementById('omni-email-content').innerHTML;
-  
-  let promises = [];
-  productDests.forEach(dest => {
-    promises.push(fetch('/api/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ platform: dest, content: blogHTML, title: kw })
-    }));
-  });
-  blogDests.forEach(dest => {
-    promises.push(fetch('/api/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ platform: dest, content: blogHTML, title: blogTitle })
-    }));
-  });
-  emailDests.forEach(dest => {
-    promises.push(fetch('/api/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ platform: dest, content: emailHTML, title: "Omni-Campaign Emails" })
-    }));
-  });
-  
-  if (promises.length === 0) {
-    alert("Please select at least one syndication destination.");
-    btn.textContent = "2. Deploy Omni-Campaign";
-    btn.disabled = false;
-    return;
-  }
-  
-  try {
-    const results = await Promise.all(promises);
-    let allOk = true;
-    for (let r of results) {
-      if (!r.ok) allOk = false;
-    }
-    if (allOk) {
-      alert("Syndication Started! Successfully queued " + promises.length + " push jobs in the background.");
-    } else {
-      alert("Some platform pushes failed. Check your API credentials in Integrations.");
-    }
-  } catch (err) {
-    alert("Syndication error.");
-  } finally {
-    btn.textContent = "2. Deploy Omni-Campaign";
-    btn.disabled = false;
-  }
+ const btn = document.getElementById('btn-omni-push');
+ btn.textContent = "Deploying...";
+ btn.disabled = true;
+ 
+ const productDests = Array.from(document.querySelectorAll('.dest-product:checked')).map(el => el.value);
+ const blogDests = Array.from(document.querySelectorAll('.dest-blog:checked')).map(el => el.value);
+ const emailDests = Array.from(document.querySelectorAll('.dest-email:checked')).map(el => el.value);
+ 
+ const kw = document.getElementById('omni-kw').value;
+ const blogTitle = document.getElementById('omni-blog-title').textContent;
+ const blogHTML = document.getElementById('omni-blog-content').innerHTML;
+ const emailHTML = document.getElementById('omni-email-content').innerHTML;
+ 
+ let promises = [];
+ productDests.forEach(dest => {
+ promises.push(fetch('/api/push', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ platform: dest, content: blogHTML, title: kw })
+ }));
+ });
+ blogDests.forEach(dest => {
+ promises.push(fetch('/api/push', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ platform: dest, content: blogHTML, title: blogTitle })
+ }));
+ });
+ emailDests.forEach(dest => {
+ promises.push(fetch('/api/push', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ platform: dest, content: emailHTML, title: "Omni-Campaign Emails" })
+ }));
+ });
+ 
+ if (promises.length === 0) {
+ alert("Please select at least one syndication destination.");
+ btn.textContent = "2. Deploy Omni-Campaign";
+ btn.disabled = false;
+ return;
+ }
+ 
+ try {
+ const results = await Promise.all(promises);
+ let allOk = true;
+ for (let r of results) {
+ if (!r.ok) allOk = false;
+ }
+ if (allOk) {
+ alert("Syndication Started! Successfully queued " + promises.length + " push jobs in the background.");
+ } else {
+ alert("Some platform pushes failed. Check your API credentials in Integrations.");
+ }
+ } catch (err) {
+ alert("Syndication error.");
+ } finally {
+ btn.textContent = "2. Deploy Omni-Campaign";
+ btn.disabled = false;
+ }
 }
 
 
 
 function activateBottomNav(btn) {
-  document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
+ document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
+ if (btn) btn.classList.add('active');
 }
 
 
 // --- BULK SYNC LOGIC ---
 let bulkItems = [];
 async function parseCSV() {
-  const fileInput = document.getElementById('csv-file');
-  if (!fileInput.files.length) return alert("Please select a CSV file.");
-  const file = fileInput.files[0];
-  
-  const formData = new FormData();
-  formData.append("file", file);
-  
-  try {
-    const res = await fetch('/api/catalog/parse-csv', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + getToken() },
-      body: formData
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
-    
-    bulkItems = data.items;
-    const tbody = document.getElementById('bulk-table-body');
-    tbody.innerHTML = '';
-    
-    for (let i = 0; i < bulkItems.length; i++) {
-      const item = bulkItems[i];
-      item.status = 'Ready';
-      const tr = document.createElement('tr');
-      tr.style.borderBottom = '1px solid var(--border)';
-      tr.id = `bulk-row-${i}`;
-      tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;font-weight:bold;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${item.name}</td><td style="padding:12px 8px; color:var(--muted);">${item.desc.substring(0, 80)}...</td>`;
-      tbody.appendChild(tr);
-    }
-    document.getElementById('bulk-preview-area').classList.remove('hidden');
-    
-    alert(`AI successfully mapped columns:\nName = '${data.mapping_used.name_col}'\nDescription = '${data.mapping_used.desc_col}'\n\nFound ${bulkItems.length} products.`);
-  } catch (err) {
-    alert("Error parsing CSV: " + err.message);
-  }
+ const fileInput = document.getElementById('csv-file');
+ if (!fileInput.files.length) return alert("Please select a CSV file.");
+ const file = fileInput.files[0];
+ 
+ const formData = new FormData();
+ formData.append("file", file);
+ 
+ try {
+ const res = await fetch('/api/catalog/parse-csv', {
+ method: 'POST',
+ headers: { 'Authorization': 'Bearer ' + getToken() },
+ body: formData
+ });
+ 
+ const data = await res.json();
+ if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
+ 
+ bulkItems = data.items;
+ const tbody = document.getElementById('bulk-table-body');
+ tbody.innerHTML = '';
+ 
+ for (let i = 0; i < bulkItems.length; i++) {
+ const item = bulkItems[i];
+ item.status = 'Ready';
+ const tr = document.createElement('tr');
+ tr.style.borderBottom = '1px solid var(--border)';
+ tr.id = `bulk-row-${i}`;
+ tr.innerHTML = `<td style="padding:12px 8px;" class="status-cell"><span style="color:#eab308;font-weight:bold;">Ready</span></td><td style="padding:12px 8px; font-weight:bold;">${item.name}</td><td style="padding:12px 8px; color:var(--muted);">${item.desc.substring(0, 80)}...</td>`;
+ tbody.appendChild(tr);
+ }
+ document.getElementById('bulk-preview-area').classList.remove('hidden');
+ 
+ alert(`AI successfully mapped columns:\nName = '${data.mapping_used.name_col}'\nDescription = '${data.mapping_used.desc_col}'\n\nFound ${bulkItems.length} products.`);
+ } catch (err) {
+ alert("Error parsing CSV: " + err.message);
+ }
 }
 async function startBulkSyndication() {
-  const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
-  if (dests.length === 0) return alert("Please select at least one syndication destination.");
-  const btn = document.getElementById('btn-start-bulk');
-  btn.disabled = true;
-  btn.textContent = "Syndicating Catalog...";
-  for (let i = 0; i < bulkItems.length; i++) {
-    const item = bulkItems[i];
-    const row = document.getElementById(`bulk-row-${i}`);
-    const statusCell = row.querySelector('.status-cell');
-    try {
-      statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
-      const genRes = await fetch('/api/campaign/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-        body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
-      });
-      if (!genRes.ok) throw new Error("Generation failed");
-      const genData = await genRes.json();
-      const blogHTML = genData.campaign.assets.blog_post.content;
-      statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
-      let pushPromises = [];
-      dests.forEach(dest => {
-        pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
-      });
-      await Promise.all(pushPromises);
-      statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
-    } catch (err) {
-      statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">? Failed</span>';
-    }
-  }
-  btn.textContent = "Syndication Complete!";
+ const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
+ if (dests.length === 0) return alert("Please select at least one syndication destination.");
+ const btn = document.getElementById('btn-start-bulk');
+ btn.disabled = true;
+ btn.textContent = "Syndicating Catalog...";
+ for (let i = 0; i < bulkItems.length; i++) {
+ const item = bulkItems[i];
+ const row = document.getElementById(`bulk-row-${i}`);
+ const statusCell = row.querySelector('.status-cell');
+ try {
+ statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
+ const genRes = await fetch('/api/campaign/generate', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
+ });
+ if (!genRes.ok) throw new Error("Generation failed");
+ const genData = await genRes.json();
+ const blogHTML = genData.campaign.assets.blog_post.content;
+ statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
+ let pushPromises = [];
+ dests.forEach(dest => {
+ pushPromises.push(fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }, body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name }) }));
+ });
+ await Promise.all(pushPromises);
+ statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">? Syndicated</span>';
+ } catch (err) {
+ statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">? Failed</span>';
+ }
+ }
+ btn.textContent = "Syndication Complete!";
 }
 
 
 async function discoverConnector() {
-  const urlInput = document.getElementById('uc-url').value;
-  if (!urlInput) return alert("Please enter an API documentation URL.");
-  
-  const btn = document.getElementById('btn-uc-discover');
-  btn.textContent = "Discovering...";
-  btn.disabled = true;
-  
-  try {
-    const res = await fetch('/api/connector/discover', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ url: urlInput })
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Discovery failed.");
-    
-    document.getElementById('uc-res-title').textContent = data.platform_name;
-    document.getElementById('uc-res-base').textContent = data.base_url;
-    document.getElementById('uc-res-auth').textContent = data.authentication_modes.join(', ') || "None";
-    document.getElementById('uc-res-ops').textContent = data.operation_count;
-    
-    document.getElementById('uc-results').classList.remove('hidden');
-  } catch (err) {
-    alert(err.message);
-  } finally {
-    btn.textContent = "Discover API";
-    btn.disabled = false;
-  }
+ const urlInput = document.getElementById('uc-url').value;
+ if (!urlInput) return alert("Please enter an API documentation URL.");
+ 
+ const btn = document.getElementById('btn-uc-discover');
+ btn.textContent = "Discovering...";
+ btn.disabled = true;
+ 
+ try {
+ const res = await fetch('/api/connector/discover', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ url: urlInput })
+ });
+ 
+ const data = await res.json();
+ if (!res.ok) throw new Error(data.detail || "Discovery failed.");
+ 
+ document.getElementById('uc-res-title').textContent = data.platform_name;
+ document.getElementById('uc-res-base').textContent = data.base_url;
+ document.getElementById('uc-res-auth').textContent = data.authentication_modes.join(', ') || "None";
+ document.getElementById('uc-res-ops').textContent = data.operation_count;
+ 
+ document.getElementById('uc-results').classList.remove('hidden');
+ } catch (err) {
+ alert(err.message);
+ } finally {
+ btn.textContent = "Discover API";
+ btn.disabled = false;
+ }
 }
 
 </script>
@@ -1325,165 +1325,165 @@ async function discoverConnector() {
 
 
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(err => {
-        console.log('SW registration failed: ', err);
-      });
-    });
-  }
+ if ('serviceWorker' in navigator) {
+ window.addEventListener('load', () => {
+ navigator.serviceWorker.register('/sw.js').catch(err => {
+ console.log('SW registration failed: ', err);
+ });
+ });
+ }
 
 function activateBottomNav(btn) {
-  document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
+ document.querySelectorAll('.bottom-nav-link').forEach(b => b.classList.remove('active'));
+ if (btn) btn.classList.add('active');
 }
 
 // --- BULK SYNC LOGIC (XSS-Safe DOM construction) ---
 let bulkItems = [];
 async function parseCSV() {
-  const fileInput = document.getElementById('csv-file');
-  if (!fileInput.files.length) return alert("Please select a CSV file.");
-  const file = fileInput.files[0];
-  
-  const formData = new FormData();
-  formData.append("file", file);
-  
-  try {
-    const res = await fetch('/api/catalog/parse-csv', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + getToken() },
-      body: formData
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
-    
-    bulkItems = data.items || [];
-    const tbody = document.getElementById('bulk-table-body');
-    tbody.innerHTML = '';
-    
-    for (let i = 0; i < bulkItems.length; i++) {
-      const item = bulkItems[i];
-      item.status = 'Ready';
-      const tr = document.createElement('tr');
-      tr.style.borderBottom = '1px solid var(--border)';
-      tr.id = `bulk-row-${i}`;
-      
-      const tdStatus = document.createElement('td');
-      tdStatus.style.padding = '12px 8px';
-      tdStatus.className = 'status-cell';
-      const badge = document.createElement('span');
-      badge.style.color = '#eab308';
-      badge.style.fontWeight = 'bold';
-      badge.textContent = 'Ready';
-      tdStatus.appendChild(badge);
+ const fileInput = document.getElementById('csv-file');
+ if (!fileInput.files.length) return alert("Please select a CSV file.");
+ const file = fileInput.files[0];
+ 
+ const formData = new FormData();
+ formData.append("file", file);
+ 
+ try {
+ const res = await fetch('/api/catalog/parse-csv', {
+ method: 'POST',
+ headers: { 'Authorization': 'Bearer ' + getToken() },
+ body: formData
+ });
+ 
+ const data = await res.json();
+ if (!res.ok) throw new Error(data.detail || "Failed to parse CSV");
+ 
+ bulkItems = data.items || [];
+ const tbody = document.getElementById('bulk-table-body');
+ tbody.innerHTML = '';
+ 
+ for (let i = 0; i < bulkItems.length; i++) {
+ const item = bulkItems[i];
+ item.status = 'Ready';
+ const tr = document.createElement('tr');
+ tr.style.borderBottom = '1px solid var(--border)';
+ tr.id = `bulk-row-${i}`;
+ 
+ const tdStatus = document.createElement('td');
+ tdStatus.style.padding = '12px 8px';
+ tdStatus.className = 'status-cell';
+ const badge = document.createElement('span');
+ badge.style.color = '#eab308';
+ badge.style.fontWeight = 'bold';
+ badge.textContent = 'Ready';
+ tdStatus.appendChild(badge);
 
-      const tdName = document.createElement('td');
-      tdName.style.padding = '12px 8px';
-      tdName.style.fontWeight = 'bold';
-      tdName.textContent = item.name || '';
+ const tdName = document.createElement('td');
+ tdName.style.padding = '12px 8px';
+ tdName.style.fontWeight = 'bold';
+ tdName.textContent = item.name || '';
 
-      const tdDesc = document.createElement('td');
-      tdDesc.style.padding = '12px 8px';
-      tdDesc.style.color = 'var(--muted)';
-      const rawDesc = item.desc || '';
-      tdDesc.textContent = rawDesc.length > 80 ? rawDesc.substring(0, 80) + '...' : rawDesc;
+ const tdDesc = document.createElement('td');
+ tdDesc.style.padding = '12px 8px';
+ tdDesc.style.color = 'var(--muted)';
+ const rawDesc = item.desc || '';
+ tdDesc.textContent = rawDesc.length > 80 ? rawDesc.substring(0, 80) + '...' : rawDesc;
 
-      tr.appendChild(tdStatus);
-      tr.appendChild(tdName);
-      tr.appendChild(tdDesc);
-      tbody.appendChild(tr);
-    }
-    document.getElementById('bulk-preview-area').classList.remove('hidden');
-    
-    const mapName = (data.mapping_used && data.mapping_used.name_col) ? data.mapping_used.name_col : 'Auto';
-    const mapDesc = (data.mapping_used && data.mapping_used.desc_col) ? data.mapping_used.desc_col : 'Auto';
-    alert("AI successfully mapped columns:\nName = '" + mapName + "'\nDescription = '" + mapDesc + "'\n\nFound " + bulkItems.length + " products.");
-  } catch (err) {
-    alert("Error parsing CSV: " + err.message);
-  }
+ tr.appendChild(tdStatus);
+ tr.appendChild(tdName);
+ tr.appendChild(tdDesc);
+ tbody.appendChild(tr);
+ }
+ document.getElementById('bulk-preview-area').classList.remove('hidden');
+ 
+ const mapName = (data.mapping_used && data.mapping_used.name_col) ? data.mapping_used.name_col : 'Auto';
+ const mapDesc = (data.mapping_used && data.mapping_used.desc_col) ? data.mapping_used.desc_col : 'Auto';
+ alert("AI successfully mapped columns:\nName = '" + mapName + "'\nDescription = '" + mapDesc + "'\n\nFound " + bulkItems.length + " products.");
+ } catch (err) {
+ alert("Error parsing CSV: " + err.message);
+ }
 }
 
 async function startBulkSyndication() {
-  const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
-  if (dests.length === 0) return alert("Please select at least one syndication destination.");
-  const btn = document.getElementById('btn-start-bulk');
-  btn.disabled = true;
-  btn.textContent = "Syndicating Catalog...";
-  
-  for (let i = 0; i < bulkItems.length; i++) {
-    const item = bulkItems[i];
-    const row = document.getElementById(`bulk-row-${i}`);
-    if (!row) continue;
-    const statusCell = row.querySelector('.status-cell');
-    try {
-      if (statusCell) {
-        statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
-      }
-      const genRes = await fetch('/api/campaign/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-        body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
-      });
-      if (!genRes.ok) throw new Error("Generation failed");
-      const genData = await genRes.json();
-      const blogHTML = genData.campaign && genData.campaign.assets && genData.campaign.assets.blog_post ? genData.campaign.assets.blog_post.content : '';
-      
-      if (statusCell) {
-        statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
-      }
-      let pushPromises = [];
-      dests.forEach(dest => {
-        pushPromises.push(fetch('/api/push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-          body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name })
-        }));
-      });
-      await Promise.all(pushPromises);
-      if (statusCell) {
-        statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">Syndicated</span>';
-      }
-    } catch (err) {
-      if (statusCell) {
-        statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">Failed</span>';
-      }
-    }
-  }
-  btn.textContent = "Syndication Complete!";
-  btn.disabled = false;
+ const dests = Array.from(document.querySelectorAll('.bulk-dest:checked')).map(el => el.value);
+ if (dests.length === 0) return alert("Please select at least one syndication destination.");
+ const btn = document.getElementById('btn-start-bulk');
+ btn.disabled = true;
+ btn.textContent = "Syndicating Catalog...";
+ 
+ for (let i = 0; i < bulkItems.length; i++) {
+ const item = bulkItems[i];
+ const row = document.getElementById(`bulk-row-${i}`);
+ if (!row) continue;
+ const statusCell = row.querySelector('.status-cell');
+ try {
+ if (statusCell) {
+ statusCell.innerHTML = '<span style="color:#3b82f6;">Generating AI...</span>';
+ }
+ const genRes = await fetch('/api/campaign/generate', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ keyword: item.name, product_desc: item.desc || item.name })
+ });
+ if (!genRes.ok) throw new Error("Generation failed");
+ const genData = await genRes.json();
+ const blogHTML = genData.campaign && genData.campaign.assets && genData.campaign.assets.blog_post ? genData.campaign.assets.blog_post.content : '';
+ 
+ if (statusCell) {
+ statusCell.innerHTML = '<span style="color:#a855f7;">Pushing to APIs...</span>';
+ }
+ let pushPromises = [];
+ dests.forEach(dest => {
+ pushPromises.push(fetch('/api/push', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ platform: dest, content: blogHTML, title: item.name })
+ }));
+ });
+ await Promise.all(pushPromises);
+ if (statusCell) {
+ statusCell.innerHTML = '<span style="color:#22c55e; font-weight:bold;">Syndicated</span>';
+ }
+ } catch (err) {
+ if (statusCell) {
+ statusCell.innerHTML = '<span style="color:#ef4444; font-weight:bold;">Failed</span>';
+ }
+ }
+ }
+ btn.textContent = "Syndication Complete!";
+ btn.disabled = false;
 }
 
 async function discoverConnector() {
-  const urlInput = document.getElementById('uc-url').value;
-  if (!urlInput) return alert("Please enter an API documentation URL.");
-  
-  const btn = document.getElementById('btn-uc-discover');
-  btn.textContent = "Discovering...";
-  btn.disabled = true;
-  
-  try {
-    const res = await fetch('/api/connector/discover', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ url: urlInput })
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Discovery failed.");
-    
-    document.getElementById('uc-res-title').textContent = data.platform_name || 'Custom Platform';
-    document.getElementById('uc-res-base').textContent = data.base_url || '';
-    document.getElementById('uc-res-auth').textContent = (data.authentication_modes && data.authentication_modes.length) ? data.authentication_modes.join(', ') : "None";
-    document.getElementById('uc-res-ops').textContent = data.operation_count !== undefined ? data.operation_count : 0;
-    
-    document.getElementById('uc-results').classList.remove('hidden');
-  } catch (err) {
-    alert(err.message);
-  } finally {
-    btn.textContent = "Discover API";
-    btn.disabled = false;
-  }
+ const urlInput = document.getElementById('uc-url').value;
+ if (!urlInput) return alert("Please enter an API documentation URL.");
+ 
+ const btn = document.getElementById('btn-uc-discover');
+ btn.textContent = "Discovering...";
+ btn.disabled = true;
+ 
+ try {
+ const res = await fetch('/api/connector/discover', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+ body: JSON.stringify({ url: urlInput })
+ });
+ 
+ const data = await res.json();
+ if (!res.ok) throw new Error(data.detail || "Discovery failed.");
+ 
+ document.getElementById('uc-res-title').textContent = data.platform_name || 'Custom Platform';
+ document.getElementById('uc-res-base').textContent = data.base_url || '';
+ document.getElementById('uc-res-auth').textContent = (data.authentication_modes && data.authentication_modes.length) ? data.authentication_modes.join(', ') : "None";
+ document.getElementById('uc-res-ops').textContent = data.operation_count !== undefined ? data.operation_count : 0;
+ 
+ document.getElementById('uc-results').classList.remove('hidden');
+ } catch (err) {
+ alert(err.message);
+ } finally {
+ btn.textContent = "Discover API";
+ btn.disabled = false;
+ }
 }
 </script>
 </body>

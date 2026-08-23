@@ -19,7 +19,7 @@ from .scheduler import _send_email
 
 logger = logging.getLogger(__name__)
 
-# ── 1. SEO Blog Engine ────────────────────────────────────────────────────────
+#  1. SEO Blog Engine 
 
 KEYWORDS = [
     "AI copywriting for ecommerce", 
@@ -93,7 +93,7 @@ async def generate_seo_post():
         db.close()
 
 
-# ── 2. Email Drip Bot ─────────────────────────────────────────────────────────
+#  2. Email Drip Bot 
 
 def run_drip_campaigns():
     """Follows up with free users to convert them to paid."""
@@ -107,7 +107,7 @@ def run_drip_campaigns():
 
             # Drip schedule
             steps = {
-                2: ("The secret to high-converting copy 🤫", "Hi there,<br><br>The biggest mistake marketers make? Talking about features instead of <b>benefits</b>. KopyKat automatically uses proven copywriting frameworks (like AIDA and PAS) to generate copy that actually sells.<br><br><a href='https://kopykat-ai.onrender.com/dashboard'>Log in and try the Ad Copy Generator</a> today."),
+                2: ("The secret to high-converting copy ", "Hi there,<br><br>The biggest mistake marketers make? Talking about features instead of <b>benefits</b>. KopyKat automatically uses proven copywriting frameworks (like AIDA and PAS) to generate copy that actually sells.<br><br><a href='https://kopykat-ai.onrender.com/dashboard'>Log in and try the Ad Copy Generator</a> today."),
                 4: ("Save 10+ hours this week ⏳", "How much time do you spend staring at a blank screen?<br><br>With KopyKat, you can generate 5 variations of a landing page hero section in 2 seconds. Use your remaining free generations to see the magic yourself."),
                 7: ("Your free generations are running out", "Hey,<br><br>I hope you've loved using KopyKat. If you want to scale up your marketing, it's time to upgrade.<br><br>Our <b>Basic Plan is just $9/mo</b> and gives you <b>500 generations</b> every single month. That's enough to run your entire social and email strategy.<br><br><a href='https://kopykat-ai.onrender.com/dashboard'>Upgrade in your dashboard now</a> and never write manual copy again.")
             }
@@ -127,7 +127,7 @@ def run_drip_campaigns():
         db.close()
 
 
-# ── 3. Opportunity Scout ──────────────────────────────────────────────────────
+#  3. Opportunity Scout 
 
 SUBREDDITS = ["entrepreneur", "smallbusiness", "copywriting", "ecommerce", "marketing"]
 SCOUT_KEYWORDS = ["write copy", "product descriptions", "ad copy", "sucks at writing", "need a copywriter", "writing emails"]

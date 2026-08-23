@@ -149,7 +149,7 @@ async def verify_email(request: Request, body: VerifyEmailRequest, db: Session =
 @app.post("/auth/register",response_model=TokenResponse,tags=["Auth"])
 @limiter.limit("5/minute")
 async def register(request:Request,body:UserRegister,background_tasks:BackgroundTasks,db:Session=Depends(get_db)):
-    user=register_user(body.email,body.password,body.full_name,db); from .scheduler import _send_email; background_tasks.add_task(_send_email,"Welcome to KopyKat 🚀",f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 5 free generations.",user.email); return TokenResponse(access_token=create_access_token(user.id,user.email),plan=user.plan,generations=user.generations)
+    user=register_user(body.email,body.password,body.full_name,db); from .scheduler import _send_email; background_tasks.add_task(_send_email,"Welcome to KopyKat ",f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 5 free generations.",user.email); return TokenResponse(access_token=create_access_token(user.id,user.email),plan=user.plan,generations=user.generations)
 @app.post("/auth/login",response_model=TokenResponse,tags=["Auth"])
 @limiter.limit("10/minute")
 async def login(request:Request,body:UserLogin,db:Session=Depends(get_db)):
