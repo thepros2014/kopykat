@@ -31,8 +31,8 @@
       <a href="#faq">FAQ</a>
     </div>
     <div class="nav-actions">
-      <a href="/dashboard" class="btn btn-outline btn-sm">Log In</a>
-      <a href="#signup" class="btn btn-primary btn-sm">Try Free (50 Free Uses)</a>
+      <a href="#signup" onclick="switchAuthTab('login')" class="btn btn-outline btn-sm" id="nav-login-btn">Log In</a>
+      <a href="#signup" onclick="switchAuthTab('register')" class="btn btn-primary btn-sm">Try Free (50 Free Uses)</a>
     </div>
   </div>
 </nav>
@@ -586,21 +586,39 @@
 </footer>
 
 <script>
-const API = '';
+const API = (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null') 
+  ? 'https://kopykat.onrender.com' 
+  : window.location.origin;
 
 function getToken() {
   return localStorage.getItem('sc_token');
 }
 
 function setToken(t) {
-  localStorage.setItem('sc_token', t);
+  if (t) {
+    localStorage.setItem('sc_token', t);
+  } else {
+    localStorage.removeItem('sc_token');
+  }
+}
+
+// Auto-detect existing logged-in session
+if (getToken()) {
+  const loginBtn = document.getElementById('nav-login-btn');
+  if (loginBtn) {
+    loginBtn.textContent = 'Go to Dashboard';
+    loginBtn.href = '/dashboard';
+    loginBtn.onclick = null;
+  }
 }
 
 function switchDemoTab(tabKey) {
   document.querySelectorAll('.demo-tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.demo-panel').forEach(panel => panel.classList.remove('active'));
 
-  event.target.classList.add('active');
+  if (event && event.target) {
+    event.target.classList.add('active');
+  }
   const targetPanel = document.getElementById('demo-tab-' + tabKey);
   if (targetPanel) targetPanel.classList.add('active');
 }
@@ -615,7 +633,7 @@ function updateCalculator(val) {
 
 function toggleFaq(el) {
   const answer = el.querySelector('.faq-a');
-  const isHidden = answer.style.display === 'none';
+  const isHidden = answer.style.display === 'none' || !answer.style.display;
   answer.style.display = isHidden ? 'block' : 'none';
   el.querySelector('.faq-q span:last-child').textContent = isHidden ? '-' : '+';
 }
@@ -626,28 +644,53 @@ function switchAuthTab(tab) {
   document.querySelectorAll('.auth-tab').forEach((t, i) => {
     t.classList.toggle('active', (i === 0 && tab === 'register') || (i === 1 && tab === 'login'));
   });
+  document.getElementById('signup').scrollIntoView({ behavior: 'smooth' });
 }
 
 async function handleRegister(e) {
   e.preventDefault();
   const err = document.getElementById('reg-error');
   err.textContent = '';
+  const fullName = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+
   try {
     const res = await fetch(`${API}/auth/register`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        full_name: document.getElementById('reg-name').value || null,
-        email: document.getElementById('reg-email').value,
-        password: document.getElementById('reg-password').value,
+        full_name: fullName || null,
+        email: email,
+        password: password,
       })
     });
-    const data = await res.json();
-    if (!res.ok) { err.textContent = data.detail || 'Registration failed'; return; }
-    setToken(data.access_token);
-    window.location.href = '/dashboard';
-  } catch(ex) {
-    err.textContent = 'Network error. Please try again.';
+    
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = { detail: 'Unexpected response from server' };
+    }
+
+    if (!res.ok) {
+      let msg = data.detail || data.message || 'Registration failed';
+      if (Array.isArray(msg)) msg = msg[0].msg || JSON.stringify(msg);
+      err.textContent = msg;
+      return;
+    }
+
+    if (data.access_token) {
+      setToken(data.access_token);
+      localStorage.setItem('sc_user', JSON.stringify({ email, plan: data.plan || 'free', generations: data.generations }));
+      window.location.href = '/dashboard';
+    } else {
+      err.textContent = 'Account created. Please log in.';
+      switchAuthTab('login');
+    }
+  } catch (ex) {
+    console.error('Registration network error:', ex);
+    err.textContent = 'Could not reach server. Please check your internet connection and try again.';
   }
 }
 
@@ -655,34 +698,53 @@ async function handleLogin(e) {
   e.preventDefault();
   const err = document.getElementById('login-error');
   err.textContent = '';
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+
   try {
     const res = await fetch(`${API}/auth/login`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        email: document.getElementById('login-email').value,
-        password: document.getElementById('login-password').value,
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
-    if (!res.ok) { err.textContent = data.detail || 'Login failed'; return; }
-    setToken(data.access_token);
-    window.location.href = '/dashboard';
-  } catch(ex) {
-    err.textContent = 'Network error. Please try again.';
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = { detail: 'Unexpected server response' };
+    }
+
+    if (!res.ok) {
+      let msg = data.detail || data.message || 'Invalid email or password';
+      if (Array.isArray(msg)) msg = msg[0].msg || JSON.stringify(msg);
+      err.textContent = msg;
+      return;
+    }
+
+    if (data.access_token) {
+      setToken(data.access_token);
+      localStorage.setItem('sc_user', JSON.stringify({ email, plan: data.plan || 'free', generations: data.generations }));
+      window.location.href = '/dashboard';
+    } else {
+      err.textContent = 'No access token received from server.';
+    }
+  } catch (ex) {
+    console.error('Login network error:', ex);
+    err.textContent = 'Could not reach server. Please check your internet connection and try again.';
   }
 }
 
 async function startCheckout(plan) {
   const token = getToken();
   if (!token) {
-    document.getElementById('signup').scrollIntoView({behavior: 'smooth'});
+    switchAuthTab('register');
     return;
   }
   try {
     const res = await fetch(`${API}/billing/subscribe`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({
         plan,
         success_url: window.location.origin + '/dashboard?success=1',
@@ -690,9 +752,14 @@ async function startCheckout(plan) {
       })
     });
     const data = await res.json();
-    if (data.checkout_url) window.location.href = data.checkout_url;
-  } catch(ex) {
-    alert('Could not start checkout. Please try again.');
+    if (data.checkout_url) {
+      window.location.href = data.checkout_url;
+    } else if (data.detail) {
+      alert(data.detail);
+    }
+  } catch (ex) {
+    console.error('Checkout error:', ex);
+    alert('Payment checkout service temporarily unavailable. Please try again.');
   }
 }
 </script>

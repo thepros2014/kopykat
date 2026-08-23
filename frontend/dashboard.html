@@ -1010,7 +1010,9 @@
 </div>
 
 <script>
-const API = '';
+const API = (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')
+  ? 'https://kopykat.onrender.com'
+  : window.location.origin;
 let integrationMetadata = { wordpress: [], mailchimp: [], webflow: [] };
 let currentCampaignId = null;
 let bulkItems = [];
@@ -1019,7 +1021,7 @@ function getToken() { return localStorage.getItem('sc_token'); }
 
 // Redirect to login if unauthenticated
 if (!getToken()) {
-  window.location.href = '/';
+  window.location.href = '/#signup';
 }
 
 // Navigation & Section Visibility
