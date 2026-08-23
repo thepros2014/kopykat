@@ -221,6 +221,13 @@ async def scan_reddit_opportunities(db: Optional[Session] = None) -> int:
                         except Exception:
                             pass
 
+                    intent_score = 75
+                    if any(high_kw in text for high_kw in ["need a copywriter", "hire", "budget", "pay", "sucks at writing", "struggling"]):
+                        intent_score += 15
+                    if "ecommerce" in sub or "shopify" in text or "amazon" in text:
+                        intent_score += 8
+                    intent_score = min(intent_score, 99)
+
                     log = OpportunityLog(
                         id=str(uuid.uuid4()), 
                         platform="reddit", 
@@ -228,6 +235,7 @@ async def scan_reddit_opportunities(db: Optional[Session] = None) -> int:
                         post_url=url, 
                         post_title=title, 
                         draft_reply=draft, 
+                        score=intent_score,
                         alerted=True
                     )
                     db.add(log)

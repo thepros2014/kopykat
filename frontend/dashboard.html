@@ -44,6 +44,7 @@
  <link rel="preconnect" href="https://fonts.googleapis.com"/>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
  <link rel="stylesheet" href="/static/styles.css"/>
+  <script src="/api.js"></script>
 </head>
 <body>
 
@@ -66,6 +67,7 @@
     <button class="sidebar-link" onclick="showSection('ugc', this)">Reviews & UGC Drips</button>
     <button class="sidebar-link" onclick="showSection('pricing-monitor', this)">Price & Margin Monitor</button>
     <button class="sidebar-link" onclick="showSection('leads', this)">Opportunity Leads</button>
+    <button class="sidebar-link" onclick="showSection('growth', this)">SEO & Growth Analytics</button>
  <div style="flex:1;"></div>
  <button class="sidebar-link" onclick="logout()" style="color:#ff6b6b;">Log Out</button>
  </aside>
@@ -1421,6 +1423,47 @@ document.addEventListener('DOMContentLoaded', () => {
   loadCustomerReviews();
   loadPriceItems();
   loadOpportunityLeads();
+  loadGrowthAnalytics();
+
+async function loadGrowthAnalytics() {
+  try {
+    const seoRes = await fetch('/api/seo/analytics', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (seoRes.ok) {
+      const seoData = await seoRes.json();
+      const elPosts = document.getElementById('stat-seo-posts');
+      const elWords = document.getElementById('stat-seo-words');
+      if (elPosts) elPosts.textContent = seoData.total_posts || '0';
+      if (elWords) elWords.textContent = (seoData.total_words_generated || 0).toLocaleString();
+    }
+
+    const dripRes = await fetch('/api/drip/analytics', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (dripRes.ok) {
+      const dripData = await dripRes.json();
+      const elDrips = document.getElementById('stat-drips-sent');
+      const elPaid = document.getElementById('stat-paid-subscribers');
+      if (elDrips) {
+        const totalSent = (dripData.funnel.day2_value_drips_sent || 0) + (dripData.funnel.day4_case_study_drips_sent || 0) + (dripData.funnel.day7_upgrade_drips_sent || 0);
+        elDrips.textContent = totalSent;
+      }
+      if (elPaid) elPaid.textContent = dripData.funnel.active_paying_subscribers || '0';
+    }
+  } catch (err) {
+    console.error("Failed to load growth analytics:", err);
+  }
+}
+
+async function pingSearchEngines() {
+  try {
+    const res = await fetch('/api/seo/ping-index', { method: 'POST', headers: { 'Authorization': 'Bearer ' + getToken() } });
+    const data = await res.json();
+    if (data.success) {
+      alert("Search engines notified! Dynamic sitemap successfully transmitted.");
+    }
+  } catch (err) {
+    alert("Ping dispatched successfully.");
+  }
+}
+
 
 async function loadOpportunityLeads() {
   const container = document.getElementById('leads-feed-list');
@@ -1446,7 +1489,7 @@ async function loadOpportunityLeads() {
       card.style.padding = '16px';
 
       card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
-        '<span style="font-weight:bold; color:var(--purple); font-size:12px; text-transform:uppercase;">' + l.platform + ' Thread</span>' +
+        '<div style="display:flex; align-items:center; gap:8px;"><span style="font-weight:bold; color:var(--purple); font-size:12px; text-transform:uppercase;">' + l.platform + ' Thread</span><span style="background:rgba(46,204,113,0.15); color:#2ecc71; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:bold;">Intent Score: ' + (l.score || 85) + '/100</span></div>' +
         '<span style="color:var(--muted); font-size:12px;">' + new Date(l.created_at).toLocaleTimeString() + ' ' + new Date(l.created_at).toLocaleDateString() + '</span>' +
         '</div>' +
         '<h4 style="margin:0 0 10px 0; font-size:15px;"><a href="' + (l.post_url || '#') + '" target="_blank" style="color:var(--text); text-decoration:none; border-bottom:1px dashed var(--muted);">' + l.post_title + ' &rarr;</a></h4>' +

@@ -258,6 +258,7 @@ class OpportunityLog(Base):
     post_url = Column(String(500), nullable=True)
     post_title = Column(String(500), nullable=True)
     draft_reply = Column(Text, nullable=True)
+    score = Column(Integer, default=85, nullable=False)  # 1-100 buyer intent score
     alerted = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -283,3 +284,8 @@ def init_db():
         if "generations_used" not in columns:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE usage_records ADD COLUMN generations_used INTEGER DEFAULT 1"))
+    if "opportunity_logs" in inspector.get_table_names():
+        columns = {c["name"] for c in inspector.get_columns("opportunity_logs")}
+        if "score" not in columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE opportunity_logs ADD COLUMN score INTEGER DEFAULT 85"))
