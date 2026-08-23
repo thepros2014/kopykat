@@ -246,8 +246,9 @@ def _handle_subscription_created(subscription: dict, db: Session):
     period_end_ts = subscription.get("current_period_end")
     period_end = datetime.fromtimestamp(period_end_ts, tz=timezone.utc) if period_end_ts else None
     user.plan = plan
-    user.generations = info["monthly_generations"]
     user.monthly_limit = info["monthly_generations"]
+    # Preserve separate purchased generations entitlement
+    user.generations = info["monthly_generations"] + (user.purchased_generations or 0)
 
     existing = db.query(Subscription).filter(Subscription.stripe_subscription_id == subscription.get("id")).first()
     if existing:
@@ -274,8 +275,8 @@ def _handle_invoice_paid(invoice: dict, db: Session):
         return
 
     info = PLANS[sub.plan]
-    user.generations = info["monthly_generations"]
     user.monthly_limit = info["monthly_generations"]
+    user.generations = info["monthly_generations"] + (user.purchased_generations or 0)
     sub.status = "active"
 
     payment_id = invoice.get("id")
@@ -302,34 +303,45 @@ def _handle_subscription_changed(subscription: dict, db: Session):
         user = db.query(User).filter(User.id == sub.user_id).first()
         if user:
             user.plan = "free"
-            user.generations = 0
             user.monthly_limit = PLANS["free"]["monthly_generations"]
+            # Preserve purchased packs on cancellation; revert monthly quota
+            user.generations = PLANS["free"]["monthly_generations"] + (user.purchased_generations or 0)
 
 
 def _handle_one_time_purchased(session: dict, db: Session):
     metadata = session.get("metadata") or {}
     user_id = metadata.get("user_id")
     pack = metadata.get("pack")
-    if pack not in ONE_TIME_GENERATIONS:
-        logger.error("Rejected generation-pack fulfillment with invalid pack: %r", pack)
-        return
+    addon_key = metadata.get("addon_key")
 
     user = db.query(User).filter(User.id == user_id).first() or _find_user_by_stripe_customer(session.get("customer"), db)
     if not user:
-        logger.error("Generation pack purchased but user not found: %s", user_id)
+        logger.error("One-time purchase fulfillment failed: user not found: %s", user_id)
         return
 
-    generations = ONE_TIME_GENERATIONS[pack]["generations"]
-    user.generations += generations
-
     payment_id = session.get("payment_intent") or session.get("id")
-    if payment_id and not db.query(RevenueRecord).filter(RevenueRecord.stripe_payment_id == payment_id).first():
-        db.add(RevenueRecord(
-            id=str(uuid.uuid4()), stripe_payment_id=payment_id, user_id=user.id,
-            amount_cents=session.get("amount_total", 0), currency=session.get("currency", "usd"),
-            plan=f"one_time_{pack}", type="generation_pack", status="succeeded",
-        ))
-    logger.info("Generation pack fulfilled: user=%s +%s generations", user.email, generations)
+
+    if pack and pack in ONE_TIME_GENERATIONS:
+        generations = ONE_TIME_GENERATIONS[pack]["generations"]
+        user.purchased_generations = (user.purchased_generations or 0) + generations
+        user.generations += generations
+        if payment_id and not db.query(RevenueRecord).filter(RevenueRecord.stripe_payment_id == payment_id).first():
+            db.add(RevenueRecord(
+                id=str(uuid.uuid4()), stripe_payment_id=payment_id, user_id=user.id,
+                amount_cents=session.get("amount_total", 0), currency=session.get("currency", "usd"),
+                plan=f"one_time_{pack}", type="generation_pack", status="succeeded",
+            ))
+        logger.info("Generation pack fulfilled: user=%s +%s generations (total purchased=%s)", user.email, generations, user.purchased_generations)
+    elif addon_key and addon_key in ADD_ONS:
+        addon = ADD_ONS[addon_key]
+        if payment_id and not db.query(RevenueRecord).filter(RevenueRecord.stripe_payment_id == payment_id).first():
+            db.add(RevenueRecord(
+                id=str(uuid.uuid4()), stripe_payment_id=payment_id, user_id=user.id,
+                amount_cents=session.get("amount_total", int(addon["price_usd"] * 100)),
+                currency=session.get("currency", "usd"),
+                plan=f"addon_{addon_key}", type="addon", status="succeeded",
+            ))
+        logger.info("Addon fulfilled: user=%s addon=%s", user.email, addon_key)
 
 
 def _handle_payment_failed(invoice: dict, db: Session):

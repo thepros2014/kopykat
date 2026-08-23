@@ -399,21 +399,7 @@ async def admin_page():
     path=BASE_DIR/"frontend"/"admin.html"
     if not path.exists(): raise HTTPException(status_code=404,detail="Admin panel not found")
     return path.read_text(encoding="utf-8")
-@app.post("/auth/request-password-reset",tags=["Auth"])
-@limiter.limit("5/minute")
-async def request_password_reset(request:Request,body:RequestPasswordReset,background_tasks:BackgroundTasks,db:Session=Depends(get_db)):
-    from .database import VerificationToken,User; import secrets; from datetime import timedelta; from .scheduler import _send_password_reset_email; user=db.query(User).filter(User.email==body.email).first()
-    if user:
-        token=secrets.token_urlsafe(32); db.add(VerificationToken(token=token,user_id=user.id,token_type="password_reset",expires_at=datetime.utcnow()+timedelta(hours=1))); db.commit(); background_tasks.add_task(_send_password_reset_email,user.email,token,os.getenv("PUBLIC_APP_URL","https://kopykat.onrender.com"))
-    return {"message":"If an account with that email exists, a password reset link has been sent."}
-@app.post("/auth/reset-password",tags=["Auth"])
-@limiter.limit("5/minute")
-async def reset_password(request:Request,body:ResetPasswordSubmit,db:Session=Depends(get_db)):
-    from .database import VerificationToken,User; from .auth import hash_password; token_record=db.query(VerificationToken).filter(VerificationToken.token==body.token,VerificationToken.token_type=="password_reset",VerificationToken.expires_at>datetime.utcnow()).first()
-    if not token_record: raise HTTPException(status_code=400,detail="Invalid or expired reset token.")
-    user=db.query(User).filter(User.id==token_record.user_id).first()
-    if not user: raise HTTPException(status_code=400,detail="User not found.")
-    user.hashed_password=hash_password(body.new_password); db.delete(token_record); db.commit(); return {"message":"Password successfully reset."}
+# Legacy unhashed password reset replaced by SHA-256 token verification above
 
 # Integration/campaign routes remain in their dedicated modules and are exposed below.
 @app.post("/api/integrations",tags=["Integrations"])

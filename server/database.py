@@ -29,6 +29,7 @@ class User(Base):
     plan = Column(String(20), default="free")
     generations = Column(Integer, default=5)
     monthly_limit = Column(Integer, default=5)
+    purchased_generations = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     custom_ai_key_encrypted = Column(Text, nullable=True)
