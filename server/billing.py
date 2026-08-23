@@ -215,7 +215,7 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
         _handle_invoice_paid(data_obj, db)
     elif event_type in ("customer.subscription.deleted", "customer.subscription.updated"):
         _handle_subscription_changed(data_obj, db)
-    elif event_type == "checkout.session.completed" and data_obj.get("mode") == "payment":
+    elif event_type == "checkout.session.completed":
         _handle_one_time_purchased(data_obj, db)
     elif event_type == "invoice.payment_failed":
         _handle_payment_failed(data_obj, db)
@@ -231,8 +231,34 @@ def _find_user_by_stripe_customer(customer_id: Optional[str], db: Session) -> Op
 
 
 def _handle_subscription_created(subscription: dict, db: Session):
-    user_id = subscription.get("metadata", {}).get("user_id")
-    plan = subscription.get("metadata", {}).get("plan")
+    metadata = subscription.get("metadata") or {}
+    user_id = metadata.get("user_id")
+    plan = metadata.get("plan")
+    addon_key = metadata.get("addon_key")
+
+    user = db.query(User).filter(User.id == user_id).first() or _find_user_by_stripe_customer(subscription.get("customer"), db)
+    if not user:
+        logger.error("Subscription created but user not found: %s", user_id)
+        return
+
+    # Handle monthly recurring add-on subscription
+    if addon_key and addon_key in ADD_ONS:
+        ent = db.query(UserEntitlement).filter(
+            UserEntitlement.user_id == user.id,
+            UserEntitlement.entitlement_key == addon_key
+        ).first()
+        if ent:
+            ent.active = True
+        else:
+            db.add(UserEntitlement(
+                id=str(uuid.uuid4()),
+                user_id=user.id,
+                entitlement_key=addon_key,
+                entitlement_type="addon",
+                active=True
+            ))
+        return
+
     if plan not in PLANS or plan == "free":
         logger.error("Rejected subscription with invalid plan: %r", plan)
         return
@@ -299,6 +325,9 @@ def _handle_subscription_changed(subscription: dict, db: Session):
     if period_end_ts:
         sub.current_period_end = datetime.fromtimestamp(period_end_ts, tz=timezone.utc)
 
+    metadata = subscription.get("metadata") or {}
+    new_plan = metadata.get("plan")
+
     if status in ("canceled", "unpaid"):
         sub.canceled_at = datetime.utcnow()
         user = db.query(User).filter(User.id == sub.user_id).first()
@@ -307,6 +336,17 @@ def _handle_subscription_changed(subscription: dict, db: Session):
             user.monthly_limit = PLANS["free"]["monthly_generations"]
             user.monthly_generations = PLANS["free"]["monthly_generations"]
             user.generations = user.monthly_generations + (user.purchased_generations or 0)
+    elif status == "active" and new_plan and new_plan in PLANS and new_plan != "free":
+        # Plan upgrade or downgrade
+        if sub.plan != new_plan:
+            sub.plan = new_plan
+            user = db.query(User).filter(User.id == sub.user_id).first()
+            if user:
+                info = PLANS[new_plan]
+                user.plan = new_plan
+                user.monthly_limit = info["monthly_generations"]
+                user.monthly_generations = info["monthly_generations"]
+                user.generations = user.monthly_generations + (user.purchased_generations or 0)
 
 
 def _handle_one_time_purchased(session: dict, db: Session):

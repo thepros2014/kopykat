@@ -24,7 +24,7 @@ async def test_scan_reddit_opportunities(db_session):
     mock_resp.status_code = 200
     mock_resp.json.return_value = mock_reddit_response
 
-    with patch("requests.get", return_value=mock_resp), patch("server.marketing._send_email"):
+    with patch("httpx.AsyncClient.get", return_value=mock_resp), patch("server.marketing._send_email"):
         found = await scan_reddit_opportunities(db=db_session)
         assert found >= 1
 

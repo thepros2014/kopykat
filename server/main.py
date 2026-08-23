@@ -1485,11 +1485,7 @@ async def create_addon_checkout(body: AddOnCheckoutRequest, auth: tuple = Depend
     
     import stripe
     if not stripe.api_key:
-        return {
-            "checkout_url": f"{base_url}/dashboard?simulated_addon_success={body.addon_key}",
-            "session_id": f"cs_simulated_{uuid.uuid4().hex[:12]}",
-            "addon": addon["name"]
-        }
+        raise HTTPException(status_code=503, detail="Stripe is not configured. Payment gateway unavailable.")
 
     try:
         customer_id = get_or_create_stripe_customer(user, db)
@@ -1517,8 +1513,4 @@ async def create_addon_checkout(body: AddOnCheckoutRequest, auth: tuple = Depend
         return {"checkout_url": session.url, "session_id": session.id, "addon": addon["name"]}
     except Exception as e:
         logger.error("Stripe add-on session creation error: %s", e)
-        return {
-            "checkout_url": f"{base_url}/dashboard?simulated_addon_success={body.addon_key}",
-            "session_id": f"cs_simulated_{uuid.uuid4().hex[:12]}",
-            "addon": addon["name"]
-        }
+        raise HTTPException(status_code=503, detail="Payment gateway error. Please try again later.")

@@ -353,3 +353,84 @@ def test_inventory_webhook_idempotency_deduplication(client, auth_headers, test_
     # Stock MUST still be 8, not 6
     db_session.refresh(item)
     assert item.total_stock == 8
+
+def test_addon_checkout_raises_503_when_stripe_unconfigured(client, auth_headers, monkeypatch):
+    import stripe
+    monkeypatch.setattr(stripe, "api_key", "")
+    res = client.post("/billing/addon/checkout", json={"addon_key": "brand_voice_training"}, headers=auth_headers)
+    assert res.status_code == 503
+    assert "Stripe is not configured" in res.json()["detail"]
+
+def test_monthly_recurring_addon_subscription_creates_user_entitlement(client, db_session, test_user):
+    monthly_addon_sub_event = {
+        "id": f"evt_monthly_addon_{uuid.uuid4().hex[:8]}",
+        "type": "customer.subscription.created",
+        "data": {
+            "object": {
+                "id": f"sub_addon_{uuid.uuid4().hex[:8]}",
+                "customer": test_user.stripe_customer_id,
+                "status": "active",
+                "metadata": {
+                    "user_id": test_user.id,
+                    "type": "addon",
+                    "addon_key": "done_for_you_marketing_pack"
+                }
+            }
+        }
+    }
+
+    with patch.object(server.billing, "STRIPE_WEBHOOK_SECRET", "whsec_test"),          patch("stripe.Webhook.construct_event", side_effect=lambda payload, sig, sec: monthly_addon_sub_event):
+        res = client.post("/billing/webhook", json=monthly_addon_sub_event, headers={"Stripe-Signature": "t=123,v1=sig"})
+        assert res.status_code == 200
+
+    db_session.expire_all()
+    assert user_has_entitlement(test_user, "done_for_you_marketing_pack", db_session) is True
+
+def test_subscription_upgrade_webhook_updates_user_plan_and_generations(client, db_session, test_user):
+    test_user.plan = "boutique"
+    test_user.monthly_limit = 150
+    test_user.monthly_generations = 100
+    test_user.purchased_generations = 50
+    test_user.generations = 150
+    db_session.commit()
+
+    sub_record = Subscription(
+        id=str(uuid.uuid4()),
+        user_id=test_user.id,
+        stripe_subscription_id="sub_upgrade_target_123",
+        plan="boutique",
+        status="active"
+    )
+    db_session.add(sub_record)
+    db_session.commit()
+
+    upgrade_event = {
+        "id": f"evt_upgrade_{uuid.uuid4().hex[:8]}",
+        "type": "customer.subscription.updated",
+        "data": {
+            "object": {
+                "id": "sub_upgrade_target_123",
+                "status": "active",
+                "current_period_end": 1789999999,
+                "metadata": {
+                    "user_id": test_user.id,
+                    "plan": "megastore"
+                }
+            }
+        }
+    }
+
+    with patch.object(server.billing, "STRIPE_WEBHOOK_SECRET", "whsec_test"),          patch("stripe.Webhook.construct_event", side_effect=lambda payload, sig, sec: upgrade_event):
+        res = client.post("/billing/webhook", json=upgrade_event, headers={"Stripe-Signature": "t=123,v1=sig"})
+        assert res.status_code == 200
+
+    db_session.refresh(test_user)
+    db_session.refresh(sub_record)
+
+    # Invariants: User upgraded to megastore, monthly quota increased, purchased credits preserved
+    assert sub_record.plan == "megastore"
+    assert test_user.plan == "megastore"
+    assert test_user.monthly_limit == 2500
+    assert test_user.monthly_generations == 2500
+    assert test_user.purchased_generations == 50
+    assert test_user.generations == 2550

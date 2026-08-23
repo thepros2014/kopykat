@@ -82,7 +82,13 @@ def test_marketplace_listing_optimizer_shopify(client, auth_headers):
     assert data["meta_description"] is not None
     assert data["compliance_score"] >= 90
 
-def test_addon_checkout_session(client, auth_headers):
+def test_addon_checkout_session(client, auth_headers, monkeypatch, test_user, db_session):
+    import stripe
+    test_user.stripe_customer_id = "cus_test_mock_123"
+    db_session.commit()
+    monkeypatch.setattr(stripe, "api_key", "sk_test_12345")
+    mock_session = type("Session", (), {"url": "https://checkout.stripe.com/c/pay/cs_test_marketplace_optimizer", "id": "cs_test_marketplace_optimizer"})()
+    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kwargs: mock_session)
     res = client.post(
         "/billing/addon/checkout",
         json={"addon_key": "marketplace_optimizer_pack"},

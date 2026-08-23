@@ -186,60 +186,66 @@ async def scan_reddit_opportunities(db: Optional[Session] = None) -> int:
         own_db = True
     found_count = 0
     try:
+        import httpx
         api_key = os.environ.get('GEMINI_API_KEY', '')
         headers = {'User-Agent': 'Mozilla/5.0 KopyKatScout/1.0'}
         
-        for sub in SUBREDDITS:
-            try:
-                r = requests.get(f"https://www.reddit.com/r/{sub}/new/.json?limit=15", headers=headers, timeout=5.0)
-                if r.status_code != 200: continue
-                data = r.json()
-            except Exception:
-                continue
+        async with httpx.AsyncClient(headers=headers, timeout=5.0) as http_client:
+            for sub in SUBREDDITS:
+                data = None
+                try:
+                    r = await http_client.get(f"https://www.reddit.com/r/{sub}/new/.json?limit=15")
+                    if r.status_code != 200: continue
+                    data = r.json()
+                except Exception:
+                    continue
 
-            for post in data.get('data', {}).get('children', []):
-                post_data = post['data']
-                title = post_data.get('title', '')
-                selftext = post_data.get('selftext', '')
-                post_id = post_data.get('id', '')
-                url = "https://reddit.com" + post_data.get('permalink', '')
+                if not data or not isinstance(data, dict):
+                    continue
 
-                text = (title + " " + selftext).lower()
-                
-                if any(kw in text for kw in SCOUT_KEYWORDS):
-                    if db.query(OpportunityLog).filter_by(post_id=post_id).first():
-                        continue
-
-                    draft = f"I used to struggle with drafting product descriptions too until I started using KopyKat (https://kopykat.onrender.com) to automate catalog copy and syndication. Saves a huge amount of time."
-                    if api_key:
-                        try:
-                            genai.configure(api_key=api_key)
-                            model = genai.GenerativeModel(os.environ.get('GEMINI_MODEL', 'gemini-flash-latest'))
-                            prompt = f"Write a helpful, non-spammy Reddit reply to this post: '{title}\n{selftext}'. Suggest they try an AI tool called KopyKat (https://kopykat.onrender.com) to automate their copywriting. Keep it under 80 words, sound casual like a real redditor."
-                            response = await model.generate_content_async(prompt)
-                            draft = response.text.strip()
-                        except Exception:
-                            pass
-
-                    intent_score = 75
-                    if any(high_kw in text for high_kw in ["need a copywriter", "hire", "budget", "pay", "sucks at writing", "struggling"]):
-                        intent_score += 15
-                    if "ecommerce" in sub or "shopify" in text or "amazon" in text:
-                        intent_score += 8
-                    intent_score = min(intent_score, 99)
-
-                    log = OpportunityLog(
-                        id=str(uuid.uuid4()), 
-                        platform="reddit", 
-                        post_id=post_id, 
-                        post_url=url, 
-                        post_title=title, 
-                        draft_reply=draft, 
-                        score=intent_score,
-                        alerted=True
-                    )
-                    db.add(log)
-                    db.commit()
+                for post in data.get('data', {}).get('children', []):
+                    post_data = post['data']
+                    title = post_data.get('title', '')
+                    selftext = post_data.get('selftext', '')
+                    post_id = post_data.get('id', '')
+                    url = "https://reddit.com" + post_data.get('permalink', '')
+    
+                    text = (title + " " + selftext).lower()
+                    
+                    if any(kw in text for kw in SCOUT_KEYWORDS):
+                        if db.query(OpportunityLog).filter_by(post_id=post_id).first():
+                            continue
+    
+                        draft = f"I used to struggle with drafting product descriptions too until I started using KopyKat (https://kopykat.onrender.com) to automate catalog copy and syndication. Saves a huge amount of time."
+                        if api_key:
+                            try:
+                                genai.configure(api_key=api_key)
+                                model = genai.GenerativeModel(os.environ.get('GEMINI_MODEL', 'gemini-flash-latest'))
+                                prompt = f"Write a helpful, non-spammy Reddit reply to this post: '{title}\n{selftext}'. Suggest they try an AI tool called KopyKat (https://kopykat.onrender.com) to automate their copywriting. Keep it under 80 words, sound casual like a real redditor."
+                                response = await model.generate_content_async(prompt)
+                                draft = response.text.strip()
+                            except Exception:
+                                pass
+    
+                        intent_score = 75
+                        if any(high_kw in text for high_kw in ["need a copywriter", "hire", "budget", "pay", "sucks at writing", "struggling"]):
+                            intent_score += 15
+                        if "ecommerce" in sub or "shopify" in text or "amazon" in text:
+                            intent_score += 8
+                        intent_score = min(intent_score, 99)
+    
+                        log = OpportunityLog(
+                            id=str(uuid.uuid4()), 
+                            platform="reddit", 
+                            post_id=post_id, 
+                            post_url=url, 
+                            post_title=title, 
+                            draft_reply=draft, 
+                            score=intent_score,
+                            alerted=True
+                        )
+                        db.add(log)
+                        db.commit()
                     found_count += 1
 
                     body = f"Found a lead on r/{sub}!<br><br><b>{title}</b><br><a href='{url}'>{url}</a><br><br><b>Draft Reply to copy/paste:</b><br>{draft}"

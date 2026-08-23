@@ -14,7 +14,7 @@ This file is the single source of truth for project state and next steps.
 ============================================================
 EXECUTIVE SUMMARY & RECOMMENDED NEXT STEPS (START HERE)
 ============================================================
-Current Build Status: 100% Stable, 62/62 Pytest Suite Passing.
+Current Build Status: 100% Stable, 65/65 Pytest Suite Passing.
 Live Deployment: https://kopykat.onrender.com
 Current Version: 1.0.0 (Semantic Release Tags: v0.1.0, v0.2.0, v0.3.0, v0.4.0, v1.0.0)
 
@@ -56,7 +56,7 @@ PRICING & COST OF SERVICES (STRICT TIER ALLOCATION):
 INVESTOR & SOFTWARE ASSET VALUATION DOSSIER (COMPLETED):
 - [x] Technical Asset Dossier: docs/ACQUISITION_DOSSIER.md detailing IP, 6 autonomous engines, 5 modules, and financial unit economics
 - [x] Automated MRR & Valuation Telemetry: GET /admin/mrr-metrics computing live ARR, MRR, active subscriber counts, and software valuation range
-- [x] Test Suite Maturity: 62 / 62 tests passing with 100% green status across all subsystems
+- [x] Test Suite Maturity: 65 / 65 tests passing with 100% green status across all subsystems
 
 
 ENTERPRISE HARDENING & GOVERNANCE LAYER (COMPLETED):
@@ -75,6 +75,13 @@ ADVERSARIAL HARDENING & DEFECT CORRECTIONS (COMPLETED & VERIFIED):
 - [x] DEF-05: Resilient LLM JSON Extraction: _extract_json_block() parses structured JSON safely despite conversational preambles or formatting flaws.
 - [x] 62 / 62 Automated Tests Passing with 100% Green Status.
 
+ADVERSARIAL HARDENING BATCH 2 (COMPLETED & VERIFIED):
+- [x] DEF-07: Eliminated Simulated Checkout Fallbacks: create_addon_checkout() raises HTTP 503 if gateway unconfigured/errored.
+- [x] DEF-08: Recurring Add-on Subscription Fulfillment: Monthly add-ons (Done-For-You Marketing Pack) properly provision active UserEntitlement records.
+- [x] DEF-09: Stripe Plan Upgrades/Downgrades: _handle_subscription_changed() updates user.plan, monthly_limit, and generations on customer.subscription.updated events.
+- [x] DEF-11: Non-Blocking Async Reddit Scout: Converted scan_reddit_opportunities() from synchronous requests.get() to async httpx.AsyncClient().
+- [x] 65 / 65 Automated Tests Passing with 100% Green Status.
+
 ECONOMIC INTEGRITY & ENTITLEMENT GOVERNANCE (COMPLETED & VERIFIED):
 - [x] Elimination of Purchased-Generation Double-Counting Bug: User.monthly_generations and User.purchased_generations maintain independent remaining balances. Consumed purchased credits are never re-granted on subscription renewal.
 - [x] Schema Migrations in init_db(): Automated column inspections and ALTER TABLE execution for purchased_generations, monthly_generations, and user_entitlements.
@@ -86,7 +93,7 @@ PRODUCTION HARDENING & ADVERSARIAL AUDIT (COMPLETED & VERIFIED):
 - [x] Renewal & Cancellation Balance Protection: Monthly invoice resets never wipe purchased generation balances
 - [x] Webhook Replay & Idempotency: StripeEvent deduplication protects against duplicate credit grant attacks
 - [x] IDOR Cross-Tenant Boundary Enforcement: Strict user_id ownership verified across all database mutations
-- [x] Test Matrix Expansion: 62 / 62 tests passing with 100% green status
+- [x] Test Matrix Expansion: 65 / 65 tests passing with 100% green status
 
 30-DAY MASTER ROADMAP (FOUNDER EXECUTION PLAN)
 ============================================================
