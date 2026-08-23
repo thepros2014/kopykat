@@ -66,10 +66,32 @@ async def add_security_headers(request: Request, call_next):
 _ALLOWED_TAGS=["p","h2","h3","h4","ul","ol","li","strong","em","b","i","a","br","blockquote"]; _ALLOWED_ATTRS={"a":["href","title","rel"]}
 def sanitize_html(raw:str)->str: return bleach.clean(raw,tags=_ALLOWED_TAGS,attributes=_ALLOWED_ATTRS,strip=True,strip_comments=True)
 
+scheduler_instance = None
+
 @app.on_event("startup")
-async def startup(): logger.info("KopyKat starting up"); init_db(); logger.info("Database initialized"); logger.info("KopyKat v%s is live",APP_VERSION)
+async def startup():
+    global scheduler_instance
+    logger.info("KopyKat starting up")
+    init_db()
+    logger.info("Database initialized")
+    try:
+        from .scheduler import create_scheduler
+        scheduler_instance = create_scheduler()
+        scheduler_instance.start()
+        logger.info("APScheduler background automations started successfully")
+    except Exception as e:
+        logger.warning("APScheduler startup note: %s", e)
+    logger.info("KopyKat v%s is live", APP_VERSION)
+
 @app.on_event("shutdown")
-async def shutdown(): logger.info("KopyKat shut down gracefully")
+async def shutdown():
+    global scheduler_instance
+    if scheduler_instance:
+        try:
+            scheduler_instance.shutdown()
+        except Exception:
+            pass
+    logger.info("KopyKat shut down gracefully")
 frontend_dir=BASE_DIR/"frontend"
 if (frontend_dir/"static").exists(): app.mount("/static",StaticFiles(directory=str(frontend_dir/"static")),name="static")
 

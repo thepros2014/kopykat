@@ -1,27 +1,11 @@
-# KopyKat Render deployment
-# The web process also starts the scheduler worker so the automated jobs run
-# on the same free Render instance and share the exact same environment/secrets.
+# KopyKat Render deployment configuration
 services:
   - type: web
     name: kopykat
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: sh -c 'python worker.py & exec uvicorn server.main:app --host 0.0.0.0 --port $PORT'
+    startCommand: uvicorn server.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11.0"
-      # Configure these in the Render dashboard:
-      # DATABASE_URL
-      # JWT_SECRET_KEY
-      # INTEGRATION_ENCRYPTION_KEY
-      # STRIPE_SECRET_KEY
-      # STRIPE_WEBHOOK_SECRET
-      # STRIPE_PRICE_BOUTIQUE
-      # STRIPE_PRICE_STANDARD
-      # STRIPE_PRICE_MEGASTORE
-      # STRIPE_PRICE_PACK_STARTER
-      # STRIPE_PRICE_PACK_GROWTH
-      # STRIPE_PRICE_PACK_SCALE
-      # APP_BASE_URL
-      # ALLOWED_ORIGINS
+        value: "3.11.9"
