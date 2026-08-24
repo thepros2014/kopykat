@@ -331,6 +331,94 @@ def get_db():
     finally:
         db.close()
 
+_LEGACY_COLUMN_MIGRATIONS = {
+    # Existing Render databases predate some of the current ORM fields.  The
+    # ORM's create_all() creates missing tables, but intentionally does not add
+    # columns to tables that already exist.
+    "users": {
+        "plan": ("VARCHAR(20)", "'free'"),
+        "generations": ("INTEGER", "5"),
+        "monthly_limit": ("INTEGER", "5"),
+        "monthly_generations": ("INTEGER", "5"),
+        "purchased_generations": ("INTEGER", "0"),
+        "is_active": ("BOOLEAN", "TRUE"),
+        "is_verified": ("BOOLEAN", "FALSE"),
+        "auth_version": ("INTEGER", "1"),
+        "created_at": ("TIMESTAMP", "CURRENT_TIMESTAMP"),
+        "updated_at": ("TIMESTAMP", "CURRENT_TIMESTAMP"),
+        "custom_ai_key_encrypted": ("TEXT", None),
+        "custom_ai_provider": ("VARCHAR(50)", None),
+    },
+    "api_keys": {
+        "is_active": ("BOOLEAN", "TRUE"),
+        "last_used": ("TIMESTAMP", None),
+        "requests_today": ("INTEGER", "0"),
+        "created_at": ("TIMESTAMP", "CURRENT_TIMESTAMP"),
+    },
+    "subscriptions": {
+        "plan": ("VARCHAR(20)", "'free'"),
+        "status": ("VARCHAR(20)", "'active'"),
+        "current_period_start": ("TIMESTAMP", None),
+        "current_period_end": ("TIMESTAMP", None),
+        "canceled_at": ("TIMESTAMP", None),
+        "created_at": ("TIMESTAMP", "CURRENT_TIMESTAMP"),
+    },
+    "usage_records": {
+        "generations_used": ("INTEGER", "1"),
+    },
+    "revenue_records": {
+        "amount_cents": ("INTEGER", "0"),
+        "currency": ("VARCHAR(3)", "'usd'"),
+        "plan": ("VARCHAR(20)", None),
+        "status": ("VARCHAR(20)", "'succeeded'"),
+    },
+    "opportunity_logs": {
+        "score": ("INTEGER", "85"),
+    },
+}
+
+
+def _ensure_legacy_columns(database_engine=engine) -> list[str]:
+    """Add safe, idempotent columns to databases created by older releases.
+
+    This deliberately covers compatibility fields only.  New tables are still
+    created by ``Base.metadata.create_all`` above, while required structural
+    changes should continue to be introduced as explicit migrations.
+    """
+
+    inspector = inspect(database_engine)
+    table_names = set(inspector.get_table_names())
+    added: list[str] = []
+    preparer = database_engine.dialect.identifier_preparer
+
+    for table_name, migrations in _LEGACY_COLUMN_MIGRATIONS.items():
+        if table_name not in table_names:
+            continue
+
+        existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+        missing = [
+            (column_name, sql_type, default)
+            for column_name, (sql_type, default) in migrations.items()
+            if column_name not in existing_columns
+        ]
+        if not missing:
+            continue
+
+        quoted_table = preparer.quote(table_name)
+        with database_engine.begin() as connection:
+            for column_name, sql_type, default in missing:
+                default_clause = f" DEFAULT {default}" if default is not None else ""
+                connection.execute(text(
+                    f"ALTER TABLE {quoted_table} ADD COLUMN "
+                    f"{preparer.quote(column_name)} {sql_type}{default_clause}"
+                ))
+                added.append(f"{table_name}.{column_name}")
+
+    if added:
+        logger.warning("Applied legacy database column migrations: %s", ", ".join(added))
+    return added
+
+
 def init_db():
     try:
         Base.metadata.create_all(bind=engine)
@@ -343,27 +431,12 @@ def init_db():
         inspector = inspect(engine)
         if "users" in inspector.get_table_names():
             columns = {c["name"] for c in inspector.get_columns("users")}
-            with engine.begin() as conn:
-                if "generations" not in columns and "generations_remaining" in columns:
+            if "generations" not in columns and "generations_remaining" in columns:
+                with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE users RENAME COLUMN generations_remaining TO generations"))
-                elif "generations" not in columns:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN generations INTEGER DEFAULT 5"))
-                if "purchased_generations" not in columns:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN purchased_generations INTEGER DEFAULT 0"))
-                if "monthly_generations" not in columns:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN monthly_generations INTEGER DEFAULT 5"))
-                if "auth_version" not in columns:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN auth_version INTEGER DEFAULT 1"))
-        if "usage_records" in inspector.get_table_names():
-            columns = {c["name"] for c in inspector.get_columns("usage_records")}
-            if "generations_used" not in columns:
-                with engine.begin() as conn:
-                    conn.execute(text("ALTER TABLE usage_records ADD COLUMN generations_used INTEGER DEFAULT 1"))
-        if "opportunity_logs" in inspector.get_table_names():
-            columns = {c["name"] for c in inspector.get_columns("opportunity_logs")}
-            if "score" not in columns:
-                with engine.begin() as conn:
-                    conn.execute(text("ALTER TABLE opportunity_logs ADD COLUMN score INTEGER DEFAULT 85"))
+                columns.add("generations")
+
+        _ensure_legacy_columns(engine)
     except Exception as e:
         if STRICT_CONFIG:
             raise

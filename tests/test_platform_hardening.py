@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import patch
-from server.database import User, InventoryItem, InventorySyncLog
+from sqlalchemy import create_engine, inspect, text
+
+from server.database import User, InventoryItem, InventorySyncLog, _ensure_legacy_columns
 from server.content_governance import audit_generated_content
 from server.inventory import reconcile_inventory_sku
 
@@ -64,6 +66,33 @@ def test_security_headers_and_csp(client):
     assert "Content-Security-Policy" in headers
     assert "default-src 'self'" in headers["Content-Security-Policy"]
     assert "X-XSS-Protection" not in headers  # Deprecated header eliminated
+
+
+def test_legacy_database_columns_are_repaired_for_telemetry():
+    """Existing databases receive columns used by admin telemetry queries."""
+
+    legacy_engine = create_engine("sqlite:///:memory:")
+    with legacy_engine.begin() as connection:
+        for table_name in (
+            "users",
+            "api_keys",
+            "subscriptions",
+            "usage_records",
+            "revenue_records",
+            "opportunity_logs",
+        ):
+            connection.execute(text(f"CREATE TABLE {table_name} (id VARCHAR(36) PRIMARY KEY)"))
+
+    added = _ensure_legacy_columns(legacy_engine)
+    assert "users.is_active" in added
+    assert "revenue_records.currency" in added
+    assert "revenue_records.status" in added
+    assert "usage_records.generations_used" in added
+
+    user_columns = {column["name"] for column in inspect(legacy_engine).get_columns("users")}
+    revenue_columns = {column["name"] for column in inspect(legacy_engine).get_columns("revenue_records")}
+    assert {"is_active", "plan", "created_at"}.issubset(user_columns)
+    assert {"amount_cents", "currency", "status"}.issubset(revenue_columns)
 
 def test_generate_refund_on_ai_failure(client, auth_headers, db_session, test_user):
     initial_generations = test_user.generations
