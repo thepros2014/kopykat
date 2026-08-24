@@ -29,3 +29,4 @@ scratch_*.py
 frontend/react-app/node_modules/
 frontend/react-app/dist/
 npm-debug.log*
+.vscode/
