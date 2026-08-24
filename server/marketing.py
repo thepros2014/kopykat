@@ -82,9 +82,9 @@ def _resolve_unique_slug(db: Session, base_slug: str) -> str:
 
 
 def _ai_provider_order() -> list[str]:
-    preferred = os.environ.get("AI_PROVIDER", "gemini").strip().lower()
+    preferred = os.environ.get("AI_PROVIDER", "openai").strip().lower()
     if preferred not in {"gemini", "openai"}:
-        preferred = "gemini"
+        preferred = "openai"
     return [preferred, "openai" if preferred == "gemini" else "gemini"]
 
 

@@ -147,6 +147,25 @@ following settings are required for a strict staging or production startup:
 | `ALLOWED_ORIGINS` | Exact browser origins required by the deployment |
 | `TRUSTED_PROXIES` | Only proxy addresses that are actually trusted |
 
+### AI provider configuration
+
+OpenAI is the primary backend provider for copy generation, campaign vision,
+and scheduled marketing drafts. Configure it in the local `.env` file or in
+the deployment secret manager:
+
+~~~dotenv
+AI_PROVIDER=openai
+OPENAI_API_KEY=your_server_side_key
+OPENAI_MODEL=gpt-4o-mini
+~~~
+
+The key must remain server-side and must never be committed or placed in
+browser code. Gemini is retained as an optional fallback for supported
+workflows when `GEMINI_API_KEY` is also configured. The complete, non-secret
+template is [.env.example](.env.example). Render receives `AI_PROVIDER` and
+`OPENAI_MODEL` from `render.yaml`; add the real `OPENAI_API_KEY` in the
+service's secret environment settings and redeploy.
+
 Keep API documentation disabled in production unless an operator explicitly
 needs it. Configure AI, Stripe, email, and marketplace credentials through a
 secret manager rather than source control.

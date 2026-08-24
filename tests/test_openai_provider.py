@@ -5,6 +5,11 @@ import pytest
 from server import ai_engine, marketing, openai_client
 
 
+def test_scheduled_marketing_defaults_to_openai(monkeypatch):
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
+    assert marketing._ai_provider_order() == ["openai", "gemini"]
+
+
 @pytest.mark.asyncio
 async def test_openai_adapter_uses_responses_api_and_closes_transport(monkeypatch):
     calls = {}

@@ -18,7 +18,7 @@ or statement that every external integration is production-certified.
 | HTTP/API | FastAPI and Uvicorn | Routes, validation, rate limits, middleware, health checks |
 | Authentication | PyJWT, bcrypt, API-key hashes | JWT and kk_live_ API-key flows |
 | Persistence | SQLAlchemy 2.0 | SQLite locally; managed PostgreSQL required in strict environments |
-| AI adapters | Google Gen AI and OpenAI-compatible flows | Provider credentials and model availability are deployment concerns |
+| AI adapters | OpenAI Responses API primary, Gemini fallback | Provider credentials and model availability are deployment concerns |
 | Integrations | Marketplace adapters and OpenAPI connector runtime | Credentials are encrypted at rest; outbound URLs are validated |
 | Background work | APScheduler | Runs in the web process with one worker by default |
 | Browser clients | Static HTML/JavaScript and React/TypeScript | Both are maintained in the repository |

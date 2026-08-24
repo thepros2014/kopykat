@@ -21,8 +21,9 @@ development secrets in staging or production.
 ## 2. Configure only the services you need
 
 The minimum local setup is a database and an ephemeral application
-configuration. AI generation requires GEMINI_API_KEY or another configured
-provider. Stripe, email, marketplace, Sentry, and admin features require
+configuration. OpenAI is the primary AI provider: set AI_PROVIDER=openai and
+OPENAI_API_KEY in .env. Gemini can be configured as a supported fallback.
+Stripe, email, marketplace, Sentry, and admin features require
 their respective settings from .env.example.
 
 Start the service:
