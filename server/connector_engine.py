@@ -9,11 +9,17 @@ from urllib.parse import urljoin, urlparse
 
 import httpcore
 import httpx
-import requests
 
 MAX_SPEC_BYTES = 2_000_000
 ALLOWED_SCHEMES = {"https"}
-BLOCKED_HOSTS = {"localhost", "localhost.localdomain", "127.0.0.1"}
+BLOCKED_HOSTS = {
+    "localhost",
+    "localhost.localdomain",
+    "metadata",
+    "metadata.google.internal",
+    "host.docker.internal",
+    "gateway.docker.internal",
+}
 
 BLOCKED_NETWORKS = [
     ipaddress.ip_network("0.0.0.0/8"),
@@ -100,10 +106,17 @@ def validate_public_url(url: str, allowed_schemes: tuple[str, ...] = ("https",))
     if any(c in url_stripped for c in ("\r", "\n", "\0", "\t")) or "%0d" in url_stripped.lower() or "%0a" in url_stripped.lower() or "%00" in url_stripped.lower():
         raise ConnectorError("Invalid characters or CRLF sequence detected in URL.")
     parsed = urlparse(url_stripped)
-    if parsed.scheme.lower() not in {s.lower() for s in allowed_schemes} or not parsed.hostname:
+    try:
+        hostname = parsed.hostname
+        port = parsed.port
+    except ValueError as exc:
+        raise ConnectorError("Connector URL contains an invalid host or port.") from exc
+    if parsed.scheme.lower() not in {s.lower() for s in allowed_schemes} or not hostname:
         raise ConnectorError("Connector discovery requires an HTTPS URL.")
-    port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
-    resolve_and_validate_host(parsed.hostname, port)
+    if parsed.username or parsed.password or parsed.fragment:
+        raise ConnectorError("Connector URLs cannot contain credentials or fragments.")
+    port = port or (443 if parsed.scheme.lower() == "https" else 80)
+    resolve_and_validate_host(hostname, port)
     return url_stripped
 
 
@@ -111,6 +124,14 @@ class SafePinningNetworkBackend(httpcore.AnyIOBackend):
     async def connect_tcp(self, host: str, port: int, timeout: float | None = None, local_address: str | None = None, socket_options: Any = None) -> httpcore.AsyncNetworkStream:
         pinned_ip = resolve_and_validate_host(host, port)
         return await super().connect_tcp(pinned_ip, port, timeout=timeout, local_address=local_address, socket_options=socket_options)
+
+
+class SafePinningSyncNetworkBackend(httpcore.SyncBackend):
+    """Synchronous counterpart used by connector discovery paths."""
+
+    def connect_tcp(self, host: str, port: int, timeout: float | None = None, local_address: str | None = None, socket_options: Any = None) -> httpcore.NetworkStream:
+        pinned_ip = resolve_and_validate_host(host, port)
+        return super().connect_tcp(pinned_ip, port, timeout=timeout, local_address=local_address, socket_options=socket_options)
 
 
 class SafeHTTPResponse:
@@ -151,7 +172,12 @@ class SafeAsyncHTTPClient:
 
     def _get_client(self, timeout_seconds: float) -> httpx.AsyncClient:
         if self._client is None or getattr(self._client, "is_closed", False) is True:
-            self._client = httpx.AsyncClient(transport=self._transport, timeout=httpx.Timeout(timeout_seconds), follow_redirects=False)
+            self._client = httpx.AsyncClient(
+                transport=self._transport,
+                timeout=httpx.Timeout(timeout_seconds),
+                follow_redirects=False,
+                trust_env=False,
+            )
         return self._client
 
     async def request(self, method: str, url: str, *, headers: Optional[dict[str, str]] = None, json_body: Optional[Any] = None, params: Optional[dict[str, Any]] = None, timeout_seconds: Optional[float] = None, max_response_bytes: Optional[int] = None, allow_redirects: bool = False) -> SafeHTTPResponse:
@@ -197,20 +223,109 @@ class SafeAsyncHTTPClient:
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None: await self.close()
 
 
+class SafeSyncHTTPClient:
+    """Synchronous SSRF-safe client for legacy/background connector calls."""
+
+    def __init__(self, timeout_seconds: float = 15.0, max_response_bytes: int = MAX_SPEC_BYTES):
+        self.timeout_seconds = timeout_seconds
+        self.max_response_bytes = max_response_bytes
+        self._transport = httpx.HTTPTransport(retries=0)
+        self._transport._pool = httpcore.ConnectionPool(
+            ssl_context=self._transport._pool._ssl_context,
+            network_backend=SafePinningSyncNetworkBackend(),
+        )
+        self._client = httpx.Client(
+            transport=self._transport,
+            timeout=httpx.Timeout(timeout_seconds),
+            follow_redirects=False,
+            trust_env=False,
+        )
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Optional[dict[str, str]] = None,
+        json_body: Optional[Any] = None,
+        params: Optional[dict[str, Any]] = None,
+        timeout_seconds: Optional[float] = None,
+        max_response_bytes: Optional[int] = None,
+        allow_redirects: bool = False,
+    ) -> SafeHTTPResponse:
+        safe_url = validate_public_url(url, allowed_schemes=("https",))
+        limit = max_response_bytes if max_response_bytes is not None else self.max_response_bytes
+        timeout = timeout_seconds if timeout_seconds is not None else self.timeout_seconds
+        req_headers = {"Accept": "application/json", **(headers or {})}
+        request = self._client.build_request(
+            method.upper(),
+            safe_url,
+            headers=req_headers,
+            json=json_body,
+            params=params,
+            timeout=httpx.Timeout(timeout),
+        )
+        response = self._client.send(request, stream=True)
+        try:
+            if 300 <= response.status_code < 400:
+                if not allow_redirects:
+                    raise SSRFError("Redirects are disabled for connector requests.")
+                location = response.headers.get("location")
+                if location:
+                    validate_public_url(location)
+            chunks: list[bytes] = []
+            total_bytes = 0
+            for chunk in response.iter_bytes():
+                total_bytes += len(chunk)
+                if total_bytes > limit:
+                    raise SSRFError(f"Response size exceeded {limit} bytes.")
+                chunks.append(chunk)
+            return SafeHTTPResponse(
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                content=b"".join(chunks),
+                url=str(response.url),
+            )
+        finally:
+            response.close()
+
+    def get(self, url: str, **kwargs: Any) -> SafeHTTPResponse:
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs: Any) -> SafeHTTPResponse:
+        return self.request("POST", url, **kwargs)
+
+    def put(self, url: str, **kwargs: Any) -> SafeHTTPResponse:
+        return self.request("PUT", url, **kwargs)
+
+    def patch(self, url: str, **kwargs: Any) -> SafeHTTPResponse:
+        return self.request("PATCH", url, **kwargs)
+
+    def delete(self, url: str, **kwargs: Any) -> SafeHTTPResponse:
+        return self.request("DELETE", url, **kwargs)
+
+    def close(self) -> None:
+        self._client.close()
+        self._transport.close()
+
+    def __enter__(self) -> SafeSyncHTTPClient:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+
 def fetch_api_document(url: str) -> dict[str, Any]:
-    safe_url = validate_public_url(url)
-    response = requests.get(safe_url, headers={"Accept": "application/json, application/yaml, text/yaml"}, timeout=(5, 15), allow_redirects=False)
-    if 300 <= response.status_code < 400:
-        raise ConnectorError("Redirects are disabled during connector discovery.")
-    response.raise_for_status()
-    if response.url:
-        validate_public_url(response.url)
-    if len(response.content) > MAX_SPEC_BYTES:
-        raise ConnectorError("API document exceeds the connector size limit.")
     try:
-        document = response.json()
-    except ValueError as exc:
-        raise ConnectorError("The API document must be JSON/OpenAPI JSON.") from exc
+        with SafeSyncHTTPClient(max_response_bytes=MAX_SPEC_BYTES) as client:
+            response = client.get(url, headers={"Accept": "application/json, application/yaml, text/yaml"})
+            if response.status_code >= 400:
+                raise ConnectorError("The API document could not be fetched.")
+            document = response.json()
+    except ConnectorError:
+        raise
+    except (httpx.HTTPError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ConnectorError("The API document must be reachable JSON/OpenAPI JSON.") from exc
     if not isinstance(document, dict):
         raise ConnectorError("Invalid API document.")
     return document
@@ -302,4 +417,3 @@ def discover_connector(source_url: str) -> dict[str, Any]:
 async def async_discover_connector(source_url: str) -> dict[str, Any]:
     document = await async_fetch_api_document(source_url)
     return build_connector_spec(document, source_url)
-

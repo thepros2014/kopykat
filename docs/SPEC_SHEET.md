@@ -1,103 +1,104 @@
-# KopyKat — Comprehensive Technical Specification Sheet
+# KopyKat system specification
 
----
+## Scope and status
 
-## 1. System Architecture
+KopyKat is an AI-assisted e-commerce operations service. This sheet is a
+compact reference to the current repository. It is not a claim of live
+customer adoption, revenue, uptime, capacity, or provider certification.
 
-KopyKat is an asynchronous multi-channel e-commerce operating system built on Python 3.11, FastAPI, SQLAlchemy 2.0, and APScheduler. It delivers high-throughput catalog syndication, real-time stock balancing, automated competitor 1-star review mining, SEO blog publishing, and encrypted Bring-Your-Own-Key (BYOK) AI execution.
+## Runtime
 
+| Area | Current implementation |
+| --- | --- |
+| Backend | Python 3.11+, FastAPI, Uvicorn, Pydantic, SQLAlchemy |
+| Database | SQLite for local development/tests; managed PostgreSQL for strict environments |
+| AI providers | OpenAI Responses API adapter and Google Gen AI adapter |
+| Web clients | Static HTML/JavaScript and React/TypeScript with Vite |
+| Payments | Stripe Checkout and signed webhook processing |
+| Background work | APScheduler in the single default web process |
+| Security | JWT/API keys, bcrypt, Fernet, tenant scoping, request and network limits |
+
+## Functional modules
+
+### Content generation
+
+- Single-copy generation through /api/generate.
+- Campaign bundles through /api/campaign/generate.
+- Image-assisted generation through /api/campaign/generate-vision.
+- Platform-shaped listing drafts through /api/optimizer/marketplace-listing.
+- Optional provider selection through AI_PROVIDER, OPENAI_API_KEY, and
+  GEMINI_API_KEY.
+
+### Commerce operations
+
+- CSV parsing and Shopify catalog import.
+- Saved integrations with encrypted credentials.
+- Connector discovery and bounded connector execution.
+- SKU inventory records, authenticated events, fanout, reconciliation, and
+  audit logs.
+- Price, cost, competitor-price, margin, and recommendation records.
+
+### Growth operations
+
+- Sanitized SEO articles and dynamic sitemap/robots routes.
+- Review sentiment analysis and draft responses.
+- Post-purchase message templates.
+- Scheduled opportunity scanning that records drafts for human review.
+- OpenAI or Gemini can generate internal drafts when configured.
+
+The service does not autonomously publish commercial outreach to social
+networks. External posting requires an approved integration, platform
+permission, and human review.
+
+## Data and security invariants
+
+- User-owned records are filtered by authenticated user ID.
+- JWT versions are invalidated after password resets or revocation events.
+- API keys are displayed once and stored as hashes.
+- Marketplace and AI credentials are encrypted before persistence.
+- Generation credits are reserved before provider work and refunded after
+  provider failure.
+- Stripe and inventory event IDs are deduplicated.
+- Outbound URLs are validated against unsafe schemes and private networks.
+- Redirects, request bodies, image uploads, CSV inputs, and responses are
+  bounded.
+- Generated HTML is sanitized and browser output uses safe rendering paths.
+
+## Required production configuration
+
+Set ENVIRONMENT to staging or production and provide:
+
+- DATABASE_URL using managed PostgreSQL.
+- JWT_SECRET_KEY with at least 32 random characters.
+- A valid INTEGRATION_ENCRYPTION_KEY Fernet key.
+- ADMIN_SECRET with at least 24 random characters.
+- An HTTPS APP_BASE_URL.
+- Narrow ALLOWED_HOSTS, ALLOWED_ORIGINS, and TRUSTED_PROXIES values.
+- Provider, payment, email, and monitoring settings for enabled features.
+
+## Verification
+
+Use TEST_READY.md for the full procedure. The minimum backend checks are:
+
+```powershell
+python -m pytest -q
+python -m compileall -q server tests
+python -m flake8 server tests --select=E9,F63,F7,F82 --count --statistics
+python -m bandit -r server -ll -ii -x server/tests,tests
+python -m pip_audit -r requirements.txt
 ```
-+───────────────────────────────────────────────────────────────────────────+
-|                               FASTAPI GATEWAY                             |
-|  - Rate Limiter (SlowAPI)     - CORS & Security Middleware (CSP / HSTS)   |
-|  - JWT Bearer Auth            - API Key Auth (kk_live_... / SHA-256)      |
-+───────────────────────────────────────────────────────────────────────────+
-       │                     │                     │                     │
-       ▼                     ▼                     ▼                     ▼
-+─────────────+       +─────────────+       +─────────────+       +─────────────+
-|   CATALOG   |       |  INVENTORY  |       |   REVIEWS   |       |   PRICING   |
-|  IMPORTER   |       |  BALANCER   |       |  & UGC HUB  |       |   MONITOR   |
-| (CSV / Live |       | (Loop-Free  |       |  (Sentiment |       |    (COGS    |
-|   Shopify)  |       |   Fanout)   |       |  Classifier)|       |  Optimizer) |
-+─────────────+       +─────────────+       +─────────────+       +─────────────+
-       │                     │                     │                     │
-       +─────────────────────┼─────────────────────┼─────────────────────+
-                             │
-                             ▼
-+───────────────────────────────────────────────────────────────────────────+
-|                           PERSISTENT STORAGE                              |
-|  - PostgreSQL / SQLite (SQLAlchemy 2.0 Models)                            |
-|  - Fernet Symmetric Credential Vault (INTEGRATION_ENCRYPTION_KEY)         |
-+───────────────────────────────────────────────────────────────────────────+
+
+Build the React client and audit its lockfile before deployment:
+
+```powershell
+Set-Location frontend/react-app
+npm ci
+npm run build
+npm audit --audit-level=high
 ```
 
----
+## Operational limitations
 
-## 2. Database Schema (11 Models)
-
-| Model Name | Table Name | Key Attributes | Responsibility |
-|---|---|---|---|
-| **User** | `users` | `id`, `email`, `hashed_password`, `plan`, `generations`, `monthly_limit`, `custom_ai_key_encrypted`, `custom_ai_provider` | User accounts, active plan allocations, and encrypted BYOK credentials. |
-| **APIKey** | `api_keys` | `id`, `user_id`, `key_hash` (SHA-256), `key_prefix`, `requests_today` | Programmatic API keys for store webhook authentication. |
-| **Subscription** | `subscriptions` | `id`, `user_id`, `stripe_subscription_id`, `plan`, `status`, `current_period_end` | Stripe subscription lifecycle states. |
-| **RevenueRecord** | `revenue_records` | `id`, `stripe_payment_id`, `user_id`, `amount_cents`, `plan`, `type`, `status` | Immutable audit log of all financial transactions. |
-| **UsageRecord** | `usage_records` | `id`, `user_id`, `endpoint`, `generations_used`, `tokens_used`, `cost_usd` | Per-request generation tracking and token consumption. |
-| **UserIntegration** | `user_integrations` | `id`, `user_id`, `platform`, `credentials` (Fernet encrypted), `status` | Saved credentials for Shopify, Amazon, eBay, Walmart, Mailchimp. |
-| **InventoryItem** | `inventory_items` | `id`, `user_id`, `sku`, `title`, `total_stock`, `platform_stock` (JSON) | Tracked catalog SKUs and multi-channel stock levels. |
-| **InventorySyncLog** | `inventory_sync_logs` | `id`, `user_id`, `sku`, `trigger_platform`, `quantity_change`, `new_quantity`, `fanout_results` (JSON) | Real-time audit trail of order decrements and fanouts. |
-| **CustomerReview** | `customer_reviews` | `id`, `user_id`, `customer_name`, `product_name`, `rating`, `review_text`, `sentiment`, `status`, `draft_reply` | Ingested reviews with AI sentiment tagging and resolution replies. |
-| **PriceMarginItem** | `price_margin_items` | `id`, `user_id`, `sku`, `product_name`, `cogs_usd`, `selling_price_usd`, `competitor_price_usd`, `current_margin_pct`, `status`, `recommendation` | Unit economics, profit margin badges, and pricing shift suggestions. |
-| **BlogPost** | `blog_posts` | `id`, `title`, `slug`, `keyword`, `meta_desc`, `content`, `word_count`, `published` | Published SEO articles targeting high-intent buyer searches. |
-| **OpportunityLog** | `opportunity_logs` | `id`, `platform`, `post_id`, `post_url`, `post_title`, `draft_reply`, `alerted` | Social leads discovered across Reddit and online forums. |
-
----
-
-## 3. Flagship Functional Modules
-
-### Module 1: Competitor 1-Star Review Miner
-- **Endpoint:** `POST /api/competitor/mine-reviews`
-- **Logic:** Ingests negative customer complaints from competitor listings. Extracts root flaws and generates counter-positioned copy, comparison tables ("Our Build vs. Competitor Flaw"), and direct-response ad angles.
-
-### Module 2: Cross-Platform Inventory Balancer
-- **Endpoints:** `POST /api/inventory/webhook/{platform}`, `GET /api/inventory`, `POST /api/inventory/item`, `GET /api/inventory/logs`
-- **Logic:** Intercepts order purchase webhooks (e.g. Shopify `orders/create`), atomically decrements total stock in the database, and fans out updates to Amazon, eBay, Walmart, and Temu while skipping the trigger source to prevent infinite sync loops.
-
-### Module 3: Post-Purchase Review & UGC Drip Hub
-- **Endpoints:** `POST /api/reviews/drip-templates`, `POST /api/reviews/submit`, `GET /api/reviews`
-- **Logic:** Generates 3-step post-delivery customer nurture emails (Day 3 check-in, Day 7 photo/video UGC request with coupon incentive, Day 14 VIP loyalty). Classifies incoming feedback (*Positive*, *Neutral*, *Negative*) and generates merchant resolution replies.
-
-### Module 4: Automated Price & Margin Monitor
-- **Endpoints:** `POST /api/pricing/item`, `GET /api/pricing/items`, `DELETE /api/pricing/item/{id}`
-- **Logic:** Calculates gross profit margin percentage and profit per unit. Automatically flags dangerous thin margins (< 15%), detects competitor pricing headroom, and recommends defense strategies against undercutting.
-
-### Module 5: Direct 1-Click Shopify Catalog Import
-- **Endpoint:** `POST /api/catalog/import-shopify`
-- **Logic:** Pulls live products, descriptions, variants, prices, and media directly from Shopify Admin API. Strips HTML descriptions and populates the batch syndication table for instant multi-channel distribution.
-
----
-
-## 4. Bring Your Own Key (BYOK) Enterprise Engine
-- **Target Tier:** `megastore` ($9,639.63 / mo)
-- **Endpoints:** `GET /api/user/custom-ai-key`, `POST /api/user/custom-ai-key`, `DELETE /api/user/custom-ai-key`
-- **Security:** Keys are encrypted using Fernet symmetric encryption before persistent storage.
-- **Quota Bypass:** Megastore users with an active BYOK key bypass monthly generation quotas, enabling unlimited multi-channel campaigns running through KopyKat's infrastructure.
-
----
-
-## 5. Automated Background Worker Schedules
-
-| Worker | Trigger Interval | Action | Target Table |
-|---|---|---|---|
-| **SEO Blog Engine** | Mon, Wed, Fri @ 09:00 UTC | Generates 800-word search-intent article targeting e-commerce keywords and publishes to store blog. | `blog_posts` |
-| **Email Conversion Drip** | Daily @ 10:00 UTC | Analyzes account age for free-tier users and sends Day 2, Day 4, and Day 7 nurture emails. | `drip_logs` |
-| **Social Opportunity Scout** | Every 4 Hours | Scans subreddits (`r/ecommerce`, `r/smallbusiness`, `r/marketing`) for copywriting pain points, drafts AI replies, and notifies owner. | `opportunity_logs` |
-| **Counter Reset** | Daily @ Midnight UTC | Resets daily rate counters for API keys. | `api_keys` |
-
----
-
-## 6. Environment & Security Specifications
-- **Python Runtime:** Python 3.11.9
-- **Encryption:** AES-128-CBC with HMAC-SHA256 authenticated symmetric encryption via `cryptography.fernet`.
-- **Password Hashing:** `bcrypt` with salt rounds >= 12.
-- **XSS Protection:** Strict HTML sanitization via `bleach` and safe DOM construction (`textContent` / `createElement`) across frontend.
-- **Test Suite:** 33 automated integration and unit tests passing with 100% green status (`pytest -v`).
+Passing repository tests does not replace provider integration tests, database
+restore testing, backup validation, incident response, or a review of the
+terms governing each external service.

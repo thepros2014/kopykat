@@ -27,7 +27,10 @@ def test_zero_emojis_in_codebase():
     for check_dir in ['server', 'frontend']:
         if not os.path.exists(check_dir):
             continue
-        for root, _, files in os.walk(check_dir):
+        for root, dirnames, files in os.walk(check_dir):
+            # Dependency/build trees are not project source and may carry
+            # localized diagnostics or box-drawing characters.
+            dirnames[:] = [d for d in dirnames if d not in {"node_modules", "dist", "__pycache__"}]
             for file in files:
                 ext = os.path.splitext(file)[1].lower()
                 if ext in extensions_to_check:

@@ -1,182 +1,235 @@
-# KopyKat — Autonomous E-Commerce Operating System
+# KopyKat
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/thepros2014/kopykat/ci.yml?branch=main&label=Build&style=flat-square)](https://github.com/thepros2014/kopykat/actions)
-[![Test Suite](https://img.shields.io/badge/Tests-405%20Passing-brightgreen?style=flat-square)](https://github.com/thepros2014/kopykat)
-[![Live MRR](https://img.shields.io/badge/Live%20MRR-$3,450/mo-22c55e?style=flat-square)](server/main.py)
-[![Release](https://img.shields.io/badge/Release-v2.0.0--Enterprise-8b5cf6?style=flat-square)](CHANGELOG.md)
-[![Technical Spec](https://img.shields.io/badge/Technical%20Spec-Institutional%20Grade-06b6d4?style=flat-square)](docs/TECHNICAL_SPEC_SHEET.md)
-[![Buyer Architecture](https://img.shields.io/badge/Buyer%20Architecture-PDF%20Dossier-ec4899?style=flat-square)](docs/BUYER_READY_ARCHITECTURE.md)
-[![Python Version](https://img.shields.io/badge/Python-3.11-blue?style=flat-square&logo=python)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
-[![Stripe](https://img.shields.io/badge/Stripe-Billing%20Live-635BFF?style=flat-square&logo=stripe)](https://stripe.com)
-[![Zero Emojis](https://img.shields.io/badge/Policy-Zero%20Emojis-black?style=flat-square)](tests/test_no_emojis.py)
+KopyKat is an AI-assisted e-commerce operations platform for generating
+marketing content, organizing catalog workflows, connecting external
+platforms, and monitoring inventory and unit economics from one API and
+dashboard.
 
+> Repository status: active engineering project. This repository does not
+> make live customer, revenue, valuation, service-level, or throughput claims.
+> A passing test suite is evidence of tested behavior, not a production
+> certification.
 
-KopyKat is a multi-channel e-commerce automation and marketing engine. It synchronizes catalogs across Shopify, Amazon, eBay, Walmart, and Temu, mines competitor 1-star reviews to generate high-converting counter-copy, balances cross-platform stock levels in real time to prevent overselling, and automates SEO blogs, email drips, and lead discovery.
+[![Build](https://img.shields.io/github/actions/workflow/status/thepros2014/kopykat/ci.yml?branch=main&label=build)](https://github.com/thepros2014/kopykat/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-ASGI-009688)](https://fastapi.tiangolo.com/)
 
----
+## Capabilities
 
-## Architecture Overview
+- Generate product descriptions, ads, email content, social posts, and other
+  bounded copy through authenticated API endpoints.
+- Produce channel-specific listing drafts for Amazon, Shopify, Etsy, TikTok
+  Shop, and eBay.
+- Build campaign bundles containing blog, email, and social assets, including
+  image-assisted generation when an AI provider is configured.
+- Import catalog data from CSV or Shopify and push approved content through
+  configured integrations.
+- Track inventory by SKU, process authenticated inventory events, reconcile a
+  canonical quantity, and record synchronization results.
+- Classify customer reviews, draft responses, create post-purchase sequences,
+  and calculate price and margin recommendations.
+- Run scheduled SEO, email, and opportunity-scanning jobs when the required
+  provider and delivery configuration is present.
+- Use Stripe subscriptions, one-time generation packs, add-ons, and encrypted
+  BYOK configuration where enabled for the account.
 
-### 1. Component Diagram
+External platform actions are credential-dependent. A connector being present
+in the registry does not mean that a production account has been connected or
+that a provider operation has been verified for a specific merchant.
 
-```mermaid
-graph TD
-    User([Merchant / Dashboard]) -->|HTTPS / JWT| API[FastAPI Gateway]
-    StoreHooks([Shopify / Marketplaces]) -->|Webhooks / Orders| API
-    
-    subgraph Core Backend
-        API --> Auth[Auth & API Key Engine]
-        API --> Billing[Stripe Billing & BYOK Engine]
-        API --> Catalog[Catalog Importer & Semantic CSV]
-        API --> Inventory[Cross-Platform Stock Balancer]
-        API --> AI[AI Copy & Vision Engine]
-        API --> Reviews[Competitor Miner & UGC Hub]
-        API --> PriceMon[Price & Margin Monitor]
-        API --> Connectors[Universal OpenAPI Connectors]
-    end
+## Architecture
 
-    subgraph Autonomous Background Workers
-        Cron[APScheduler Daemon]
-        Cron -->|3x / Week| SEO[SEO Blog Engine]
-        Cron -->|Daily| Drip[Email Conversion Bot]
-        Cron -->|Every 4 Hours| Scout[Social Opportunity Scout]
-    end
-
-    subgraph Storage Layer
-        DB[(PostgreSQL / SQLite Database)]
-        Vault[Fernet Encrypted Key Store]
-    end
-
-    subgraph External Platforms
-        Shopify[Shopify Admin API]
-        Amazon[Amazon SP-API]
-        Ebay[eBay Inventory API]
-        Walmart[Walmart Marketplace]
-        Gemini[Google Gemini Vision / Text AI]
-        OpenAI[OpenAI BYOK Cluster]
-        Stripe[Stripe API & Webhooks]
-    end
-
-    Auth --> DB
-    Auth --> Vault
-    Billing --> DB
-    Billing --> Stripe
-    Catalog --> DB
-    Catalog --> Shopify
-    Inventory --> DB
-    Inventory --> Shopify
-    Inventory --> Amazon
-    Inventory --> Ebay
-    Inventory --> Walmart
-    AI --> Gemini
-    AI --> OpenAI
-    Reviews --> DB
-    PriceMon --> DB
-    Connectors --> Vault
+```text
+Browser or API client
+        |
+        v
+FastAPI application (auth, rate limits, validation, security headers)
+        |
+        +--> Domain services: AI, campaigns, connectors, inventory, billing
+        |
+        +--> SQLAlchemy persistence
+        |        |
+        |        +--> PostgreSQL in staging/production
+        |        +--> SQLite for local development and tests
+        |
+        +--> External providers: AI, Stripe, marketplaces, email, Sentry
+        |
+        +--> APScheduler jobs owned by the single application process
 ```
 
----
+The repository contains two browser clients:
 
-### 2. Data Flow Diagram
+- `frontend/` contains the lightweight HTML dashboard and public pages.
+- `frontend/react-app/` contains the React and TypeScript application.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Merchant as Store Merchant
-    participant Web as Web Dashboard
-    participant API as FastAPI Server
-    participant Inv as Inventory Balancer
-    participant AI as AI Engine
-    participant Ext as Connected Marketplaces (eBay, Amazon, Walmart)
+Production runs with one application worker by default because the scheduler
+is owned by the web process. Scale with multiple service instances or move
+scheduled work to a dedicated worker after designing job coordination.
 
-    %% Flow 1: 1-Click Catalog Import & Syndication
-    Merchant->>Web: 1-Click Import Catalog from Shopify
-    Web->>API: POST /api/catalog/import-shopify
-    API->>Shopify: GET /admin/api/2024-01/products.json
-    Shopify-->>API: Raw Product Data & Media
-    API-->>Web: Normalized Product Catalog Items
-    
-    Merchant->>Web: Select Products & Click "Syndicate"
-    Web->>API: POST /api/campaign/generate (Batch)
-    API->>AI: Generate Descriptions, SEO Blog, Drips
-    AI-->>API: Enriched Multi-Platform Assets
-    API->>Ext: Fanout Deployments in Parallel
-    Ext-->>API: HTTP 200 Deployment Acknowledged
-    API-->>Web: Syndication Complete
+## Repository layout
 
-    %% Flow 2: Real-time Order & Inventory Balancing
-    Shopify->>API: POST /api/inventory/webhook/shopify (Order Created: -1 Unit)
-    API->>Inv: sync_inventory_across_platforms(sku, delta=-1)
-    Inv->>Inv: Atomically decrement total_stock in DB
-    Inv->>Ext: Fanout Stock Update to eBay, Amazon, Walmart (Skip Shopify)
-    Ext-->>Inv: Stock Adjusted
-    Inv-->>API: Sync Log Committed
+| Path | Purpose |
+| --- | --- |
+| `server/main.py` | FastAPI application, routes, middleware, and lifespan |
+| `server/auth.py` | Password hashing, JWT/API-key authentication, and credential encryption |
+| `server/config.py` | Environment-aware configuration and fail-closed production checks |
+| `server/database.py` | SQLAlchemy models, engine setup, and lightweight migrations |
+| `server/ai_engine.py` | Listing optimization and copy generation |
+| `server/campaigns.py` | Text and image-assisted campaign assembly |
+| `server/integrations.py` | Marketplace and legacy integration adapters |
+| `server/connector_engine.py` | OpenAPI discovery and SSRF-resistant outbound HTTP |
+| `server/inventory.py` | Inventory updates, fanout, reconciliation, and idempotency |
+| `server/marketing.py` | SEO, email drip, and opportunity-scanning jobs |
+| `server/billing.py` | Stripe checkout, webhook fulfillment, plans, and add-ons |
+| `frontend/` | Static browser client |
+| `frontend/react-app/` | React/Vite client |
+| `tests/` | Unit, integration, adversarial, security, and frontend checks |
+| `docs/` | API references, operations notes, and technical documentation |
+
+## Requirements
+
+- Python 3.11 or newer.
+- A recent Node.js LTS release for the React application.
+- SQLite for local development, or PostgreSQL for staging and production.
+- Provider credentials only for the features being exercised.
+
+## Local setup
+
+Create a virtual environment and install the backend dependencies:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
----
+Review `.env` before starting the server. Local development can use the
+SQLite default, but the generated secrets are process-local and must not be
+used for persistent or shared environments.
 
-### 3. Background Cron Job Schedules
+Start the API and static client:
 
-```mermaid
-gantt
-    title Autonomous Background Worker Schedules
-    dateFormat X
-    axisFormat %H:%M
-
-    section SEO Blog Bot
-    Draft & Publish Store Article (Mon/Wed/Fri 09:00 UTC) :active, seo1, 0, 10
-    
-    section Conversion Drip Bot
-    Process Day 1, 3, 7 User Nurture Sequences (Daily 10:00 UTC) :drip1, 10, 20
-
-    section Social Opportunity Scout
-    Scan Reddit & Social Discussions (Every 4 Hours) :scout1, 0, 5
-    Scan Reddit & Social Discussions :scout2, 240, 245
-    Scan Reddit & Social Discussions :scout3, 480, 485
-    Scan Reddit & Social Discussions :scout4, 720, 725
+```powershell
+python -m server.runtime
 ```
 
----
+The default local address is `http://127.0.0.1:10000`. The health endpoints
+are `/health` and `/ready`.
 
-## Module Map & Capabilities
+Build the React client:
 
-| Module | Core Responsibility | Key Endpoints | Supported Channels |
-|---|---|---|---|
-| **Module 1: Competitor Review Miner** | Ingests 1-star competitor reviews to generate counter-copy, comparison tables, and ad angles. | `POST /api/competitor/mine-reviews` | Universal Copy |
-| **Module 2: Inventory Balancer** | Real-time stock synchronization across platforms on order events to prevent overselling. | `POST /api/inventory/webhook/{platform}`, `GET /api/inventory` | Shopify, Amazon, eBay, Walmart, Temu |
-| **Module 3: Review & UGC Drip Hub** | Generates 3-step post-purchase review sequences and classifies sentiment of customer feedback. | `POST /api/reviews/drip-templates`, `POST /api/reviews/submit` | Email / Storefront Webhooks |
-| **Module 4: Price & Margin Monitor** | Unit economics engine tracking COGS, profit per unit, margin health, and competitor price shifts. | `POST /api/pricing/item`, `GET /api/pricing/items` | Catalog SKUs |
-| **Module 5: Shopify Direct Import** | 1-click direct catalog fetch via Shopify Admin API without manual CSV exports. | `POST /api/catalog/import-shopify` | Shopify Admin REST |
-| **BYOK Enterprise AI Infrastructure** | Megastore tier support for custom private OpenAI and Google Gemini API keys. | `POST /api/user/custom-ai-key` | OpenAI, Gemini |
+```powershell
+Set-Location frontend/react-app
+npm ci
+npm run build
+```
 
----
+Use `npm run dev` for an interactive frontend development server. Configure
+its API base URL according to the local development setup before relying on
+it for browser testing.
 
-## Pricing Tiers
+## Configuration
 
-- **Test Drive ($0 / mo):** 5 monthly campaigns, 1 connected platform of choice, core engine preview.
-- **Boutique Store ($179.49 / mo):** 150 monthly campaigns, 2 connectors of choice, 1 automation feature (CSV or Auto-Sync), Review Miner.
-- **Standard Store ($379.49 / mo):** 1,000 monthly campaigns, 10 connectors of choice, 2 automations (CSV + Vision AI), Universal Connectors.
-- **Megastore Infrastructure ($9,639.63 / mo):** 2,500 monthly campaigns (using platform cloud) or **UNLIMITED** campaigns via Bring-Your-Own-Key (BYOK), all connectors and automations included, dedicated high-throughput cluster.
+The complete configuration template is [.env.example](.env.example). The
+following settings are required for a strict staging or production startup:
 
----
+| Setting | Requirement |
+| --- | --- |
+| `ENVIRONMENT` | `staging` or `production` |
+| `DATABASE_URL` | Explicit managed PostgreSQL URL |
+| `JWT_SECRET_KEY` | Random value of at least 32 characters |
+| `INTEGRATION_ENCRYPTION_KEY` | Valid Fernet key |
+| `ADMIN_SECRET` | Secret of at least 24 characters |
+| `APP_BASE_URL` | HTTPS public URL |
+| `ALLOWED_HOSTS` | Exact hostnames accepted by the service |
+| `ALLOWED_ORIGINS` | Exact browser origins required by the deployment |
+| `TRUSTED_PROXIES` | Only proxy addresses that are actually trusted |
 
-## Tech Stack
+Keep API documentation disabled in production unless an operator explicitly
+needs it. Configure AI, Stripe, email, and marketplace credentials through a
+secret manager rather than source control.
 
-- **Backend:** Python 3.11, FastAPI, SQLAlchemy 2.0, Uvicorn, SlowAPI, Bleach, Pydantic V2
-- **Database:** PostgreSQL / SQLite with Fernet credential encryption
-- **AI Infrastructure:** Google Gemini (`gemini-flash-latest`), OpenAI GPT-4o
-- **Billing:** Stripe Subscriptions, One-Time Packs, and Webhooks
-- **Frontend:** Vanilla HTML5, CSS3, ES6 JavaScript (Zero dependencies, XSS-safe DOM)
-- **CI / CD:** GitHub Actions (Pytest, Black, Flake8, Bandit)
+## API surface
 
----
+The principal route groups are:
 
-## Documentation Links
+- `/auth/*` for registration, login, verification, password reset, and the
+  current user.
+- `/api/generate` and `/api/campaign/*` for copy and campaign generation.
+- `/api/connector/*`, `/api/integrations`, and `/api/catalog/*` for external
+  platform workflows.
+- `/api/inventory/*`, `/api/reviews/*`, and `/api/pricing/*` for merchant
+  operations.
+- `/billing/*` and `/api/plans` for billing.
+- `/health` and `/ready` for service checks.
 
-- [API Authentication](docs/api/auth.md)
-- [API Billing & BYOK](docs/api/billing.md)
-- [API Content & Campaign Generation](docs/api/generation.md)
-- [API Inventory Balancer](docs/api/inventory.md)
-- [Technical Spec Sheet](docs/SPEC_SHEET.md)
-- [Operator Tutorial](docs/TUTORIAL.md)
+Interactive OpenAPI documentation is available at `/api/docs` only when
+`ENABLE_API_DOCS=true`. See the [API documentation](docs/api/auth.md) and the
+[documentation index](docs/TUTORIAL.md) for examples.
+
+## Verification
+
+Run the backend test suite:
+
+```powershell
+python -m pytest -q
+```
+
+Run the focused quality and security checks:
+
+```powershell
+python -m flake8 server tests --select=E9,F63,F7,F82 --count --statistics
+python -m bandit -r server -ll -ii -x server/tests,tests
+python -m pip_audit -r requirements.txt
+python tests/test_no_emojis.py
+```
+
+Run the frontend checks:
+
+```powershell
+Set-Location frontend/react-app
+npm run build
+npm audit --audit-level=high
+```
+
+Use `git diff --check` before committing. Tests that contact Stripe, AI
+providers, marketplaces, email systems, or a managed database require safe
+test credentials and explicit integration-test configuration.
+
+## Deployment
+
+`render.yaml` and the `Dockerfile` provide deployment starting points. Before
+using either for a live service:
+
+1. Provision managed PostgreSQL with backups and a tested restore procedure.
+2. Store all secrets in the platform secret manager.
+3. Set an HTTPS `APP_BASE_URL` and narrow host, origin, and proxy allowlists.
+4. Configure Stripe webhook delivery and verify idempotent replay handling.
+5. Configure external provider credentials and test each connector against a
+   non-production account.
+6. Confirm health checks, logs, alerts, resource limits, and scheduler
+   ownership for the selected hosting plan.
+
+The default Render blueprint uses the free plan as a development starting
+point. It is not a capacity, availability, or compliance guarantee.
+
+## Documentation
+
+- [Security policy](SECURITY.md)
+- [Environment template](.env.example)
+- [Operator tutorial](docs/TUTORIAL.md)
+- [Authentication API](docs/api/auth.md)
+- [Generation API](docs/api/generation.md)
+- [Billing API](docs/api/billing.md)
+- [Inventory API](docs/api/inventory.md)
+- [Technical specification](docs/TECHNICAL_SPEC_SHEET.md)
+- [Architecture and readiness dossier](docs/BUYER_READY_ARCHITECTURE.md)
+- [Test and verification guide](TEST_READY.md)
+
+## License and contribution status
+
+No license or contribution policy is currently declared in this repository.
+Obtain project-owner approval before redistributing the code, connecting
+production accounts, or publishing a deployment based on this source tree.

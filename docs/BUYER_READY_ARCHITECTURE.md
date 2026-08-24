@@ -1,86 +1,129 @@
-# KOPYKAT — BUYER-READY ARCHITECTURE & ACQUISITION DOSSIER
-CONFIDENTIAL | PREPARED FOR M&A AND TECHNICAL DUE DILIGENCE | VERSION 2.0.0
+# KopyKat technical architecture and readiness dossier
 
----
+Document status: engineering reference
+Application version: 2.0.0
 
-## 1. Executive Summary & Investment Thesis
+This dossier is suitable for technical review of the repository. It is not a
+financial forecast, valuation, customer reference, security certification, or
+claim that the application is ready for an unreviewed production launch. The
+repository currently makes no live customer or revenue claim.
 
-KopyKat is an autonomous e-commerce syndication, content generation, and revenue operations platform. It bridges the critical gap between high-volume product catalogs and multi-marketplace conversion.
+## 1. Product scope
 
-### 1.1 Core Valuation Drivers & Moats
-- **Multi-Modal E-Commerce Syndication Engine**: Automatically converts raw product photos and basic titles into five distinct, platform-compliant schemas (Amazon, Shopify, Etsy, TikTok Shop, eBay) in under 30 seconds.
-- **Autonomous Connector Engine with SSRF Protection**: Non-blocking asynchronous HTTP client with pre-flight DNS filtering, link-local / loopback blocking, and cryptographic webhook deduplication `(platform, event_id)`.
-- **Growth & Marketing Automation**: Built-in automated SEO blog engine, customer review sentiment classifier, Reddit opportunity scout, and post-purchase email sequence generator.
-- **High-Margin Unit Economics**: 94.2% gross margin on AI token operations with dual-bucket quota accounting (monthly recurring quota + purchased add-on credits).
-- **Institutional Code Quality**: 404 passing automated tests, zero-emoji policy compliance, and clean migration from unmaintained dependencies to `PyJWT[crypto]>=2.9.0` and `cryptography>=44.0.1`.
+KopyKat combines:
 
----
+- AI-assisted copy and image-to-campaign generation.
+- Marketplace listing drafts and catalog workflows.
+- Encrypted integrations and connector discovery.
+- SKU inventory tracking, event processing, fanout, and reconciliation.
+- Review analysis, post-purchase drafts, SEO content, and margin analysis.
+- Stripe billing, generation packs, add-ons, and optional BYOK.
+- Scheduled internal jobs that produce drafts and operational records.
 
-## 2. Financial Metrics & Unit Economics
+The system is designed for reviewable automation. It does not silently publish
+generated marketing content to third-party communities.
 
-| Metric | Current Value | Benchmark Context |
-|:---|:---|:---|
-| **Monthly Recurring Revenue (MRR)** | **$3,450.00** | +18.5% MoM net growth |
-| **Annualized Run Rate (ARR)** | **$41,400.00** | High recurring predictability |
-| **Active Paid Customers** | **42 Merchants** | Distributed across Boutique, Standard, Megastore |
-| **Average Revenue Per User (ARPU)** | **$82.14 / mo** | Supported by recurring Add-On subscriptions |
-| **Customer Lifetime Value (LTV)** | **$1,850.00** | High retention due to multi-store lock-in |
-| **Customer Acquisition Cost (CAC)** | **$42.00** | Driven primarily by organic SEO and viral tool loops |
-| **LTV / CAC Ratio** | **44.0x** | Exceptional capital efficiency |
-| **Net Revenue Retention (NRR)** | **118.4%** | Positive expansion revenue via Add-Ons |
-| **Gross Margin on Generation** | **94.2%** | Minimal compute overhead per campaign |
+## 2. Architecture
 
----
-
-## 3. Comprehensive System Architecture
-
-```
-+-----------------------------------------------------------------------------------------------+
-|                                    KOPYKAT ARCHITECTURE TOPOLOGY                              |
-|                                                                                               |
-|  [Merchant Admin / API]  --->  [HTTPS / TLS 1.3]  --->  [FastAPI ASGI Gateway]               |
-|                                                               |                               |
-|        +------------------------------------------------------+-----------------------+       |
-|        |                                                      |                       |       |
-|        v                                                      v                       v       |
-|  [Auth & Tenant Guard]                                  [SlowAPI Limiter]       [SSRF Shield] |
-|  - PyJWT Bearer Auth                                    - Leaky Bucket Token    - DNS Pre-Res |
-|  - SHA-256 Key Hashes                                   - IP Tier Throttling    - Safe Async  |
-|                                                                                               |
-|        +------------------------------------------------------------------------------+       |
-|        |                                CORE PIPELINES                                |       |
-|        v                                                      v                       v       |
-|  [Multi-Modal Vision Engine]                            [Connector Engine]      [Growth Engine]
-|  - Amazon (5 Bullets, Terms)                            - Shopify / Amazon      - SEO Blog Gen|
-|  - Shopify (HTML, Meta)                                 - TikTok / Etsy / eBay  - Review Miner|
-|  - Etsy (13 Search Tags)                                - Webhook Deduplication - Reddit Scout|
-|  - TikTok Shop (30s Hooks)                              - Row-Level Locking     - Drip Emails |
-|  - eBay (80-Char Limits)                                - Drift Reconciliation  - Margin Guard|
-|                                                                                               |
-|        +------------------------------------------------------------------------------+       |
-|        |                               DATA PERSISTENCE                               |       |
-|        v                                                                              v       |
-|  [PostgreSQL / SQLite Database Engine]                              [Fernet Credential Vault] |
-|  - Isolated Multi-Tenant Relational Tables                          - Encrypted API Keys      |
-+-----------------------------------------------------------------------------------------------+
+```text
+              Browser clients and API consumers
+                              |
+                              v
+                      FastAPI application
+     auth | validation | rate limits | security headers | health
+                              |
+       +----------------------+----------------------+
+       |                      |                      |
+       v                      v                      v
+   AI and campaign       Connector and          Billing and
+   generation            catalog services       growth services
+       |                      |                      |
+       +----------------------+----------------------+
+                              |
+                              v
+                 SQLAlchemy transaction boundary
+                              |
+              +---------------+----------------+
+              |                                |
+              v                                v
+        PostgreSQL in                    SQLite for
+        strict environments              local/test use
 ```
 
----
+The default runtime starts one web worker because APScheduler belongs to the
+application process. A scaled deployment must define job ownership before
+adding workers or instances.
 
-## 4. Proprietary Intellectual Property & Assets
+## 3. Security and isolation
 
-1. **Deterministic Fallback Schemas**: High-reliability templating and JSON extraction algorithms that prevent downstream pipeline failure even during AI provider outages.
-2. **SafeAsyncHTTPClient Network Shield**: Zero-trust outbound request validator preventing server-side request forgery, DNS rebinding attacks, and payload exhaustion.
-3. **Dual-Bucket Quota Ledger**: Transaction-isolated financial accounting preventing race conditions, balance underflows, and phantom consumption.
-4. **Zero-Emoji Clean Code Policy**: Continuous integration enforcement ensuring strictly professional output formats across all channels.
+The current application includes:
 
----
+- Fail-closed production and staging checks for secrets, database type, and
+  HTTPS base URL.
+- JWT authentication with authentication-version invalidation.
+- Bcrypt password hashing with bounded password inputs.
+- One-time API-key display and SHA-256 key storage.
+- Fernet encryption for marketplace credentials and BYOK keys.
+- User-scoped database queries for tenant-owned records.
+- Trusted-host, CORS, proxy, request-size, request-ID, and security-header
+  controls.
+- SSRF protections for connector discovery and outbound provider requests.
+- Bounded response reads and redirect controls.
+- Sanitization of generated HTML and safe frontend rendering.
+- Idempotency ledgers for Stripe and inventory events.
 
-## 5. Technical Due Diligence Checklist
+These controls are application-level defenses. A production review must also
+cover the host, database, secret manager, network, identity provider, logs,
+backups, and provider accounts.
 
-- [x] **Repository Cleanliness**: 0 syntax errors (`flake8 server --count --select=E9,F63,F7,F82`).
-- [x] **Test Coverage**: 404 / 404 tests passing across unit, boundary, multi-channel enterprise, and Tier 5 adversarial stress tests.
-- [x] **Vulnerability Remediation**: All 23 Dependabot security alerts patched and closed.
-- [x] **Database Migration & Concurrency**: Pessimistic row locking with unique compound webhook constraints.
-- [x] **Frontend Architecture**: Dual distribution featuring lightweight semantic HTML5/CSS3 client and modern React 18 / TypeScript SPA.
-- [x] **OpenAPI Specification**: Interactive Swagger docs available at `/api/docs` and `/api/openapi.json`.
+## 4. Provider and integration boundaries
+
+The code contains adapters for Amazon, Shopify, Etsy, TikTok Shop, eBay,
+Walmart, Temu, WooCommerce, WordPress, Mailchimp, HubSpot, and Webflow. The
+available operations and test depth vary by adapter. Each enabled provider
+requires a non-production integration test using scoped credentials.
+
+The AI layer supports OpenAI and Google Gen AI. OpenAI is configured with
+OPENAI_API_KEY, OPENAI_MODEL, and AI_PROVIDER. Gemini uses GEMINI_API_KEY and
+GEMINI_MODEL. Provider calls are not made during the repository test
+environment.
+
+## 5. Billing and data ownership
+
+The plan registry in server/billing.py defines application-side plans,
+generation limits, packs, add-ons, and entitlements. Stripe remains the
+payment-system source of truth and must be configured with matching price IDs
+and webhook signing secrets.
+
+The repository does not assert current MRR, ARR, customers, margins,
+valuation, or conversion rates. Administrative metrics are calculated from
+records present in the running database.
+
+## 6. Readiness checklist
+
+| Control | Repository evidence | Deployment evidence still required |
+| --- | --- | --- |
+| Authentication and tenant scoping | Tests and route dependencies | Penetration test and identity policy |
+| Secret handling | Strict config and encrypted credentials | Secret manager, rotation, access review |
+| Database | SQLAlchemy models and startup checks | Managed service, backups, restore drill |
+| Outbound network safety | URL validation and bounded clients | Egress policy and provider allowlist |
+| Billing | Signed and deduplicated webhooks | Stripe test/live verification |
+| AI providers | Shared adapters and fallback paths | Account limits, model approval, cost controls |
+| Scheduled jobs | UTC schedules and single-worker default | Job ownership, alerting, retry policy |
+| Frontend | Safe rendering tests and production build | Browser, accessibility, and device review |
+| Monitoring | Optional Sentry and structured logs | Alert routing and incident ownership |
+
+## 7. Recommended diligence package
+
+For a release or transaction review, collect:
+
+1. The commit identifier and dependency lockfiles.
+2. Current test, build, and dependency-audit output.
+3. A data-flow map showing secrets, customer content, and provider payloads.
+4. Database schema, migration, backup, and restore evidence.
+5. Provider contracts, account scopes, and integration-test records.
+6. Incident, support, data deletion, and key-rotation procedures.
+7. Measured workload results from the target hosting environment.
+
+No performance or service-level target is implied until those measurements and
+operational controls are documented.

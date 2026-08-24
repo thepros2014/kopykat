@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import OverviewDashboard from './components/OverviewDashboard';
 import OmniCampaignStudio from './components/OmniCampaignStudio';
 import MarketplaceConnectors from './components/MarketplaceConnectors';
@@ -9,12 +9,12 @@ export type NavigationTab = 'overview' | 'campaigns' | 'connectors' | 'analytics
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
-  const [userProfile, setUserProfile] = useState({
-    name: 'Merchant Partner',
-    plan: 'Standard Brand',
-    campaignsRemaining: 842,
-    monthlyLimit: 1000,
-  });
+  const userProfile = {
+    name: 'Merchant',
+    plan: 'No active plan',
+    campaignsRemaining: 0,
+    monthlyLimit: 0,
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#09090b', color: '#f4f4f7' }}>
@@ -108,7 +108,7 @@ export const App: React.FC = () => {
               borderLeft: activeTab === 'admin-mrr' ? '3px solid #7c3aed' : '3px solid transparent'
             }}
           >
-            Institutional MRR Telemetry
+            Verified Platform Metrics
           </button>
         </nav>
 

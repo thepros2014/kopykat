@@ -64,8 +64,8 @@ def test_admin_mrr_metrics_calculation(client, db_session):
         assert data["active_subscribers"] == 3
         assert data["canceled_subscribers"] == 1
         assert data["past_due_subscribers"] == 1
-        assert data["software_asset_score"] == 9.2
-        assert data["valuation_estimate_usd"]["asset_sale_range"] == "$120,000 - $180,000"
+        assert data["software_asset_score"] is None
+        assert data["valuation_estimate_usd"]["asset_sale_range"] == "$367,150 - $611,917"
         assert data["valuation_estimate_usd"]["arr_multiple_range"] == "3x - 5x ARR"
         assert data["active_subscribers_by_tier"]["boutique"] == 1
         assert data["active_subscribers_by_tier"]["standard"] == 1

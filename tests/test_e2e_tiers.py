@@ -1217,7 +1217,7 @@ def test_tier1_f14_admin_mrr_metrics_with_valid_secret(client, db_session, test_
         assert "mrr_usd" in data
         assert "arr_usd" in data
         assert data["arr_usd"] == round(data["mrr_usd"] * 12.0, 2)
-        assert data["software_asset_score"] == 9.2
+        assert data["software_asset_score"] is None
 
 
 def test_tier1_f14_admin_mrr_metrics_unauthorized_without_secret(client):

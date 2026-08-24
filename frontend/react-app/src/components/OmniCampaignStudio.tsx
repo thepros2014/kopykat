@@ -1,55 +1,134 @@
 import React, { useState } from 'react';
 
+type Channel = 'amazon' | 'shopify' | 'etsy' | 'tiktok' | 'ebay';
+
+interface CampaignAssets {
+  blog_post?: { title?: string; content?: string };
+  email_drip?: Array<{ subject?: string; body?: string }>;
+  social_posts?: string[];
+}
+
+const channels: Channel[] = ['amazon', 'shopify', 'etsy', 'tiktok', 'ebay'];
+
+function plainText(value: string | undefined): string {
+  if (!value) return '';
+  const parsed = new DOMParser().parseFromString(value, 'text/html');
+  return parsed.body.textContent?.trim() || '';
+}
+
+async function readError(response: Response): Promise<string> {
+  try {
+    const payload = await response.json();
+    const detail = Array.isArray(payload.detail) ? payload.detail[0]?.msg : payload.detail;
+    return detail || 'Campaign generation failed.';
+  } catch {
+    return 'Campaign generation failed.';
+  }
+}
+
 export const OmniCampaignStudio: React.FC = () => {
   const [productName, setProductName] = useState('');
+  const [productContext, setProductContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState<'amazon' | 'shopify' | 'etsy' | 'tiktok' | 'ebay'>('amazon');
+  const [selectedChannel, setSelectedChannel] = useState<Channel>('amazon');
+  const [campaign, setCampaign] = useState<CampaignAssets | null>(null);
+  const [error, setError] = useState('');
+
+  const generateCampaign = async () => {
+    const keyword = productName.trim();
+    const productDesc = productContext.trim();
+    if (!keyword || !productDesc) {
+      setError('Enter a product name and product context before generating.');
+      return;
+    }
+
+    const token = localStorage.getItem('sc_token');
+    if (!token) {
+      setError('Sign in before generating a campaign.');
+      return;
+    }
+
+    setIsGenerating(true);
+    setError('');
+    setCampaign(null);
+    try {
+      const response = await fetch('/api/campaign/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+        },
+        body: JSON.stringify({ keyword, product_desc: productDesc }),
+      });
+      if (!response.ok) throw new Error(await readError(response));
+      const payload = await response.json();
+      setCampaign(payload.assets || null);
+      if (!payload.assets) setError('The API returned no campaign assets.');
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Campaign generation failed.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const blogTitle = campaign?.blog_post?.title || 'No blog asset returned';
+  const blogContent = plainText(campaign?.blog_post?.content);
+  const emails = campaign?.email_drip || [];
+  const socialPosts = campaign?.social_posts || [];
 
   return (
     <div>
       <div style={{ marginBottom: '32px' }}>
         <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 8px 0' }}>Multi-Modal Omni-Campaign Studio</h1>
         <p style={{ color: '#9494a6', margin: 0, fontSize: '15px' }}>
-          Generate platform-compliant, structured copy for all 5 e-commerce channels simultaneously.
+          Generate reviewable campaign assets from the production API. Nothing is published automatically.
         </p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '30px' }}>
-        {/* Input Panel */}
         <div style={{ background: '#121217', border: '1px solid #272730', borderRadius: '12px', padding: '24px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px' }}>Product Input Details</h3>
-          
-          <label style={{ display: 'block', fontSize: '13px', color: '#9494a6', marginBottom: '6px' }}>Product Name or Title</label>
+          <label style={{ display: 'block', fontSize: '13px', color: '#9494a6', marginBottom: '6px' }} htmlFor="react-product-name">
+            Product Name or Title
+          </label>
           <input
+            id="react-product-name"
             type="text"
             value={productName}
-            onChange={(e) => setProductName(e.target.value)}
+            onChange={(event) => setProductName(event.target.value)}
             placeholder="e.g. Stainless Steel Insulated Travel Tumbler"
             style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid #272730', borderRadius: '8px', color: '#fff', marginBottom: '16px' }}
           />
 
-          <label style={{ display: 'block', fontSize: '13px', color: '#9494a6', marginBottom: '6px' }}>Target Audience & Selling Angle</label>
+          <label style={{ display: 'block', fontSize: '13px', color: '#9494a6', marginBottom: '6px' }} htmlFor="react-product-context">
+            Product Context and Selling Angle
+          </label>
           <textarea
-            placeholder="e.g. Busy commuters who need 24-hour temperature retention with leak-proof lid."
-            rows={4}
+            id="react-product-context"
+            value={productContext}
+            onChange={(event) => setProductContext(event.target.value)}
+            placeholder="Describe verified features, audience, and positioning."
+            rows={5}
             style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid #272730', borderRadius: '8px', color: '#fff', marginBottom: '20px' }}
           />
 
           <button
-            onClick={() => setIsGenerating(true)}
-            style={{ width: '100%', background: 'linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)', color: '#fff', border: 'none', borderRadius: '8px', padding: '14px', fontWeight: 700, cursor: 'pointer' }}
+            onClick={generateCampaign}
+            disabled={isGenerating}
+            style={{ width: '100%', background: isGenerating ? '#4c1d95' : 'linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)', color: '#fff', border: 'none', borderRadius: '8px', padding: '14px', fontWeight: 700, cursor: isGenerating ? 'wait' : 'pointer' }}
           >
-            {isGenerating ? 'Generating 5 Channel Schemas...' : 'Generate 5-Channel Campaign'}
+            {isGenerating ? 'Generating from API...' : 'Generate Reviewable Campaign'}
           </button>
+          {error && <p role="alert" style={{ color: '#fca5a5', fontSize: '13px', marginTop: '14px' }}>{error}</p>}
         </div>
 
-        {/* Channel Preview Panel */}
         <div style={{ background: '#121217', border: '1px solid #272730', borderRadius: '12px', padding: '24px' }}>
-          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #272730', paddingBottom: '12px', marginBottom: '16px' }}>
-            {(['amazon', 'shopify', 'etsy', 'tiktok', 'ebay'] as const).map((channel) => (
+          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #272730', paddingBottom: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            {channels.map((channel) => (
               <button
                 key={channel}
                 onClick={() => setSelectedChannel(channel)}
+                aria-pressed={selectedChannel === channel}
                 style={{
                   padding: '6px 14px',
                   borderRadius: '6px',
@@ -59,7 +138,7 @@ export const OmniCampaignStudio: React.FC = () => {
                   cursor: 'pointer',
                   textTransform: 'capitalize',
                   background: selectedChannel === channel ? '#7c3aed' : 'rgba(255,255,255,0.05)',
-                  color: selectedChannel === channel ? '#fff' : '#9494a6'
+                  color: selectedChannel === channel ? '#fff' : '#9494a6',
                 }}
               >
                 {channel}
@@ -67,65 +146,45 @@ export const OmniCampaignStudio: React.FC = () => {
             ))}
           </div>
 
-          {selectedChannel === 'amazon' && (
-            <div>
-              <div style={{ fontSize: '13px', color: '#38bdf8', fontWeight: 700, marginBottom: '6px' }}>[Amazon Listing Format]</div>
-              <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>
-                Premium Insulated Stainless Steel Tumbler 32oz - 24Hr Cold Retention with Leak-Proof Straw Lid
-              </div>
-              <ul style={{ fontSize: '13px', color: '#9494a6', lineHeight: 1.6, paddingLeft: '20px' }}>
-                <li>24-HOUR VACUUM INSULATION: Keeps beverages ice cold all day.</li>
-                <li>100% LEAK-PROOF SPILL RESISTANT: Engineered seal for commute & travel.</li>
-                <li>DURABLE 18/8 FOOD GRADE STEEL: Zero metallic taste, BPA-free.</li>
-                <li>CUPHOLDER FRIENDLY DESIGN: Fits standard vehicle holders easily.</li>
-                <li>EASY CLEAN & DISHWASHER SAFE: Detachable lid with bonus straw brush.</li>
-              </ul>
-            </div>
-          )}
-
-          {selectedChannel === 'shopify' && (
-            <div>
-              <div style={{ fontSize: '13px', color: '#10b981', fontWeight: 700, marginBottom: '6px' }}>[Shopify Brand Story & HTML]</div>
-              <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>The Ultimate All-Day Travel Tumbler (32 oz)</div>
-              <p style={{ fontSize: '13px', color: '#9494a6', lineHeight: 1.6 }}>
-                Meet the tumbler engineered for morning commutes, weekend trail adventures, and all-day desk hydration.
-                Built with triple-walled insulation, it locks in icy freshness for 24+ hours.
+          {!campaign ? (
+            <div style={{ border: '1px dashed #4c1d95', borderRadius: '8px', padding: '24px', color: '#9494a6', lineHeight: 1.6 }}>
+              <strong style={{ color: '#fff' }}>No preview generated.</strong>
+              <p style={{ margin: '8px 0 0' }}>
+                Enter source details and generate from the API. The selected {selectedChannel} tab is a review context only until a marketplace-specific adapter returns data.
               </p>
             </div>
-          )}
-
-          {selectedChannel === 'etsy' && (
+          ) : (
             <div>
-              <div style={{ fontSize: '13px', color: '#f59e0b', fontWeight: 700, marginBottom: '6px' }}>[Etsy Artisan Schema & 13 Tags]</div>
-              <p style={{ fontSize: '13px', color: '#9494a6', lineHeight: 1.6 }}>
-                Hand-finished laser engraved stainless steel water bottle. Eco-friendly, reusable, perfect wedding party or holiday gift.
+              <div style={{ fontSize: '13px', color: '#38bdf8', fontWeight: 700, marginBottom: '6px' }}>
+                Generated source assets for {selectedChannel}
+              </div>
+              <h3 style={{ fontSize: '17px', margin: '0 0 12px' }}>{blogTitle}</h3>
+              <p style={{ fontSize: '13px', color: '#c4c4d0', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {blogContent || 'No blog content returned.'}
               </p>
-              <div style={{ fontSize: '12px', color: '#a78bfa', marginTop: '10px' }}>
-                <strong>13 Search Tags:</strong> travel tumbler, insulated mug, gift for commuter, reusable cup, engraved flask, 32oz bottle, coffee tumbler, metal flask, cold drink holder, gym bottle, iced coffee cup, teacher gift, custom flask.
-              </div>
-            </div>
-          )}
 
-          {selectedChannel === 'tiktok' && (
-            <div>
-              <div style={{ fontSize: '13px', color: '#ec4899', fontWeight: 700, marginBottom: '6px' }}>[TikTok Shop 30-Second Viral Script]</div>
-              <p style={{ fontSize: '13px', color: '#9494a6', lineHeight: 1.6 }}>
-                <strong>Hook (0-3s):</strong> "Stop throwing your money away on ice coffee that melts in 20 minutes!"<br/>
-                <strong>Visual Demo (3-15s):</strong> Pour hot coffee into cup, flip upside down over white shirt with zero drips.<br/>
-                <strong>Call to Action (15-30s):</strong> "Click the orange basket below before the 40% flash deal ends."
-              </p>
-            </div>
-          )}
+              {emails.length > 0 && (
+                <div style={{ borderTop: '1px solid #272730', marginTop: '20px', paddingTop: '16px' }}>
+                  <h4 style={{ margin: '0 0 10px', fontSize: '14px' }}>Email assets</h4>
+                  {emails.slice(0, 5).map((email, index) => (
+                    <div key={(email.subject || 'email') + '-' + index} style={{ marginBottom: '12px', color: '#9494a6', fontSize: '13px' }}>
+                      <strong style={{ color: '#fff' }}>{email.subject || 'Email ' + (index + 1)}</strong>
+                      <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{plainText(email.body)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-          {selectedChannel === 'ebay' && (
-            <div>
-              <div style={{ fontSize: '13px', color: '#a855f7', fontWeight: 700, marginBottom: '6px' }}>[eBay 80-Char Strict Title & Item Specifics]</div>
-              <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
-                Insulated Stainless Steel Travel Tumbler 32oz Leakproof Lid Hot Cold Mug
-              </div>
-              <div style={{ fontSize: '12px', color: '#9494a6', lineHeight: 1.6 }}>
-                Capacity: 32 oz | Material: 18/8 Stainless Steel | Features: Double Wall, Leak Proof | Type: Travel Mug
-              </div>
+              {socialPosts.length > 0 && (
+                <div style={{ borderTop: '1px solid #272730', marginTop: '20px', paddingTop: '16px' }}>
+                  <h4 style={{ margin: '0 0 10px', fontSize: '14px' }}>Social assets</h4>
+                  {socialPosts.slice(0, 5).map((post, index) => (
+                    <p key={post + '-' + index} style={{ color: '#9494a6', fontSize: '13px', lineHeight: 1.5, margin: '0 0 8px' }}>
+                      {post}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

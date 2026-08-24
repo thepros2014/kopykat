@@ -54,7 +54,7 @@ jobs:
       - name: Install Security Tools
         run: |
           python -m pip install --upgrade pip
-          pip install bandit safety
+          pip install bandit pip-audit
 
       - name: Zero-Emoji Invariant Verification
         run: |
@@ -62,7 +62,11 @@ jobs:
 
       - name: Bandit Security AST Analysis
         run: |
-          bandit -r server/ -ll -ii --exclude server/tests,server/__pycache__ || true
+          bandit -r server/ -ll -ii --exclude server/tests,server/__pycache__
+
+      - name: Dependency Vulnerability Audit
+        run: |
+          pip-audit -r requirements.txt
 
   test-suite:
     name: Automated Pytest Matrix & Coverage
@@ -96,3 +100,29 @@ jobs:
       - name: Verify 100% Test Pass Rate
         run: |
           echo "All automated test gates passed successfully."
+
+  frontend-build:
+    name: Frontend Typecheck & Production Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/react-app/package-lock.json
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend/react-app
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Frontend Dependency Audit
+        working-directory: frontend/react-app
+        run: npm audit --audit-level=high
+
+      - name: Build Frontend
+        working-directory: frontend/react-app
+        run: npm run build

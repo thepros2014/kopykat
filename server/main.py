@@ -6,6 +6,9 @@ All routes, startup/shutdown lifecycle, and static file serving.
 import os
 import uuid
 import logging
+import hmac
+import re
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -13,8 +16,8 @@ import threading
 
 import bleach
 import stripe
-from fastapi import (FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, status, File, UploadFile)
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi import (FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, File, UploadFile)
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -41,28 +44,126 @@ from .models import (
     GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest,
     CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse, PublicMetricsSummary
 )
-from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey
+from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey, normalize_email
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
 from .marketing import generate_seo_post
+from .config import ADMIN_SECRET, ENVIRONMENT, PUBLIC_BASE_URL, STRICT_CONFIG, TESTING, env_float, env_int, env_list
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
 APP_VERSION = "2.0.0"
 BASE_DIR = Path(__file__).parent.parent
-ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
-limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("ENVIRONMENT") != "testing")
+limiter = Limiter(key_func=get_remote_address, enabled=not TESTING)
 import sentry_sdk
 if os.environ.get("SENTRY_DSN"):
-    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], traces_sample_rate=1.0, profiles_sample_rate=1.0)
-app = FastAPI(title="KopyKat", description="Instant AI-powered marketing copy. Automated. Always on.", version=APP_VERSION, docs_url="/api/docs", redoc_url="/api/redoc")
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        traces_sample_rate=env_float("SENTRY_TRACES_SAMPLE_RATE", 0.1),
+        profiles_sample_rate=env_float("SENTRY_PROFILES_SAMPLE_RATE", 0.0),
+    )
+
+ALLOWED_ORIGINS = env_list("ALLOWED_ORIGINS", ["https://kopykat.onrender.com"])
+ALLOWED_HOSTS = env_list(
+    "ALLOWED_HOSTS",
+    ["kopykat.onrender.com", "localhost", "127.0.0.1", "testserver"],
+)
+TRUSTED_PROXIES = env_list("TRUSTED_PROXIES", ["127.0.0.1"])
+ENABLE_API_DOCS = os.getenv("ENABLE_API_DOCS", "").strip().lower() in {"1", "true", "yes", "on"}
+DOCS_URL = "/api/docs" if not STRICT_CONFIG or ENABLE_API_DOCS else None
+REDOC_URL = "/api/redoc" if not STRICT_CONFIG or ENABLE_API_DOCS else None
+MAX_REQUEST_BYTES = env_int(
+    "MAX_REQUEST_BYTES",
+    20 * 1024 * 1024,
+    minimum=1 * 1024 * 1024,
+    maximum=50 * 1024 * 1024,
+)
+
+
+async def _start_scheduler() -> None:
+    """Start optional automation jobs and fail closed in strict environments."""
+
+    global scheduler_instance
+    try:
+        from .scheduler import create_scheduler
+
+        scheduler_instance = create_scheduler()
+        scheduler_instance.start()
+        logger.info("APScheduler background automations started successfully")
+    except Exception:
+        if STRICT_CONFIG:
+            raise
+        logger.exception("APScheduler startup note")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global scheduler_instance
+    logger.info("KopyKat starting up (environment=%s)", ENVIRONMENT)
+    init_db()
+    logger.info("Database initialized")
+    await _start_scheduler()
+    logger.info("KopyKat v%s is live", APP_VERSION)
+    try:
+        yield
+    finally:
+        if scheduler_instance:
+            try:
+                scheduler_instance.shutdown(wait=False)
+            except Exception:
+                logger.exception("Scheduler shutdown failed")
+            scheduler_instance = None
+        logger.info("KopyKat shut down gracefully")
+
+
+app = FastAPI(
+    title="KopyKat",
+    description="Instant AI-powered marketing copy. Automated. Always on.",
+    version=APP_VERSION,
+    docs_url=DOCS_URL,
+    redoc_url=REDOC_URL,
+    lifespan=lifespan,
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "https://kopykat.onrender.com").split(",") if o.strip()]
-app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "DELETE", "OPTIONS"], allow_headers=["Authorization", "Content-Type", "X-Admin-Secret"])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials="*" not in ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Accept", "Authorization", "Content-Type", "X-Admin-Secret", "X-Event-ID"],
+)
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-trusted_proxies = [p.strip() for p in os.getenv("TRUSTED_PROXIES", "127.0.0.1,localhost").split(",") if p.strip()]
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted_proxies)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=TRUSTED_PROXIES)
+
+
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+@app.middleware("http")
+async def reject_oversized_requests(request: Request, call_next):
+    """Reject oversized requests before multipart/JSON parsing allocates memory."""
+
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError:
+            return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header"})
+        if declared_length < 0 or declared_length > MAX_REQUEST_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "Request body exceeds the configured limit"})
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    supplied = request.headers.get("X-Request-ID", "")
+    request_id = supplied if _REQUEST_ID_RE.fullmatch(supplied) else uuid.uuid4().hex
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -73,15 +174,21 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
-        "connect-src 'self' https://api.stripe.com;"
+        "connect-src 'self' https://api.stripe.com; "
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
     )
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    if STRICT_CONFIG:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if request.url.path.startswith(("/static/", "/api.js", "/sw.js", "/manifest.json")):
+        response.headers["Cache-Control"] = "public, max-age=3600"
+    else:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
 
 _ALLOWED_TAGS = ["p", "h2", "h3", "h4", "ul", "ol", "li", "strong", "em", "b", "i", "a", "br", "blockquote"]
@@ -89,32 +196,62 @@ _ALLOWED_ATTRS = {"a": ["href", "title", "rel"]}
 def sanitize_html(raw: str) -> str:
     return bleach.clean(raw, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True, strip_comments=True)
 
+
+def _clean_text(raw: object, max_length: int = 4_000) -> str:
+    """Return bounded plain text for data that may be rendered or forwarded."""
+
+    return bleach.clean(str(raw or ""), tags=[], attributes={}, strip=True, strip_comments=True)[:max_length].strip()
+
+
+def _sanitize_campaign_assets(raw_assets: object) -> dict:
+    """Keep AI output bounded and safe before persisting or returning it."""
+
+    if not isinstance(raw_assets, dict):
+        return {}
+
+    cleaned: dict = {}
+    for key in ("detected_product_name", "detected_description"):
+        if key in raw_assets:
+            cleaned[key] = _clean_text(raw_assets[key])
+
+    blog = raw_assets.get("blog_post")
+    if isinstance(blog, dict):
+        cleaned["blog_post"] = {
+            "title": _clean_text(blog.get("title"), 255),
+            "content": sanitize_html(str(blog.get("content") or ""))[:50_000],
+        }
+
+    emails = raw_assets.get("email_drip")
+    if isinstance(emails, list):
+        cleaned_emails = []
+        for email in emails[:20]:
+            if not isinstance(email, dict):
+                continue
+            cleaned_emails.append({
+                "step": email.get("step"),
+                "day": email.get("day"),
+                "goal": _clean_text(email.get("goal"), 500),
+                "subject": _clean_text(email.get("subject"), 255),
+                "body": sanitize_html(str(email.get("body") or ""))[:20_000],
+            })
+        cleaned["email_drip"] = cleaned_emails
+
+    social_posts = raw_assets.get("social_posts")
+    if isinstance(social_posts, list):
+        cleaned["social_posts"] = [_clean_text(post, 2_000) for post in social_posts[:50]]
+
+    return cleaned
+
+
+def _is_valid_admin_secret(candidate: Optional[str]) -> bool:
+    """Compare admin credentials without leaking timing information."""
+
+    configured = ADMIN_SECRET.strip()
+    supplied = candidate or ""
+    return bool(configured) and hmac.compare_digest(supplied, configured)
+
+
 scheduler_instance = None
-
-@app.on_event("startup")
-async def startup():
-    global scheduler_instance
-    logger.info("KopyKat starting up")
-    init_db()
-    logger.info("Database initialized")
-    try:
-        from .scheduler import create_scheduler
-        scheduler_instance = create_scheduler()
-        scheduler_instance.start()
-        logger.info("APScheduler background automations started successfully")
-    except Exception as e:
-        logger.warning("APScheduler startup note: %s", e)
-    logger.info("KopyKat v%s is live", APP_VERSION)
-
-@app.on_event("shutdown")
-async def shutdown():
-    global scheduler_instance
-    if scheduler_instance:
-        try:
-            scheduler_instance.shutdown()
-        except Exception:
-            pass
-    logger.info("KopyKat shut down gracefully")
 
 frontend_dir = BASE_DIR / "frontend"
 if (frontend_dir / "static").exists():
@@ -124,6 +261,12 @@ if (frontend_dir / "static").exists():
 async def landing_page():
     index = frontend_dir / "index.html"
     return HTMLResponse(index.read_text(encoding="utf-8")) if index.exists() else HTMLResponse("<h1>KopyKat — Loading...</h1>")
+
+@app.head("/", include_in_schema=False)
+async def landing_head():
+    """Return a lightweight success response for platform HEAD probes."""
+
+    return Response(status_code=200)
 
 @app.get("/manifest.json", include_in_schema=False)
 async def get_manifest():
@@ -145,10 +288,9 @@ async def dashboard_page():
     dash = frontend_dir / "dashboard.html"
     return HTMLResponse(dash.read_text(encoding="utf-8")) if dash.exists() else HTMLResponse("<h1>Dashboard — Loading...</h1>")
 
-@app.get("/admin/trigger-seo", include_in_schema=False)
+@app.post("/admin/trigger-seo", include_in_schema=False)
 async def trigger_seo(background_tasks: BackgroundTasks, x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret")):
-    current_admin_secret = ADMIN_SECRET or os.getenv("ADMIN_SECRET")
-    if not current_admin_secret or x_admin_secret != current_admin_secret:
+    if not _is_valid_admin_secret(x_admin_secret):
         raise HTTPException(status_code=401, detail="Unauthorized")
     background_tasks.add_task(generate_seo_post)
     return {"status": "ok", "message": "SEO blog generation started in background."}
@@ -187,7 +329,7 @@ Sitemap: https://kopykat.onrender.com/sitemap.xml
 
 @app.get("/sitemap.xml", response_class=HTMLResponse, include_in_schema=False)
 async def get_sitemap_xml(db: Session = Depends(get_db)):
-    base = os.getenv("BASE_URL", "https://kopykat.onrender.com").rstrip("/")
+    base = PUBLIC_BASE_URL
     posts = db.query(BlogPost).filter(BlogPost.published == True).order_by(BlogPost.created_at.desc()).all()
     
     xml_entries = [
@@ -222,6 +364,26 @@ async def get_sitemap_xml(db: Session = Depends(get_db)):
 async def health_check():
     return HealthResponse(status="ok", version=APP_VERSION, timestamp=datetime.utcnow())
 
+@app.head("/health", include_in_schema=False)
+async def health_head():
+    return Response(status_code=200)
+
+
+@app.get("/ready", response_model=HealthResponse, tags=["System"])
+async def readiness_check(db: Session = Depends(get_db)):
+    """Readiness probe that confirms the configured database is reachable."""
+
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        logger.exception("Readiness check failed", extra={"request_id": None})
+        raise HTTPException(status_code=503, detail="Service is not ready") from None
+    return HealthResponse(status="ready", version=APP_VERSION, timestamp=datetime.utcnow())
+
+@app.head("/ready", include_in_schema=False)
+async def readiness_head():
+    return Response(status_code=200)
+
 @app.get("/api/plans", tags=["Billing"])
 async def list_plans():
     return {
@@ -229,18 +391,118 @@ async def list_plans():
         "one_time_generations": {k: {"name": v["name"], "price_usd": v["price_usd"], "generations": v["generations"]} for k, v in ONE_TIME_GENERATIONS.items()}
     }
 
+
+def _calculate_mrr_metrics(db: Session) -> dict:
+    """Calculate recurring revenue from persisted billing state only.
+
+    Stripe subscription rows are the source of truth when present. The user
+    plan is used only as a compatibility fallback for legacy records that
+    predate subscription persistence. Active users are counted once even if a
+    webhook replay or historical migration left duplicate active rows.
+    """
+
+    from .database import Subscription, RevenueRecord
+    from sqlalchemy import func
+
+    tier_names = ("boutique", "standard", "megastore")
+    tier_prices = {name: float(PLANS[name]["price_usd"]) for name in tier_names}
+    tier_counts = {name: 0 for name in tier_names}
+
+    active_user_ids: set[str] = set()
+    for subscription in db.query(Subscription).filter(
+        Subscription.status == "active",
+        Subscription.plan.in_(tier_names),
+    ).all():
+        if subscription.user_id in active_user_ids:
+            continue
+        active_user_ids.add(subscription.user_id)
+        tier_counts[subscription.plan] += 1
+
+    canceled_user_ids = {
+        subscription.user_id
+        for subscription in db.query(Subscription).filter(
+            Subscription.status == "canceled",
+            Subscription.plan.in_(tier_names),
+        ).all()
+    }
+    past_due_user_ids = {
+        subscription.user_id
+        for subscription in db.query(Subscription).filter(
+            Subscription.status == "past_due",
+            Subscription.plan.in_(tier_names),
+        ).all()
+    }
+
+    # Legacy users may have a paid plan without a Subscription row. Do not
+    # infer active revenue for users who are disabled or already represented by
+    # any subscription state.
+    represented_user_ids = {
+        subscription.user_id
+        for subscription in db.query(Subscription).filter(
+            Subscription.plan.in_(tier_names),
+        ).all()
+    }
+    for user in db.query(User).filter(
+        User.plan.in_(tier_names),
+        User.is_active == True,
+    ).all():
+        if user.id in represented_user_ids or user.id in active_user_ids:
+            continue
+        active_user_ids.add(user.id)
+        tier_counts[user.plan] += 1
+
+    mrr_usd = round(sum(tier_counts[name] * tier_prices[name] for name in tier_names), 2)
+    total_rev_cents = db.query(func.sum(RevenueRecord.amount_cents)).filter(
+        RevenueRecord.status == "succeeded",
+        func.lower(func.coalesce(RevenueRecord.currency, "usd")) == "usd",
+    ).scalar() or 0
+    total_lifetime_revenue_usd = round(total_rev_cents / 100.0, 2)
+
+    subscription_base = len(active_user_ids | canceled_user_ids)
+    churn_rate_pct = round((len(canceled_user_ids) / subscription_base * 100.0), 2) if subscription_base else 0.0
+    if mrr_usd:
+        annual_run_rate = mrr_usd * 12.0
+        valuation = {
+            "asset_sale_range": f"${annual_run_rate * 3:,.0f} - ${annual_run_rate * 5:,.0f}",
+            "arr_multiple_range": "3x - 5x ARR",
+        }
+    else:
+        valuation = {
+            "asset_sale_range": "Not available until recurring revenue exists",
+            "arr_multiple_range": "Not available",
+        }
+
+    return {
+        "mrr_usd": mrr_usd,
+        "arr_usd": round(mrr_usd * 12.0, 2),
+        "active_subscribers": len(active_user_ids),
+        "canceled_subscribers": len(canceled_user_ids),
+        "past_due_subscribers": len(past_due_user_ids),
+        "churn_rate_pct": churn_rate_pct,
+        "active_subscribers_by_tier": tier_counts,
+        "total_lifetime_revenue_usd": total_lifetime_revenue_usd,
+        "total_registered_merchants": db.query(User).count(),
+        "pricing_model": {f"{name}_usd_mo": tier_prices[name] for name in tier_names},
+        "software_asset_score": None,
+        "valuation_estimate_usd": valuation,
+    }
+
+
 @app.get("/api/metrics/summary", tags=["System"], response_model=PublicMetricsSummary)
 async def public_metrics_summary(db: Session = Depends(get_db)):
     from .database import Campaign
+    from .integrations import CONNECTOR_REGISTRY
     from sqlalchemy import func
+
     total_campaigns = db.query(func.count(Campaign.id)).scalar() or 0
-    campaign_count = max(total_campaigns, 12450)
+    mrr_metrics = _calculate_mrr_metrics(db)
+    supported_marketplaces = len({connector.platform_name for connector in CONNECTOR_REGISTRY.values()})
     return PublicMetricsSummary(
-        total_campaigns_generated=campaign_count,
-        supported_marketplaces_count=5,
-        active_subscribers_mrr_usd=3450.0,
-        estimated_seller_hours_saved=int(campaign_count * 1.5),
-        platform_uptime_pct=99.98,
+        total_campaigns_generated=total_campaigns,
+        supported_marketplaces_count=supported_marketplaces,
+        active_subscribers_mrr_usd=mrr_metrics["mrr_usd"],
+        estimated_seller_hours_saved=int(total_campaigns * 1.5),
+        platform_uptime_pct=None,
         api_version=APP_VERSION
     )
 
@@ -252,13 +514,17 @@ async def request_verification(request: Request, body: RequestVerificationReques
     import hashlib
     from datetime import timedelta
     
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(User.email == normalize_email(body.email)).first()
     if not user:
         return {"message": "If this email is registered, a verification link has been sent."}
     
     token_str = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token_str.encode()).hexdigest()
     
+    db.query(VerificationToken).filter(
+        VerificationToken.user_id == user.id,
+        VerificationToken.token_type == "email_verification",
+    ).delete(synchronize_session=False)
     vt = VerificationToken(
         token=token_hash,
         user_id=user.id,
@@ -272,7 +538,7 @@ async def request_verification(request: Request, body: RequestVerificationReques
     background_tasks.add_task(
         _send_email,
         "Verify your KopyKat email",
-        f"Click the link below to verify your email address:<br><a href='{os.getenv('APP_BASE_URL', 'https://kopykat.onrender.com')}/verify?token={token_str}'>Verify Email</a>",
+        f"Click the link below to verify your email address:<br><a href='{PUBLIC_BASE_URL}/verify?token={token_str}'>Verify Email</a>",
         user.email
     )
     return {"message": "If this email is registered, a verification link has been sent."}
@@ -309,13 +575,17 @@ async def request_password_reset(request: Request, body: RequestPasswordReset, b
     import hashlib
     from datetime import timedelta
     
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(User.email == normalize_email(body.email)).first()
     if not user:
         return {"message": "If this email is registered, a password reset link has been sent."}
     
     token_str = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token_str.encode()).hexdigest()
     
+    db.query(VerificationToken).filter(
+        VerificationToken.user_id == user.id,
+        VerificationToken.token_type == "password_reset",
+    ).delete(synchronize_session=False)
     vt = VerificationToken(
         token=token_hash,
         user_id=user.id,
@@ -329,7 +599,7 @@ async def request_password_reset(request: Request, body: RequestPasswordReset, b
     background_tasks.add_task(
         _send_email,
         "Reset your KopyKat password",
-        f"Click the link below to reset your password:<br><a href='{os.getenv('APP_BASE_URL', 'https://kopykat.onrender.com')}/reset-password?token={token_str}'>Reset Password</a>",
+        f"Click the link below to reset your password:<br><a href='{PUBLIC_BASE_URL}/reset-password?token={token_str}'>Reset Password</a>",
         user.email
     )
     return {"message": "If this email is registered, a password reset link has been sent."}
@@ -355,6 +625,10 @@ async def reset_password(request: Request, body: ResetPasswordSubmit, db: Sessio
         raise HTTPException(status_code=404, detail="User not found.")
     
     user.hashed_password = hash_password(body.new_password)
+    user.auth_version = (user.auth_version or 1) + 1
+    # A password reset is a credential-recovery event; previously issued API
+    # keys are revoked so a compromised credential cannot survive the reset.
+    db.query(APIKey).filter(APIKey.user_id == user.id, APIKey.is_active == True).update({"is_active": False})
     db.delete(vt)
     db.commit()
     return {"status": "success", "message": "Password reset successfully. You can now log in."}
@@ -365,7 +639,7 @@ async def register(request: Request, body: UserRegister, background_tasks: Backg
     user = register_user(body.email, body.password, body.full_name, db)
     from .scheduler import _send_email
     background_tasks.add_task(_send_email, "Welcome to KopyKat", f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 5 free generations.", user.email)
-    return TokenResponse(access_token=create_access_token(user.id, user.email), plan=user.plan, generations=user.generations)
+    return TokenResponse(access_token=create_access_token(user.id, user.email, user.auth_version), plan=user.plan, generations=user.generations)
 
 @app.post("/auth/login", response_model=TokenResponse, tags=["Auth"])
 @limiter.limit("10/minute")
@@ -373,7 +647,7 @@ async def login(request: Request, body: UserLogin, db: Session = Depends(get_db)
     user = authenticate_user(body.email, body.password, db)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    return TokenResponse(access_token=create_access_token(user.id, user.email), plan=user.plan, generations=user.generations)
+    return TokenResponse(access_token=create_access_token(user.id, user.email, user.auth_version), plan=user.plan, generations=user.generations)
 
 @app.get("/auth/me", response_model=UserProfile, tags=["Auth"])
 async def get_profile(current_user: User = Depends(get_current_user_jwt)):
@@ -545,86 +819,32 @@ async def get_usage(current_user: User = Depends(get_current_user_jwt), db: Sess
 
 @app.get("/admin/revenue", tags=["Admin"])
 async def admin_revenue(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
-    current_admin_secret = ADMIN_SECRET or os.getenv("ADMIN_SECRET")
-    if not current_admin_secret or x_admin_secret != current_admin_secret:
+    if not _is_valid_admin_secret(x_admin_secret):
         raise HTTPException(status_code=403, detail="Forbidden")
     return get_total_revenue(db)
 
 @app.get("/admin/mrr-metrics", tags=["Admin"], response_model=AdminMRRMetricsResponse)
 async def admin_mrr_metrics(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
-    current_admin_secret = ADMIN_SECRET or os.getenv("ADMIN_SECRET")
-    if not current_admin_secret or x_admin_secret != current_admin_secret:
+    if not _is_valid_admin_secret(x_admin_secret):
         raise HTTPException(status_code=403, detail="Forbidden")
-    
-    from .database import Subscription, RevenueRecord, User
-    from sqlalchemy import func
-    from .billing import PLANS
-    
-    active_subs = db.query(Subscription).filter(Subscription.status == "active").all()
-    canceled_subs = db.query(Subscription).filter(Subscription.status == "canceled").count()
-    past_due_subs = db.query(Subscription).filter(Subscription.status == "past_due").count()
-    
-    tier_counts = {"boutique": 0, "standard": 0, "megastore": 0}
-    tier_prices = {k: v["price_usd"] for k, v in PLANS.items() if k in tier_counts}
-    
-    mrr_usd = 0.0
-    active_user_ids = set()
-    for s in active_subs:
-        if s.plan in tier_counts:
-            tier_counts[s.plan] += 1
-            mrr_usd += tier_prices.get(s.plan, 0.0)
-            active_user_ids.add(s.user_id)
 
-    # Check for paying users not tracked with a Subscription row
-    all_sub_user_ids = {s.user_id for s in db.query(Subscription).all()}
-    paying_users = db.query(User).filter(User.plan.in_(["boutique", "standard", "megastore"])).all()
-    for u in paying_users:
-        if u.id not in all_sub_user_ids:
-            if u.plan in tier_counts:
-                tier_counts[u.plan] += 1
-                mrr_usd += tier_prices.get(u.plan, 0.0)
-                active_user_ids.add(u.id)
-
-    total_active_subscribers = len(active_user_ids)
-    total_rev_cents = db.query(func.sum(RevenueRecord.amount_cents)).filter(RevenueRecord.status == "succeeded").scalar() or 0
-    total_lifetime_rev_usd = round(total_rev_cents / 100.0, 2)
-    total_users = db.query(User).count()
-    
-    total_sub_base = total_active_subscribers + canceled_subs
-    churn_rate_pct = round((canceled_subs / total_sub_base * 100.0), 2) if total_sub_base > 0 else 0.0
-    
-    return {
-        "mrr_usd": round(mrr_usd, 2),
-        "arr_usd": round(mrr_usd * 12.0, 2),
-        "active_subscribers": total_active_subscribers,
-        "canceled_subscribers": canceled_subs,
-        "past_due_subscribers": past_due_subs,
-        "churn_rate_pct": churn_rate_pct,
-        "active_subscribers_by_tier": tier_counts,
-        "total_lifetime_revenue_usd": total_lifetime_rev_usd,
-        "total_registered_merchants": total_users,
-        "pricing_model": {
-            "boutique_usd_mo": tier_prices.get("boutique", 179.49),
-            "standard_usd_mo": tier_prices.get("standard", 379.49),
-            "megastore_usd_mo": tier_prices.get("megastore", 9639.63),
-        },
-        "software_asset_score": 9.2,
-        "valuation_estimate_usd": {
-            "asset_sale_range": "$120,000 - $180,000",
-            "arr_multiple_range": "3x - 5x ARR"
-        }
-    }
+    return _calculate_mrr_metrics(db)
 
 @app.get("/api/admin/stats", tags=["Admin"])
 async def admin_stats(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
-    current_admin_secret = ADMIN_SECRET or os.getenv("ADMIN_SECRET")
-    if not current_admin_secret or x_admin_secret != current_admin_secret:
+    if not _is_valid_admin_secret(x_admin_secret):
         raise HTTPException(status_code=401, detail="Unauthorized")
     from sqlalchemy import func
     from .database import RevenueRecord
     users = db.query(User).count()
-    paying = db.query(User).filter(User.plan != "free").count()
-    revenue = db.query(func.sum(RevenueRecord.amount_cents)).filter(RevenueRecord.status == "succeeded").scalar() or 0
+    paying = db.query(User).filter(
+        User.is_active == True,
+        User.plan.in_(["boutique", "standard", "megastore"]),
+    ).count()
+    revenue = db.query(func.sum(RevenueRecord.amount_cents)).filter(
+        RevenueRecord.status == "succeeded",
+        func.lower(func.coalesce(RevenueRecord.currency, "usd")) == "usd",
+    ).scalar() or 0
     reqs = db.query(func.count(UsageRecord.id)).scalar() or 0
     gens = db.query(func.sum(UsageRecord.generations_used)).scalar() or 0
     recent = db.query(User).order_by(User.created_at.desc()).limit(10).all()
@@ -642,7 +862,13 @@ async def admin_page():
     path = BASE_DIR / "frontend" / "admin.html"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Admin panel not found")
-    return path.read_text(encoding="utf-8")
+    return HTMLResponse(
+        path.read_text(encoding="utf-8"),
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
 
 # Integration/campaign routes
 @app.post("/api/integrations", tags=["Integrations"])
@@ -698,11 +924,15 @@ async def push_content(request: Request, body: PushRequest, background_tasks: Ba
         integration.status = "invalid_credentials"
         db.commit()
         raise HTTPException(status_code=400, detail="Integration credentials invalid or corrupted. Please reconnect.")
+    safe_content = sanitize_html(body.content)
+    if not safe_content.strip():
+        raise HTTPException(status_code=400, detail="Content contains no supported text or markup.")
+    safe_title = _clean_text(body.title or "Generated via KopyKat", 255) or "Generated via KopyKat"
     job_id = str(uuid.uuid4())
     db.add(PushJob(id=job_id, user_id=user.id, platform=body.platform, status="pending"))
     db.commit()
     from .integrations import background_push
-    background_tasks.add_task(background_push, body.platform, creds, body.title, body.content, body.metadata, integration.id, job_id)
+    background_tasks.add_task(background_push, body.platform, creds, safe_title, safe_content, body.metadata, integration.id, job_id)
     return JSONResponse(status_code=202, content={"message": "Push accepted", "job_id": job_id})
 
 @app.get("/api/push/status/{job_id}", tags=["Integrations"])
@@ -719,7 +949,7 @@ async def get_push_status(job_id: str, auth: tuple = Depends(get_current_user_ap
 async def api_public_demo(request: Request, body: CampaignGenerateRequest, db: Session = Depends(get_db)):
     from .campaigns import generate_demo_campaign
     try:
-        return {"assets": generate_demo_campaign(body.keyword, body.product_desc)}
+        return {"assets": _sanitize_campaign_assets(generate_demo_campaign(body.keyword, body.product_desc))}
     except Exception as e:
         logger.error("Public demo failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Demo generation failed due to an internal error.")
@@ -778,7 +1008,10 @@ async def api_parse_csv(request: Request, file: UploadFile = File(...), auth: tu
     import csv
     import io
     from .ai_engine import analyze_csv_mapping
-    content = await file.read()
+    max_upload_bytes = 5 * 1024 * 1024
+    content = await file.read(max_upload_bytes + 1)
+    if len(content) > max_upload_bytes:
+        raise HTTPException(status_code=413, detail="CSV file exceeds the 5 MB upload limit.")
     try:
         text_content = content.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -786,6 +1019,8 @@ async def api_parse_csv(request: Request, file: UploadFile = File(...), auth: tu
     rows = list(csv.reader(io.StringIO(text_content)))
     if len(rows) < 2:
         raise HTTPException(status_code=400, detail="CSV is empty or missing headers.")
+    if len(rows) > 5_001 or len(rows[0]) > 100:
+        raise HTTPException(status_code=413, detail="CSV exceeds the supported row or column limit.")
     headers = rows[0]
     mapping = await analyze_csv_mapping(headers, rows[1])
     name_col = mapping.get("name_col", "")
@@ -816,7 +1051,7 @@ async def api_campaign_generate(request: Request, body: CampaignGenerateRequest,
     monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
 
     try:
-        data = generate_omni_campaign(body.keyword, body.product_desc)
+        data = _sanitize_campaign_assets(generate_omni_campaign(body.keyword, body.product_desc))
         cid = str(uuid.uuid4())
         name = f"Campaign: {body.keyword.title()}"
         db.add(Campaign(id=cid, user_id=user.id, name=name, assets=json.dumps(data)))
@@ -842,24 +1077,37 @@ async def api_campaign_generate_vision(
     import uuid
     import json
     import base64
+    import binascii
     
     user, _ = auth
     
-    # Invariant: Atomic credit deduction before expensive Vision generation
-    monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
-        
+    allowed_image_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    mime_type = (body.mime_type or "image/jpeg").lower().strip()
+    if mime_type not in allowed_image_types:
+        raise HTTPException(status_code=400, detail="Unsupported image type.")
+
+    raw_b64 = body.image_base64
+    if "," in raw_b64:
+        raw_b64 = raw_b64.split(",", 1)[1]
     try:
-        raw_b64 = body.image_base64
-        if "," in raw_b64:
-            raw_b64 = raw_b64.split(",", 1)[1]
-        img_bytes = base64.b64decode(raw_b64)
-        
-        data = generate_omni_campaign_from_image(
+        img_bytes = base64.b64decode(raw_b64, validate=True)
+    except (ValueError, binascii.Error):
+        raise HTTPException(status_code=400, detail="image_base64 must contain valid base64 data.") from None
+    if not img_bytes:
+        raise HTTPException(status_code=400, detail="Image data is empty.")
+    if len(img_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Image exceeds the 10 MB upload limit.")
+
+    # Invariant: Atomic credit deduction before expensive Vision generation.
+    monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
+
+    try:
+        data = _sanitize_campaign_assets(generate_omni_campaign_from_image(
             image_bytes=img_bytes,
-            mime_type=body.mime_type or "image/jpeg",
+            mime_type=mime_type,
             keyword=body.keyword or "",
             extra_context=body.extra_context or ""
-        )
+        ))
         
         cid = str(uuid.uuid4())
         prod_title = data.get("detected_product_name", body.keyword or "Product")
@@ -890,6 +1138,8 @@ async def api_campaign_push(request: Request, body: CampaignPushRequest, backgro
     assets = json.loads(camp.assets)
     jobs = []
     for asset_type, dest in body.destinations.items():
+        if not isinstance(dest, dict):
+            continue
         platform = dest.get("platform")
         meta = dest.get("metadata", {})
         integration = db.query(UserIntegration).filter(UserIntegration.user_id == user.id, UserIntegration.platform == platform).first() if platform else None
@@ -909,6 +1159,10 @@ async def api_campaign_push(request: Request, body: CampaignPushRequest, backgro
             continue
         if not content:
             continue
+        content = sanitize_html(content)
+        if not content.strip():
+            continue
+        title = _clean_text(title, 255) or "Generated via KopyKat"
         jid = str(uuid.uuid4())
         db.add(PushJob(id=jid, user_id=user.id, platform=platform, status="pending"))
         jobs.append(jid)
@@ -1526,7 +1780,7 @@ async def list_opportunity_leads(auth: tuple = Depends(get_current_user_apikey),
             "post_title": l.post_title,
             "post_url": l.post_url,
             "draft_reply": l.draft_reply,
-            "score": getattr(l, 'score', 85),
+            "score": l.score,
             "created_at": l.created_at
         } for l in leads
     ]
@@ -1538,7 +1792,7 @@ async def get_seo_analytics(auth: tuple = Depends(get_current_user_apikey), db: 
     from .database import BlogPost
     posts = db.query(BlogPost).filter(BlogPost.published == True).all()
     total_words = sum(p.word_count for p in posts)
-    base_url = os.getenv("BASE_URL", "https://kopykat.onrender.com").rstrip("/")
+    base_url = PUBLIC_BASE_URL
     return {
         "total_posts": len(posts),
         "total_words_generated": total_words,
@@ -1560,7 +1814,7 @@ async def get_seo_analytics(auth: tuple = Depends(get_current_user_apikey), db: 
 @app.post("/api/seo/ping-index", tags=["Growth Engines"])
 async def ping_search_engines(auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
     import httpx
-    base_url = os.getenv("BASE_URL", "https://kopykat.onrender.com").rstrip("/")
+    base_url = PUBLIC_BASE_URL
     sitemap_url = f"{base_url}/sitemap.xml"
     
     ping_targets = [
@@ -1569,13 +1823,14 @@ async def ping_search_engines(auth: tuple = Depends(get_current_user_apikey), db
     ]
     
     results = []
-    async with httpx.AsyncClient(timeout=5.0) as client:
+    async with httpx.AsyncClient(timeout=5.0, follow_redirects=False, trust_env=False) as client:
         for target in ping_targets:
             try:
                 resp = await client.get(target)
                 results.append({"engine": "google" if "google" in target else "bing", "status": resp.status_code})
-            except Exception as e:
-                results.append({"engine": "google" if "google" in target else "bing", "status": "simulated_success", "note": str(e)})
+            except Exception:
+                logger.warning("Search engine ping failed", extra={"target": target}, exc_info=True)
+                results.append({"engine": "google" if "google" in target else "bing", "status": "error"})
                 
     return {
         "success": True,
@@ -1732,7 +1987,7 @@ async def create_addon_checkout(body: AddOnCheckoutRequest, auth: tuple = Depend
         raise HTTPException(status_code=400, detail="Invalid add-on product key.")
 
     addon = ADD_ONS[body.addon_key]
-    base_url = os.getenv("BASE_URL", "https://kopykat.onrender.com").rstrip("/")
+    base_url = PUBLIC_BASE_URL
     
     import stripe
     if not stripe.api_key:

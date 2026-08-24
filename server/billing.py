@@ -11,12 +11,13 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from .database import User, Subscription, RevenueRecord, StripeEvent, UserEntitlement
+from .config import PUBLIC_BASE_URL
 
 logger = logging.getLogger(__name__)
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000").rstrip("/")
+APP_BASE_URL = PUBLIC_BASE_URL
 
 # Canonical plan registry. Every billing operation uses these exact identifiers.
 PLANS = {
@@ -450,11 +451,17 @@ def get_total_revenue(db: Session) -> dict:
     from sqlalchemy import func
     now = datetime.utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    total = db.query(func.sum(RevenueRecord.amount_cents)).filter(RevenueRecord.status == "succeeded").scalar() or 0
-    monthly = db.query(func.sum(RevenueRecord.amount_cents)).filter(
-        RevenueRecord.status == "succeeded", RevenueRecord.created_at >= month_start
+    usd = func.lower(func.coalesce(RevenueRecord.currency, "usd")) == "usd"
+    total = db.query(func.sum(RevenueRecord.amount_cents)).filter(
+        RevenueRecord.status == "succeeded", usd
     ).scalar() or 0
-    count = db.query(func.count(User.id)).filter(User.plan != "free").scalar() or 0
+    monthly = db.query(func.sum(RevenueRecord.amount_cents)).filter(
+        RevenueRecord.status == "succeeded", usd, RevenueRecord.created_at >= month_start
+    ).scalar() or 0
+    count = db.query(func.count(User.id)).filter(
+        User.is_active == True,
+        User.plan.in_(["boutique", "standard", "megastore"]),
+    ).scalar() or 0
     return {
         "total_revenue_usd": round(total / 100, 2),
         "monthly_revenue_usd": round(monthly / 100, 2),

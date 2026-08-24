@@ -2,7 +2,6 @@
 auth.py — User registration, login, JWT sessions, API key management.
 """
 
-import os
 import uuid
 import hashlib
 import secrets
@@ -14,20 +13,24 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2Pas
 import bcrypt
 import jwt
 from jwt.exceptions import PyJWTError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from cryptography.fernet import Fernet
 
 from .database import get_db, User, APIKey
+from .config import INTEGRATION_ENCRYPTION_KEY, JWT_SECRET_KEY, env_int
 
 #  Config 
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-if not SECRET_KEY:
-    # Use environment fallback to ensure high availability and prevent boot crash on Render
-    SECRET_KEY = os.getenv("SECRET_KEY", "kopykat-enterprise-production-jwt-signing-secret-default-2026")
+SECRET_KEY = JWT_SECRET_KEY
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+ACCESS_TOKEN_EXPIRE_MINUTES = env_int(
+    "ACCESS_TOKEN_EXPIRE_MINUTES",
+    1440,
+    minimum=5,
+    maximum=10080,
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -59,20 +62,41 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 #  JWT helpers 
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(user_id: str, email: str, auth_version: int = 1) -> str:
+    issued_at = datetime.utcnow()
     payload = {
         "sub": user_id,
-        "email": email,
-        "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "email": normalize_email(email),
+        "ver": int(auth_version or 1),
+        "iat": issued_at,
+        "jti": secrets.token_hex(16),
+        "exp": issued_at + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str) -> Optional[dict]:
     try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except (PyJWTError, Exception):
+        return jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"require": ["exp", "sub"]},
+        )
+    except PyJWTError:
         return None
+
+
+def normalize_email(email: str) -> str:
+    """Normalize email identifiers consistently across registration and login."""
+
+    return str(email).strip().casefold()
+
+
+def token_matches_user(payload: dict, user: User) -> bool:
+    """Reject tokens minted before a password reset or auth-version change."""
+
+    return payload.get("ver") == int(user.auth_version or 1)
 
 #  API Key helpers 
 
@@ -104,7 +128,7 @@ def get_current_user_jwt(
     if not payload or not payload.get("sub"):
         raise credentials_exception
     user = db.query(User).filter(User.id == payload["sub"]).first()
-    if not user or not user.is_active:
+    if not user or not user.is_active or not token_matches_user(payload, user):
         raise credentials_exception
     return user
 
@@ -122,7 +146,7 @@ def get_current_user_apikey(
     payload = decode_access_token(raw_key)
     if payload and payload.get("sub"):
         user = db.query(User).filter(User.id == payload["sub"], User.is_active == True).first()
-        if user:
+        if user and token_matches_user(payload, user):
             return user, None
 
     # 2. Check if token is an API key
@@ -146,28 +170,33 @@ def get_current_user_apikey(
 #  Business logic 
 
 def register_user(email: str, password: str, full_name: Optional[str], db: Session) -> User:
-    existing = db.query(User).filter(User.email == email).first()
+    normalized_email = normalize_email(email)
+    existing = db.query(User).filter(User.email == normalized_email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     user = User(
         id=str(uuid.uuid4()),
-        email=email,
+        email=normalized_email,
         hashed_password=hash_password(password),
-        full_name=full_name,
+        full_name=full_name.strip() if full_name and full_name.strip() else None,
         plan="free",
         generations=5,
         monthly_limit=5,
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Email already registered") from None
     db.refresh(user)
     return user
 
 
 def authenticate_user(email: str, password: str, db: Session) -> Optional[User]:
-    user = db.query(User).filter(User.email == email).first()
-    if not user or not verify_password(password, user.hashed_password):
+    user = db.query(User).filter(User.email == normalize_email(email)).first()
+    if not user or not user.is_active or not verify_password(password, user.hashed_password):
         return None
     return user
 
@@ -180,12 +209,13 @@ def create_user_api_key(user: User, name: str, db: Session) -> tuple[str, APIKey
         raise HTTPException(status_code=400, detail="Maximum 5 API keys per account")
 
     raw_key, key_hash, key_prefix = generate_api_key()
+    clean_name = name.strip() or "Default Key"
     api_key = APIKey(
         id=str(uuid.uuid4()),
         user_id=user.id,
         key_hash=key_hash,
         key_prefix=key_prefix,
-        name=name,
+        name=clean_name,
     )
     db.add(api_key)
     db.commit()
@@ -204,17 +234,12 @@ def revoke_api_key(key_id: str, user: User, db: Session) -> bool:
     db.commit()
     return True
 
-#  Integration credential encryption 
-_INTEGRATION_KEY = os.getenv("INTEGRATION_ENCRYPTION_KEY")
-if not _INTEGRATION_KEY:
-    _INTEGRATION_KEY = "kopykatEnterpriseEncryptionKey2026AAA="
-
-try:
-    _fernet = Fernet(_INTEGRATION_KEY.encode())
-except Exception:
-    import base64
-    _fallback_32 = base64.urlsafe_b64encode(b"kopykat-enterprise-secret-key-32")
-    _fernet = Fernet(_fallback_32)
+#  Integration credential encryption
+# The key is validated centrally in config.py.  There is deliberately no
+# source-controlled fallback: losing a development key should invalidate local
+# ciphertext, while production must fail startup rather than encrypting with a
+# publicly discoverable key.
+_fernet = Fernet(INTEGRATION_ENCRYPTION_KEY.encode())
 
 
 def encrypt_credentials(data: str) -> str:

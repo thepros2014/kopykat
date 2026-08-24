@@ -10,20 +10,17 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-import ipaddress
 import json
 import logging
-import socket
+import re
 from base64 import b64encode
 from datetime import datetime
 from typing import Any, Optional, Protocol, runtime_checkable
-from urllib.parse import urlparse
 
-import requests
-
-from .connector_engine import SafeAsyncHTTPClient, validate_public_url
+from .connector_engine import ConnectorError as SSRFConnectorError, SafeAsyncHTTPClient, SafeSyncHTTPClient, validate_public_url
 
 logger = logging.getLogger(__name__)
+MAX_SYNC_RESPONSE_BYTES = 2_000_000
 
 
 # --- EXCEPTIONS ---
@@ -55,25 +52,16 @@ class ConnectorValidationError(ConnectorError):
 def _validate_external_url(url: str, *, allowed_schemes: tuple[str, ...] = ("https",), allow_http: bool = False) -> str:
     if not url or not isinstance(url, str):
         raise ValueError("A valid integration URL is required.")
-    parsed = urlparse(url.strip())
     schemes = set(allowed_schemes)
     if allow_http:
         schemes.add("http")
-    if parsed.scheme.lower() not in schemes or not parsed.hostname:
-        raise ValueError("Integration URL must use a valid HTTPS URL.")
-    host = parsed.hostname.rstrip(".").lower()
-    if host in {"localhost", "localhost.localdomain"} or host.endswith(".localhost"):
-        raise ValueError("Local integration URLs are not allowed.")
     try:
-        infos = socket.getaddrinfo(host, parsed.port or 443, type=socket.SOCK_STREAM)
-        addresses = {info[4][0] for info in infos}
-    except socket.gaierror as exc:
-        raise ValueError("Integration host could not be resolved.") from exc
-    for address in addresses:
-        ip = ipaddress.ip_address(address)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
-            raise ValueError("Integration host resolves to a restricted network address.")
-    return url.strip().rstrip("/")
+        return validate_public_url(url.strip().rstrip("/"), allowed_schemes=tuple(schemes))
+    except SSRFConnectorError as exc:
+        message = str(exc)
+        if message == "Local connector URLs are not permitted.":
+            message = "Local integration URLs are not allowed."
+        raise ValueError(message) from exc
 
 
 def _extract_credentials(creds: Any) -> dict[str, Any]:
@@ -108,6 +96,38 @@ def _handle_http_errors(status_code: int, response_text: str, platform: str) -> 
         raise ConnectorValidationError(f"{platform} validation error (HTTP {status_code}): {response_text}")
     elif status_code >= 500:
         raise ConnectorNetworkError(f"{platform} server error (HTTP {status_code}): {response_text}")
+
+
+def _safe_sync_request(
+    method: str,
+    url: str,
+    *,
+    headers: Optional[dict[str, str]] = None,
+    json_body: Optional[dict[str, Any]] = None,
+    timeout_seconds: float = 10.0,
+):
+    """Use the same DNS-pinned, redirect-free transport for legacy pushes."""
+
+    with SafeSyncHTTPClient(
+        timeout_seconds=timeout_seconds,
+        max_response_bytes=MAX_SYNC_RESPONSE_BYTES,
+    ) as client:
+        return client.request(
+            method,
+            url,
+            headers=headers,
+            json_body=json_body,
+            allow_redirects=False,
+        )
+
+
+def _mailchimp_data_center(api_key: str) -> str:
+    """Extract and constrain the Mailchimp host label from an API key."""
+
+    candidate = api_key.rsplit("-", 1)[-1].lower()
+    if not re.fullmatch(r"[a-z0-9]{1,16}", candidate):
+        raise ValueError("Mailchimp API key contains an invalid data-center identifier.")
+    return candidate
 
 
 # --- PLATFORM CONNECTOR PROTOCOL ---
@@ -756,7 +776,7 @@ def push_to_wordpress(creds: dict, title: str, content: str, meta: dict) -> dict
     data = {"title": title, "content": content, "status": "draft"}
     if meta.get("category_id"):
         data["categories"] = [int(meta["category_id"])]
-    response = requests.post(api_url, headers=headers, json=data, timeout=(5, 10), allow_redirects=False)
+    response = _safe_sync_request("POST", api_url, headers=headers, json_body=data)
     response.raise_for_status()
     return {"success": True, "link": response.json().get("link")}
 
@@ -765,17 +785,17 @@ def push_to_mailchimp(creds: dict, subject: str, content: str, meta: dict) -> di
     api_key = creds.get("api_key")
     if not api_key:
         raise ValueError("Mailchimp API key is required.")
-    dc = api_key.split("-")[1] if "-" in api_key else "us1"
+    dc = _mailchimp_data_center(api_key) if "-" in api_key else "us1"
     api_url = f"https://{dc}.api.mailchimp.com/3.0/campaigns"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     data = {"type": "regular", "settings": {"subject_line": subject, "title": subject, "reply_to": "hello@example.com", "from_name": "KopyKat"}}
     list_id = meta.get("list_id") or creds.get("list_id")
     if list_id:
         data["recipients"] = {"list_id": list_id}
-    response = requests.post(api_url, headers=headers, json=data, timeout=(5, 10), allow_redirects=False)
+    response = _safe_sync_request("POST", api_url, headers=headers, json_body=data)
     response.raise_for_status()
     campaign_id = response.json().get("id")
-    content_response = requests.put(f"{api_url}/{campaign_id}/content", headers=headers, json={"html": content}, timeout=(5, 10), allow_redirects=False)
+    content_response = _safe_sync_request("PUT", f"{api_url}/{campaign_id}/content", headers=headers, json_body={"html": content})
     content_response.raise_for_status()
     return {"success": True, "campaign_id": campaign_id}
 
@@ -785,7 +805,7 @@ def push_to_hubspot(creds: dict, title: str, content: str, meta: dict) -> dict:
     if not token:
         raise ValueError("HubSpot access token is required.")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    response = requests.post("https://api.hubapi.com/crm/v3/objects/notes", headers=headers, json={"properties": {"hs_note_body": f"<h1>{title}</h1>{content}"}}, timeout=(5, 10), allow_redirects=False)
+    response = _safe_sync_request("POST", "https://api.hubapi.com/crm/v3/objects/notes", headers=headers, json_body={"properties": {"hs_note_body": f"<h1>{title}</h1>{content}"}})
     response.raise_for_status()
     return {"success": True}
 
@@ -796,7 +816,7 @@ def push_to_shopify(creds: dict, title: str, content: str, meta: dict) -> dict:
     if not token:
         raise ValueError("Shopify access token is required.")
     headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
-    response = requests.post(f"{shop_url}/admin/api/2024-01/products.json", headers=headers, json={"product": {"title": title, "body_html": content, "status": "draft"}}, timeout=(5, 10), allow_redirects=False)
+    response = _safe_sync_request("POST", f"{shop_url}/admin/api/2024-01/products.json", headers=headers, json_body={"product": {"title": title, "body_html": content, "status": "draft"}})
     response.raise_for_status()
     return {"success": True}
 
@@ -807,7 +827,7 @@ def push_to_webflow(creds: dict, title: str, content: str, meta: dict) -> dict:
     if not token or not collection_id:
         raise ValueError("Webflow access token and collection_id are required.")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "accept-version": "1.0.0"}
-    response = requests.post(f"https://api.webflow.com/collections/{collection_id}/items", headers=headers, json={"fields": {"name": title, "slug": title.lower().replace(" ", "-"), "post-body": content, "_archived": False, "_draft": True}}, timeout=(5, 10), allow_redirects=False)
+    response = _safe_sync_request("POST", f"https://api.webflow.com/collections/{collection_id}/items", headers=headers, json_body={"fields": {"name": title, "slug": title.lower().replace(" ", "-"), "post-body": content, "_archived": False, "_draft": True}})
     response.raise_for_status()
     return {"success": True}
 
@@ -839,20 +859,20 @@ def fetch_metadata(platform: str, creds: dict) -> list:
             url = _validate_external_url(creds.get("url", ""))
             api_url = f"{url}/wp-json/wp/v2/categories"
             token = b64encode(f"{creds.get('username')}:{creds.get('app_password')}".encode()).decode("utf-8")
-            res = requests.get(api_url, headers={"Authorization": f"Basic {token}"}, timeout=(3, 5), allow_redirects=False)
+            res = _safe_sync_request("GET", api_url, headers={"Authorization": f"Basic {token}"}, timeout_seconds=5.0)
             if res.ok:
                 options = [{"id": str(c["id"]), "name": c["name"]} for c in res.json()]
         elif platform == "mailchimp":
             api_key = creds.get("api_key", "")
-            dc = api_key.split("-")[1] if "-" in api_key else "us1"
-            res = requests.get(f"https://{dc}.api.mailchimp.com/3.0/lists", headers={"Authorization": f"Bearer {api_key}"}, timeout=(3, 5), allow_redirects=False)
+            dc = _mailchimp_data_center(api_key) if "-" in api_key else "us1"
+            res = _safe_sync_request("GET", f"https://{dc}.api.mailchimp.com/3.0/lists", headers={"Authorization": f"Bearer {api_key}"}, timeout_seconds=5.0)
             if res.ok:
                 options = [{"id": l["id"], "name": l["name"]} for l in res.json().get("lists", [])]
         elif platform == "webflow":
             token = creds.get("access_token")
             site_id = creds.get("site_id")
             if site_id and token:
-                res = requests.get(f"https://api.webflow.com/sites/{site_id}/collections", headers={"Authorization": f"Bearer {token}", "accept-version": "1.0.0"}, timeout=(3, 5), allow_redirects=False)
+                res = _safe_sync_request("GET", f"https://api.webflow.com/sites/{site_id}/collections", headers={"Authorization": f"Bearer {token}", "accept-version": "1.0.0"}, timeout_seconds=5.0)
                 if res.ok:
                     options = [{"id": c["_id"], "name": c["name"]} for c in res.json()]
     except Exception as e:
@@ -902,4 +922,3 @@ def background_push(platform: str, creds: dict, title: str, content: str, meta: 
         db.commit()
     finally:
         db.close()
-

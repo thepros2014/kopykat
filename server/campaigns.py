@@ -3,7 +3,8 @@ import os
 import logging
 import random
 import re
-import google.generativeai as genai
+
+from .gemini_client import generate_content, image_part
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,6 @@ def generate_omni_campaign(keyword: str, product_desc: str) -> dict:
     Generates a full cohesive campaign (Blog, Emails, Social) based on market pain points.
     """
     pain_points = scrape_pain_points(keyword)
-    
-    genai.configure(api_key=os.environ.get('GEMINI_API_KEY', ''))
-    # Use flash for speed
-    model = genai.GenerativeModel(os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash'))
     
     prompt = f"""You are an elite direct-response marketer and copywriter.
     
@@ -75,7 +72,11 @@ The JSON must have the following exact structure:
 }}
 """
     
-    response = model.generate_content(prompt)
+    response = generate_content(
+        api_key=os.environ.get("GEMINI_API_KEY", ""),
+        model=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
+        contents=prompt,
+    )
     text = response.text.strip()
     
     if text.startswith("```json"):
@@ -94,9 +95,6 @@ The JSON must have the following exact structure:
 
 def generate_demo_campaign(keyword: str, product_desc: str) -> dict:
     pain_points = scrape_pain_points(keyword)
-    
-    genai.configure(api_key=os.environ.get('GEMINI_API_KEY', ''))
-    model = genai.GenerativeModel(os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash'))
     
     prompt = f"""You are an elite marketer.
 Product: {product_desc}
@@ -122,7 +120,11 @@ DO NOT include markdown wrappers like ```json.
 }}
 """
     
-    response = model.generate_content(prompt)
+    response = generate_content(
+        api_key=os.environ.get("GEMINI_API_KEY", ""),
+        model=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
+        contents=prompt,
+    )
     text = response.text.strip()
     
     if text.startswith("```json"):
@@ -247,13 +249,12 @@ Exact structure required:
     # 1. Try Gemini Vision if preferred or available
     if (provider == 'gemini' and gemini_key) or (gemini_key and not openai_key):
         try:
-            genai.configure(api_key=gemini_key)
             model_name = os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash')
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content([
-                {"mime_type": mime_type or "image/jpeg", "data": image_bytes},
-                prompt
-            ])
+            response = generate_content(
+                api_key=gemini_key,
+                model=model_name,
+                contents=[image_part(image_bytes, mime_type or "image/jpeg"), prompt],
+            )
             return _extract_clean_json(response.text)
         except Exception as e:
             logger.warning(f"Gemini vision failed: {e}. Attempting fallback...")
@@ -265,30 +266,17 @@ Exact structure required:
     # 2. Try OpenAI Vision (GPT-4o / GPT-4o-mini)
     if openai_key:
         try:
-            import base64
-            from openai import OpenAI
-            client = OpenAI(api_key=openai_key)
-            b64_img = base64.b64encode(image_bytes).decode('utf-8')
-            response = client.chat.completions.create(
+            from .openai_client import generate_vision_json
+
+            text, _ = generate_vision_json(
+                api_key=openai_key,
                 model=os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type or 'image/jpeg'};base64,{b64_img}"
-                                }
-                            }
-                        ]
-                    }
-                ],
-                max_tokens=2500,
-                response_format={"type": "json_object"}
+                image_bytes=image_bytes,
+                mime_type=mime_type or 'image/jpeg',
+                prompt=prompt,
+                max_output_tokens=2500,
             )
-            return _extract_clean_json(response.choices[0].message.content)
+            return _extract_clean_json(text)
         except Exception as e:
             logger.error(f"OpenAI vision failed: {e}")
             if allow_fallback:

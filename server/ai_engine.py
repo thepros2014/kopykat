@@ -153,21 +153,17 @@ SYSTEM_PROMPT = (
 async def _generate_openai(prompt: str, max_tokens: int) -> tuple[str, int]:
     """Returns (text, tokens_used)."""
     try:
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-        response = await client.chat.completions.create(
+        from .openai_client import generate_text_async
+
+        return await generate_text_async(
+            api_key=OPENAI_API_KEY,
             model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": prompt},
-            ],
-            max_tokens=max_tokens,
+            input_value=prompt,
+            system_instruction=SYSTEM_PROMPT,
+            max_output_tokens=max_tokens,
             temperature=0.8,
-            response_format={ "type": "json_object" }
+            json_mode=True,
         )
-        text   = response.choices[0].message.content.strip()
-        tokens = response.usage.total_tokens
-        return text, tokens
     except Exception as e:
         raise RuntimeError(f"OpenAI error: {e}")
 
@@ -177,16 +173,16 @@ async def _generate_openai(prompt: str, max_tokens: int) -> tuple[str, int]:
 async def _generate_gemini(prompt: str, max_tokens: int) -> tuple[str, int]:
     """Returns (text, tokens_used). Gemini token counts are estimated."""
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model    = genai.GenerativeModel(GEMINI_MODEL, system_instruction=SYSTEM_PROMPT)
-        response = await model.generate_content_async(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                max_output_tokens=max_tokens,
-                temperature=0.8,
-                response_mime_type="application/json"
-            ),
+        from .gemini_client import generate_content_async
+
+        response = await generate_content_async(
+            api_key=GEMINI_API_KEY,
+            model=GEMINI_MODEL,
+            contents=prompt,
+            system_instruction=SYSTEM_PROMPT,
+            max_output_tokens=max_tokens,
+            temperature=0.8,
+            response_mime_type="application/json",
         )
         text   = response.text.strip()
         tokens = response.usage_metadata.total_token_count if hasattr(response, "usage_metadata") else len(text.split()) * 2
@@ -521,10 +517,13 @@ Return strictly JSON with keys:
         # and prevents a request from hanging while an SDK retries a fake key.
         use_remote_ai = os.getenv("ENVIRONMENT", "").lower() not in {"test", "testing"}
         if api_key and use_remote_ai:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-flash-latest"))
-            res = await model.generate_content_async(prompt)
+            from .gemini_client import generate_content_async
+
+            res = await generate_content_async(
+                api_key=api_key,
+                model=os.getenv("GEMINI_MODEL", "gemini-flash-latest"),
+                contents=prompt,
+            )
             data = _extract_json_block(res.text.strip())
             if data:
                 data["platform"] = platform

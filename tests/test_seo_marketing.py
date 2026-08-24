@@ -11,7 +11,7 @@ async def test_generate_seo_post(db_session):
     mock_resp = AsyncMock()
     mock_resp.text = mock_ai_json
 
-    with patch("google.generativeai.GenerativeModel.generate_content_async", return_value=mock_resp):
+    with patch("server.marketing.generate_content_async", return_value=mock_resp):
         post = await generate_seo_post(db=db_session)
         assert post is not None
         assert post.title == "How to Supercharge Ecommerce Conversions"
@@ -46,7 +46,7 @@ async def test_generate_seo_post_bleach_xss_sanitization(db_session):
     mock_resp = AsyncMock()
     mock_resp.text = mock_ai_json
 
-    with patch("google.generativeai.GenerativeModel.generate_content_async", return_value=mock_resp):
+    with patch("server.marketing.generate_content_async", return_value=mock_resp):
         post = await generate_seo_post(db=db_session)
         assert post is not None
         assert "<script>" not in post.content
@@ -96,7 +96,7 @@ async def test_generate_seo_post_adversarial_xss_vectors(db_session):
     mock_resp = AsyncMock()
     mock_resp.text = mock_ai_json
 
-    with patch("google.generativeai.GenerativeModel.generate_content_async", return_value=mock_resp):
+    with patch("server.marketing.generate_content_async", return_value=mock_resp):
         post = await generate_seo_post(db=db_session)
         assert post is not None
         content = post.content.lower()
@@ -161,7 +161,7 @@ async def test_generate_seo_post_extreme_inputs(db_session):
     mock_resp = AsyncMock()
     mock_resp.text = wrapped_json
 
-    with patch("google.generativeai.GenerativeModel.generate_content_async", return_value=mock_resp):
+    with patch("server.marketing.generate_content_async", return_value=mock_resp):
         post = await generate_seo_post(db=db_session)
         assert post is not None
         assert post.title == "Wrapped Title"
@@ -171,13 +171,13 @@ async def test_generate_seo_post_extreme_inputs(db_session):
     huge_json = f'{{"title": "Huge Desc Title", "slug": "huge-desc", "meta_desc": "{huge_desc}", "content": "<p>Content</p>"}}'
     mock_resp.text = huge_json
 
-    with patch("google.generativeai.GenerativeModel.generate_content_async", return_value=mock_resp):
+    with patch("server.marketing.generate_content_async", return_value=mock_resp):
         post = await generate_seo_post(db=db_session)
         assert post is not None
         assert len(post.meta_desc) == 160
 
     mock_resp.text = "This is not JSON at all {{broken}}"
-    with patch("google.generativeai.GenerativeModel.generate_content_async", return_value=mock_resp):
+    with patch("server.marketing.generate_content_async", return_value=mock_resp):
         post = await generate_seo_post(db=db_session)
         assert post is not None
         assert "The Complete Guide to" in post.title

@@ -1,33 +1,58 @@
-# KopyKat — Billing, Pricing & Enterprise BYOK Architecture
+# Billing and provider configuration
 
-This document outlines the Stripe subscription lifecycle, pricing tier parameters, and the Bring-Your-Own-Key (BYOK) architecture for enterprise merchants.
+## Application plan registry
 
----
+The application-side registry currently contains:
 
-## 1. Pricing Tier Matrix
+| Plan | Monthly price | Monthly generations | Notes |
+| --- | ---: | ---: | --- |
+| Test Drive | 0.00 USD | 5 | One connector |
+| Boutique Store | 179.49 USD | 150 | Two connectors |
+| Standard Store | 379.49 USD | 1,000 | Ten connectors |
+| Megastore Infrastructure | 9,639.63 USD | 2,500 | BYOK entitlement available |
 
-| Tier | Price (USD) | Monthly Quota | Allowed Connectors | Automations Included | BYOK Unlimited AI |
-|---|---|---|---|---|---|
-| **Test Drive** | $0.00 / mo | 5 Campaigns | 1 | Core Preview | No |
-| **Boutique Store** | $179.49 / mo | 150 Campaigns | 2 | 1 (CSV or Auto-Sync) | No |
-| **Standard Store** | $379.49 / mo | 1,000 Campaigns | 10 | 2 (CSV + Vision AI) | No |
-| **Megastore Infrastructure** | $9,639.63 / mo | 2,500 (Cloud) | Unlimited | All Included | Yes (Unlimited) |
+These are source configuration values. They are not a statement that the
+plans are publicly offered, purchased, or suitable for a specific customer.
+The current plan catalog is available from GET /api/plans.
 
----
+## Stripe lifecycle
 
-## 2. Bring-Your-Own-Key (BYOK) Architecture
+1. An authenticated user requests checkout.
+2. The server creates a Stripe Checkout session using a configured price ID.
+3. Stripe sends a signed webhook to POST /billing/webhook.
+4. The server verifies and deduplicates the event.
+5. Subscription, generation, payment, and entitlement records are updated.
 
-Megastore tier customers ($9,639.63/mo) can connect their private OpenAI or Google Gemini developer API keys:
-1. **Frontend Input:** Merchant inputs private API key via Dashboard Settings.
-2. **Encryption at Rest:** Server encrypts the key using Fernet symmetric encryption with `INTEGRATION_ENCRYPTION_KEY`.
-3. **Quota Bypass:** When an active BYOK key is detected on a Megastore account, platform generation limits are bypassed, granting **unlimited campaigns** executed across KopyKat's infrastructure.
+Required environment variables include STRIPE_SECRET_KEY,
+STRIPE_WEBHOOK_SECRET, the recurring plan price IDs, and the generation-pack
+price IDs. Missing values return a configuration error; the application does
+not fabricate a successful checkout.
 
----
+## Generation packs and add-ons
 
-## 3. Stripe Webhook Lifecycle
+One-time packs grant purchased generations only after verified checkout
+fulfillment. Add-ons create or activate user entitlements according to the
+registry. Review the registry in server/billing.py when changing pricing or
+entitlement behavior.
 
-The server listens on `POST /billing/webhook` for the following events:
-- `customer.subscription.created`: Upgrades user account tier and provisions monthly limits.
-- `invoice.payment_succeeded`: Refreshes monthly campaign quota and records a `RevenueRecord`.
-- `customer.subscription.deleted`: Downgrades account to `free` tier and clears unused quota.
-- `checkout.session.completed`: Handles one-time generation pack purchases (Starter, Growth, Scale).
+## OpenAI and Gemini
+
+The managed AI provider is configured server-side:
+
+- OpenAI: OPENAI_API_KEY, OPENAI_MODEL, and AI_PROVIDER=openai.
+- Gemini: GEMINI_API_KEY, GEMINI_MODEL, and AI_PROVIDER=gemini.
+
+The OpenAI adapter uses the Responses API and does not store generated
+responses by default. Provider credentials must never be shipped to browser
+clients.
+
+Megastore users can save a provider-specific BYOK key through the authenticated
+BYOK routes. The key is encrypted with INTEGRATION_ENCRYPTION_KEY before it is
+persisted and is never returned by the API.
+
+## Release controls
+
+Use Stripe test mode first, verify replay behavior, record the webhook event
+types used by the deployment, and review payment and refund handling before
+enabling live prices. Administrative revenue metrics reflect the current
+database only and do not establish customer or revenue status.

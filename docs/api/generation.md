@@ -1,133 +1,128 @@
-# API Documentation: Content & Campaign Generation
+# Generation and campaign API
 
-KopyKat offers copywriting endpoints, multi-channel omni-campaign bundles, Vision AI image-to-copy analyzers, and 1-star competitor review mining.
+Generation routes require a JWT or an accepted API key. Provider credentials
+must be configured on the server; clients never send the server's provider
+key.
 
----
-
-## 1. Single Copy Generator
+## Single-copy generation
 
 ```http
 POST /api/generate
-Authorization: Bearer <API_KEY_OR_TOKEN>
+Authorization: Bearer <token-or-api-key>
 Content-Type: application/json
 
 {
-  "type": "product_desc",
-  "context": "Minimalist stainless steel thermal water bottle, keeps drinks cold 24 hours.",
-  "tone": "luxurious and sleek",
+  "type": "product_description",
+  "context": "Insulated stainless-steel bottle for commuters",
+  "tone": "professional",
   "variations": 1,
   "max_words": 150
 }
 ```
 
-### Response (`200 OK`):
+The type must be one of the values supported by the request model, including
+product_description, email_subject, email_body, social_post, ad_headline,
+ad_body, landing_page_hero, call_to_action, seo_meta_description, or
+blog_intro.
+
+Response shape:
+
 ```json
 {
-  "id": "gen_88f9a0c-...",
-  "type": "product_desc",
-  "variations": [
-    "Engineered from surgical-grade double-walled stainless steel..."
-  ],
-  "generations_remaining": 999,
-  "generated_at": "2026-08-23T00:00:00Z"
+  "type": "product_description",
+  "variations": ["Generated draft"],
+  "output": "Generated draft",
+  "generations_used": 1,
+  "generations": 4,
+  "generation_time_ms": 1200
 }
 ```
 
----
+Credits are reserved before the provider call. If generation fails, the
+reserved credits are refunded. The endpoint is rate-limited and all request
+fields are bounded.
 
-## 2. Omni-Channel Campaign Generation
-
-Generates an SEO blog article, a 3-part email drip sequence, and social marketing hooks simultaneously.
+## Text campaign generation
 
 ```http
 POST /api/campaign/generate
-Authorization: Bearer <API_KEY_OR_TOKEN>
+Authorization: Bearer <token-or-api-key>
 Content-Type: application/json
 
 {
-  "keyword": "Ceramic Pour-Over Coffee Maker",
-  "product_desc": "Artisan matte black ceramic pour-over cone with silicone heat-grip ring."
+  "keyword": "insulated commuter bottle",
+  "product_desc": "A leak-resistant stainless-steel bottle designed for daily travel."
 }
 ```
 
-### Response (`200 OK`):
-```json
-{
-  "id": "camp_55a10e-...",
-  "campaign": {
-    "assets": {
-      "blog_post": {
-        "title": "Why Ceramic Pour-Over Unlocks True Coffee Flavor Notes",
-        "content": "<p>When brewing single-origin coffees...</p>"
-      },
-      "email_drip": [
-        { "subject": "Welcome to Better Coffee", "body": "..." },
-        { "subject": "3 Pour-Over Mistakes to Avoid", "body": "..." },
-        { "subject": "Special Offer for Coffee Enthusiasts", "body": "..." }
-      ]
-    }
-  }
-}
-```
+The response contains a campaign identifier, name, and generated assets. Asset
+types can include blog content, email drafts, and social posts depending on
+the configured provider response.
 
----
+Generation stores the campaign under the authenticated user. It does not
+publish to an external platform.
 
-## 3. Vision AI (Image-to-Campaign)
-
-Analyzes a raw product photo, detects the item and features, and crafts multi-channel marketing campaigns.
+## Image-assisted campaign generation
 
 ```http
 POST /api/campaign/generate-vision
-Authorization: Bearer <API_KEY_OR_TOKEN>
+Authorization: Bearer <token-or-api-key>
 Content-Type: application/json
 
 {
-  "image_base64": "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+  "image_base64": "<base64 image data>",
   "mime_type": "image/jpeg",
-  "keyword": "Running Sneakers",
-  "extra_context": "Trail running shoe with carbon fiber plate"
+  "keyword": "commuter bottle",
+  "extra_context": "Leak-resistant stainless-steel bottle"
 }
 ```
 
----
+Accepted image types are JPEG, PNG, WebP, and GIF. The decoded upload is
+limited to 10 MB. The request model also limits the encoded request field.
 
-## 4. Competitor 1-Star Review Miner
+## Marketplace listing optimizer
 
-Ingests customer complaints from competitor listings to generate counter-copy, "Us vs. Them" comparison matrices, and direct-response ad angles.
+```http
+POST /api/optimizer/marketplace-listing
+Authorization: Bearer <token-or-api-key>
+Content-Type: application/json
+
+{
+  "product_name": "Commuter Bottle",
+  "platform": "amazon",
+  "raw_details": "Insulated stainless steel bottle with a leak-resistant lid",
+  "keywords": "commuter bottle, insulated bottle",
+  "target_audience": "Daily commuters"
+}
+```
+
+The platform must be amazon, shopify, etsy, tiktok, tiktok_shop, or ebay.
+The response contains platform-specific fields, a structured description, and
+a compliance score based on the application rules. Treat AI output as a
+draft and verify platform policies and factual product claims before
+publishing.
+
+## Competitor review analysis
 
 ```http
 POST /api/competitor/mine-reviews
-Authorization: Bearer <API_KEY_OR_TOKEN>
+Authorization: Bearer <token-or-api-key>
 Content-Type: application/json
 
 {
-  "product_name": "UltraShield Pro Backpack",
-  "competitor_name": "Generic Pack Co",
-  "reviews_text": "The shoulder straps ripped after two weeks. The zipper got stuck constantly and it leaked in light rain."
+  "product_name": "Commuter Bottle",
+  "competitor_name": "Example Brand",
+  "reviews_text": "The lid leaked after a week and the finish scratched easily."
 }
 ```
 
-### Response (`200 OK`):
-```json
-{
-  "id": "audit_77a88b-...",
-  "product_name": "UltraShield Pro Backpack",
-  "competitor_name": "Generic Pack Co",
-  "extracted_flaws": [
-    "Weak shoulder strap stitching prone to tearing",
-    "Flimsy zippers that jam easily",
-    "Poor water resistance leaking in light rain"
-  ],
-  "counter_description": "Unlike flimsy alternatives with cheap zippers...",
-  "comparison_points": [
-    {
-      "aspect": "Strap Durability",
-      "competitor_flaw": "Tears within weeks",
-      "our_advantage": "Military-grade box-stitched Kevlar webbing"
-    }
-  ],
-  "ad_hooks": [
-    "Tired of backpack straps snapping mid-commute? Meet UltraShield."
-  ]
-}
-```
+Provide only review text that you are authorized to use. The response contains
+extracted complaints, comparison points, a draft counter-description, and
+advertising hooks. Do not state unverified advantages as facts.
+
+## Push workflow
+
+Campaign generation and publication are separate. To schedule a controlled
+push, call /api/campaign/push with the campaign ID and destinations tied to
+user-owned, tested integrations. Review generated assets and destination
+metadata before enabling a push.

@@ -1,21 +1,28 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Security fixes are applied to the current `main` branch and the latest tagged
+release. Deployments should use the latest verified release rather than an
+arbitrary working-tree snapshot.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+Please report suspected vulnerabilities privately through a GitHub Security
+Advisory for this repository. Do not include live API keys, customer data, or
+database exports in a report. Include the affected endpoint or file, a minimal
+reproduction, impact, and any suggested mitigation.
 
-Use this section to tell people how to report a vulnerability.
+We will acknowledge a report as soon as practical, investigate it, and provide
+an update when the issue is fixed or an alternative mitigation is available.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+## Deployment security requirements
+
+- Set `ENVIRONMENT=production` or `staging`.
+- Provide unique `JWT_SECRET_KEY`, `INTEGRATION_ENCRYPTION_KEY`, and
+  `ADMIN_SECRET` values through the deployment secret manager.
+- Use PostgreSQL (or another managed database) for production persistence and
+  configure `DATABASE_URL` explicitly.
+- Set `ALLOWED_HOSTS`, `ALLOWED_ORIGINS`, and `TRUSTED_PROXIES` to the smallest
+  values required by the deployment.
+- Keep API documentation disabled unless operators explicitly need it.

@@ -1,25 +1,29 @@
-# API Documentation: Billing, Subscriptions & BYOK
+# Billing and BYOK API
 
-KopyKat integrates with Stripe for automated subscription billing, one-time generation top-ups, and encrypted Bring-Your-Own-Key (BYOK) configurations.
+Billing is disabled until Stripe credentials, matching price IDs, and a
+webhook signing secret are configured. The prices below are application
+registry values, not proof of a live offer or a successful payment.
 
----
+## Plan catalog
 
-## 1. Plan Registry
+GET /api/plans returns the current application-side catalog. The subscription
+registry currently defines:
 
-| Plan Key | Name | Price (USD) | Included Campaigns | Connectors | Automations | BYOK Unlimited |
-|---|---|---|---|---|---|---|
-| `free` | Test Drive | $0.00 / mo | 5 | 1 | 1 | No |
-| `boutique` | Boutique Store | $179.49 / mo | 150 | 2 | 1 | No |
-| `standard` | Standard Store | $379.49 / mo | 1,000 | 10 | 2 | No |
-| `megastore` | Megastore Infrastructure | $9,639.63 / mo | 2,500 | Unlimited | Unlimited | Yes |
+| Key | Monthly price | Monthly generations | Connectors |
+| --- | ---: | ---: | ---: |
+| free | 0.00 USD | 5 | 1 |
+| boutique | 179.49 USD | 150 | 2 |
+| standard | 379.49 USD | 1,000 | 10 |
+| megastore | 9,639.63 USD | 2,500 | Application-defined |
 
----
+The same response includes one-time generation packs. The Stripe account must
+contain price objects matching the environment variables in .env.example.
 
-## 2. Start Subscription Checkout
+## Subscription checkout
 
 ```http
 POST /billing/subscribe
-Authorization: Bearer <JWT_TOKEN>
+Authorization: Bearer <jwt>
 Content-Type: application/json
 
 {
@@ -27,67 +31,87 @@ Content-Type: application/json
 }
 ```
 
-### Response (`200 OK`):
+The response contains a Stripe Checkout URL and session ID:
+
 ```json
 {
-  "checkout_url": "https://checkout.stripe.com/c/pay/cs_live_a1b2c3...",
-  "session_id": "cs_live_a1b2c3..."
+  "checkout_url": "https://checkout.stripe.com/c/pay/<session>",
+  "session_id": "<session>"
 }
 ```
 
----
+The compatibility route /billing/checkout accepts the same subscription
+request. A missing Stripe secret or price ID returns a configuration error.
 
-## 3. Stripe Webhook Listener
+## One-time generation pack
+
+```http
+POST /billing/one-time
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{
+  "tier": "starter"
+}
+```
+
+The tier is starter, growth, or scale. Generation credits are granted only
+after a verified Stripe checkout.session.completed event.
+
+## Stripe webhook
 
 ```http
 POST /billing/webhook
-Stripe-Signature: t=1614000000,v1=...
+Stripe-Signature: t=<timestamp>,v1=<signature>
 Content-Type: application/json
 
-<Raw Stripe Webhook Payload>
-```
-*Handled Events:* `checkout.session.completed`, `invoice.payment_succeeded`, `customer.subscription.deleted`.
-
----
-
-## 4. Configure Megastore BYOK (Bring Your Own Key)
-
-*Restricted to accounts on the `megastore` tier.*
-
-```http
-POST /api/user/custom-ai-key
-Authorization: Bearer <JWT_TOKEN>
-Content-Type: application/json
-
-{
-  "provider": "openai",
-  "api_key": "sk-proj-0123456789abcdef..."
-}
+<raw Stripe webhook payload>
 ```
 
-### Response (`200 OK`):
-```json
-{
-  "success": true,
-  "message": "Custom AI API Key securely saved. Unlimited generations via your infrastructure are now active."
-}
-```
-*Security: Key is encrypted via Fernet using `INTEGRATION_ENCRYPTION_KEY` before persistent storage.*
+The server verifies the signature before processing and stores event IDs to
+prevent duplicate fulfillment. Supported event families include subscription
+creation/change/deletion, successful and failed invoices, and completed
+checkout sessions.
 
----
-
-## 5. Check BYOK Status
+## BYOK status
 
 ```http
 GET /api/user/custom-ai-key
-Authorization: Bearer <JWT_TOKEN>
+Authorization: Bearer <jwt-or-api-key>
 ```
 
-### Response (`200 OK`):
+Response:
+
 ```json
 {
-  "has_custom_key": true,
-  "provider": "openai",
-  "unlimited_active": true
+  "has_custom_key": false,
+  "provider": null,
+  "unlimited_active": false
 }
 ```
+
+## Save or remove a BYOK key
+
+Only the megastore plan can save a custom OpenAI or Gemini key:
+
+```http
+POST /api/user/custom-ai-key
+Authorization: Bearer <jwt-or-api-key>
+Content-Type: application/json
+
+{
+  "provider": "openai",
+  "api_key": "sk-proj-<secret>"
+}
+```
+
+The key is encrypted with INTEGRATION_ENCRYPTION_KEY before persistence and is
+never returned. Remove it with:
+
+```http
+DELETE /api/user/custom-ai-key
+Authorization: Bearer <jwt-or-api-key>
+```
+
+For the platform-managed OpenAI provider, configure OPENAI_API_KEY and
+OPENAI_MODEL on the server. Never submit that platform key from the browser.

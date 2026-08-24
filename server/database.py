@@ -1,20 +1,43 @@
 """database.py — SQLAlchemy database setup and ORM models."""
+import logging
 import os
+from pathlib import Path
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Integer, Float, UniqueConstraint, Boolean, DateTime, Text, ForeignKey, text, inspect
+from sqlalchemy import create_engine, Column, String, Integer, Float, UniqueConstraint, Boolean, DateTime, Text, ForeignKey, text, inspect, event
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
+from .config import STRICT_CONFIG
+
+logger = logging.getLogger(__name__)
+
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if STRICT_CONFIG and not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL must be configured in staging and production.")
+if STRICT_CONFIG and not DATABASE_URL.startswith(("postgres://", "postgresql://", "postgresql+")):
+    raise RuntimeError("Staging and production require a managed PostgreSQL DATABASE_URL.")
 if not DATABASE_URL:
-    DATABASE_URL = "sqlite:///./kopykat.db"
+    sqlite_path = Path(os.getenv("SQLITE_PATH", "data/kopykat.db")).expanduser()
+    sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+    DATABASE_URL = f"sqlite:///{sqlite_path.as_posix()}"
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+_is_sqlite = DATABASE_URL.startswith("sqlite")
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    connect_args={"check_same_thread": False, "timeout": 30} if _is_sqlite else {},
+    pool_pre_ping=not _is_sqlite,
+    pool_recycle=1800 if not _is_sqlite else -1,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+if _is_sqlite:
+    @event.listens_for(engine, "connect")
+    def _configure_sqlite_connection(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.close()
 
 class Base(DeclarativeBase):
     pass
@@ -39,6 +62,7 @@ class User(Base):
     purchased_generations = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    auth_version = Column(Integer, default=1, nullable=False)
     custom_ai_key_encrypted = Column(Text, nullable=True)
     custom_ai_provider = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -301,6 +325,9 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -308,8 +335,9 @@ def init_db():
     try:
         Base.metadata.create_all(bind=engine)
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning("create_all notice: %s", e)
+        if STRICT_CONFIG:
+            raise
+        logger.warning("create_all notice: %s", e)
 
     try:
         inspector = inspect(engine)
@@ -324,6 +352,8 @@ def init_db():
                     conn.execute(text("ALTER TABLE users ADD COLUMN purchased_generations INTEGER DEFAULT 0"))
                 if "monthly_generations" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN monthly_generations INTEGER DEFAULT 5"))
+                if "auth_version" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN auth_version INTEGER DEFAULT 1"))
         if "usage_records" in inspector.get_table_names():
             columns = {c["name"] for c in inspector.get_columns("usage_records")}
             if "generations_used" not in columns:
@@ -335,5 +365,6 @@ def init_db():
                 with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE opportunity_logs ADD COLUMN score INTEGER DEFAULT 85"))
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning("Schema column inspection notice: %s", e)
+        if STRICT_CONFIG:
+            raise
+        logger.warning("Schema column inspection notice: %s", e)

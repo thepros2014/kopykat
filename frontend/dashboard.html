@@ -1091,6 +1091,80 @@ function copyKey() {
   });
 }
 
+function showMessage(container, message, color = 'var(--muted)') {
+  if (!container) return;
+  const messageEl = document.createElement('div');
+  messageEl.style.color = color;
+  messageEl.textContent = String(message || '');
+  container.replaceChildren(messageEl);
+}
+
+function appendSafeRichText(container, rawHtml, replace = true) {
+  if (!container) return;
+  const parsed = new DOMParser().parseFromString(String(rawHtml || ''), 'text/html');
+  const allowedTags = new Set(['P', 'H2', 'H3', 'H4', 'UL', 'OL', 'LI', 'STRONG', 'EM', 'B', 'I', 'A', 'BR', 'BLOCKQUOTE']);
+  const dangerousTags = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'FORM', 'INPUT', 'META', 'LINK']);
+
+  Array.from(parsed.body.querySelectorAll('*')).forEach((element) => {
+    if (dangerousTags.has(element.tagName)) {
+      element.remove();
+      return;
+    }
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(...Array.from(element.childNodes));
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attribute) => {
+      if (attribute.name.toLowerCase().startsWith('on') || attribute.name.toLowerCase() === 'style') {
+        element.removeAttribute(attribute.name);
+      }
+    });
+    if (element.tagName === 'A') {
+      const href = element.getAttribute('href') || '';
+      try {
+        const url = new URL(href, window.location.origin);
+        if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) throw new Error('Unsupported link protocol');
+        element.setAttribute('href', url.href);
+        if (url.protocol !== 'mailto:' && url.origin !== window.location.origin) {
+          element.setAttribute('target', '_blank');
+          element.setAttribute('rel', 'noopener noreferrer');
+        }
+      } catch {
+        element.removeAttribute('href');
+      }
+    } else {
+      Array.from(element.attributes).forEach((attribute) => element.removeAttribute(attribute.name));
+    }
+  });
+
+  const nodes = Array.from(parsed.body.childNodes);
+  if (replace) container.replaceChildren(...nodes);
+  else container.append(...nodes);
+}
+
+function renderCampaignAssets(assets) {
+  const safeAssets = assets && typeof assets === 'object' ? assets : {};
+  const blog = safeAssets.blog_post && typeof safeAssets.blog_post === 'object' ? safeAssets.blog_post : {};
+  const titleEl = document.getElementById('omni-blog-title');
+  if (titleEl) titleEl.textContent = blog.title || '';
+  appendSafeRichText(document.getElementById('omni-blog-content'), blog.content || '');
+
+  const emailContainer = document.getElementById('omni-email-content');
+  if (emailContainer) {
+    emailContainer.replaceChildren();
+    const emails = Array.isArray(safeAssets.email_drip) ? safeAssets.email_drip.slice(0, 20) : [];
+    emails.forEach((email, index) => {
+      const subject = document.createElement('strong');
+      subject.textContent = `${index + 1}. ${email && email.subject ? email.subject : ''}`;
+      emailContainer.appendChild(subject);
+      emailContainer.appendChild(document.createElement('br'));
+      appendSafeRichText(emailContainer, email && email.body ? email.body : '', false);
+      emailContainer.appendChild(document.createElement('hr'));
+    });
+  }
+}
+
 // -- PROFILE & USAGE ----------------------------------------------------------
 async function loadProfile() {
   try {
@@ -1112,10 +1186,17 @@ async function loadProfile() {
 
     const planLabel = profile.plan ? (profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1)) : 'Free';
     const gensRemaining = profile.generations_remaining !== undefined ? profile.generations_remaining : (profile.generations || 0);
-    const monthlyLimit = profile.monthly_limit || 250;
+    const monthlyLimit = Number.isFinite(profile.monthly_limit) ? profile.monthly_limit : 0;
 
     const statPlanEl = document.getElementById('stat-plan');
-    if (statPlanEl) statPlanEl.innerHTML = `<span class="plan-chip ${profile.plan || 'free'}">${planLabel}</span>`;
+    if (statPlanEl) {
+      const planChip = document.createElement('span');
+      const allowedPlans = new Set(['free', 'boutique', 'standard', 'megastore']);
+      const planKey = allowedPlans.has(profile.plan) ? profile.plan : 'free';
+      planChip.className = `plan-chip ${planKey}`;
+      planChip.textContent = planLabel;
+      statPlanEl.replaceChildren(planChip);
+    }
 
     const statGensEl = document.getElementById('stat-generations-rem');
     if (statGensEl) statGensEl.textContent = gensRemaining.toLocaleString();
@@ -1157,7 +1238,8 @@ async function loadProfile() {
     const chip = document.getElementById('billing-plan-chip');
     if (chip) {
       chip.textContent = planLabel;
-      chip.className = `plan-chip ${profile.plan || 'free'}`;
+      const allowedPlans = new Set(['free', 'boutique', 'standard', 'megastore']);
+      chip.className = `plan-chip ${allowedPlans.has(profile.plan) ? profile.plan : 'free'}`;
     }
     const billingDetail = document.getElementById('billing-plan-detail');
     if (billingDetail) billingDetail.textContent = `${monthlyLimit.toLocaleString()} monthly generations`;
@@ -1180,22 +1262,36 @@ async function loadKeys() {
     const keys = await res.json();
 
     if (!keys || !keys.length) {
-      list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px 0;">No API keys yet. Create one above.</div>';
+      showMessage(list, 'No API keys yet. Create one above.');
       return;
     }
 
-    list.innerHTML = keys.map(k => `
-      <div class="key-row">
-        <div>
-          <div class="key-name">${k.name}</div>
-          <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} &middot; ${k.requests_today || 0} requests today</div>
-        </div>
-        <code class="key-prefix">${k.key_prefix}&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</code>
-        <button class="key-delete" onclick="deleteKey('${k.id}')" title="Revoke key">&times;</button>
-      </div>
-    `).join('');
+    list.replaceChildren();
+    keys.forEach((key) => {
+      const row = document.createElement('div');
+      row.className = 'key-row';
+      const details = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'key-name';
+      name.textContent = key.name || 'Unnamed key';
+      const meta = document.createElement('div');
+      meta.className = 'key-meta';
+      meta.textContent = `Created ${new Date(key.created_at).toLocaleDateString()} · ${key.requests_today || 0} requests today`;
+      details.append(name, meta);
+      const prefix = document.createElement('code');
+      prefix.className = 'key-prefix';
+      prefix.textContent = `${key.key_prefix || ''}•••••••••••••••`;
+      const revoke = document.createElement('button');
+      revoke.className = 'key-delete';
+      revoke.title = 'Revoke key';
+      revoke.setAttribute('aria-label', 'Revoke key');
+      revoke.textContent = '×';
+      revoke.addEventListener('click', () => deleteKey(key.id));
+      row.append(details, prefix, revoke);
+      list.appendChild(row);
+    });
   } catch (e) {
-    list.innerHTML = '<div style="color:#ff6b6b;font-size:14px;">Failed to load keys.</div>';
+    showMessage(list, 'Failed to load keys.', '#ff6b6b');
   }
 }
 
@@ -1322,10 +1418,10 @@ async function runGenerator() {
       resDiv.appendChild(actionsDiv);
       loadProfile();
     } else {
-      resDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${data.detail || 'Generation failed'}</span>`;
+      showMessage(resDiv, `Error: ${data.detail || 'Generation failed'}`, '#ff6b6b');
     }
   } catch (err) {
-    document.getElementById('gen-results').innerHTML = `<span style="color:#ff6b6b;">Failed to generate copy.</span>`;
+    showMessage(document.getElementById('gen-results'), 'Failed to generate copy.', '#ff6b6b');
   } finally {
     if (btn) { btn.textContent = "Generate Options"; btn.disabled = false; }
   }
@@ -1369,15 +1465,7 @@ async function runOmniGenerate() {
     if (res.ok) {
       currentCampaignId = data.id;
       const assets = data.assets || {};
-
-      document.getElementById('omni-blog-title').textContent = (assets.blog_post && assets.blog_post.title) || '';
-      document.getElementById('omni-blog-content').innerHTML = (assets.blog_post && assets.blog_post.content) || '';
-
-      let emailsHtml = "";
-      (assets.email_drip || []).forEach((e, i) => {
-        emailsHtml += `<strong>${i + 1}. ${e.subject}</strong><br/>${e.body}<hr/>`;
-      });
-      document.getElementById('omni-email-content').innerHTML = emailsHtml;
+      renderCampaignAssets(assets);
       document.getElementById('omni-results-wrapper').style.display = 'block';
       loadProfile();
     } else {
@@ -1428,14 +1516,7 @@ async function runOmniVisionGenerate() {
           document.getElementById('omni-desc').value = assets.detected_description;
         }
 
-        document.getElementById('omni-blog-title').textContent = (assets.blog_post && assets.blog_post.title) || '';
-        document.getElementById('omni-blog-content').innerHTML = (assets.blog_post && assets.blog_post.content) || '';
-
-        let emailsHtml = "";
-        (assets.email_drip || []).forEach((item, i) => {
-          emailsHtml += `<strong>${i + 1}. ${item.subject}</strong><br/>${item.body}<hr/>`;
-        });
-        document.getElementById('omni-email-content').innerHTML = emailsHtml;
+        renderCampaignAssets(assets);
         document.getElementById('omni-results-wrapper').style.display = 'block';
         loadProfile();
       } else {
@@ -1900,51 +1981,52 @@ async function optimizeMarketplaceListing() {
     const badge = document.getElementById('opt-score-badge');
     if (badge) badge.textContent = 'Compliance Score: ' + data.compliance_score + '/100';
 
-    let out = '<div style="margin-bottom:16px;">' +
-      '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Optimized Listing Title</label>' +
-      '<div style="background:var(--bg2); padding:10px; border-radius:6px; font-weight:600; margin-top:4px;">' + data.optimized_title + '</div>' +
-      '</div>';
+    resultsContent.replaceChildren();
+    const addSection = (labelText, value, mode = 'text') => {
+      if (value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length)) return;
+      const section = document.createElement('div');
+      section.style.marginBottom = '16px';
+      const label = document.createElement('label');
+      label.style.cssText = 'font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;';
+      label.textContent = labelText;
+      section.appendChild(label);
 
-    if (data.bullet_points && data.bullet_points.length) {
-      out += '<div style="margin-bottom:16px;">' +
-        '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Key Bullet Points / Feature Highlights</label>' +
-        '<ul style="margin:6px 0 0 18px; line-height:1.6; color:var(--text);">';
-      data.bullet_points.forEach(b => { out += '<li>' + b + '</li>'; });
-      out += '</ul></div>';
-    }
+      if (mode === 'list') {
+        const list = document.createElement('ul');
+        list.style.cssText = 'margin:6px 0 0 18px; line-height:1.6; color:var(--text);';
+        value.slice(0, 50).forEach((item) => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          list.appendChild(li);
+        });
+        section.appendChild(list);
+      } else if (mode === 'tags') {
+        const tags = document.createElement('div');
+        tags.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;';
+        value.slice(0, 50).forEach((item) => {
+          const tag = document.createElement('span');
+          tag.style.cssText = 'background:var(--bg2); border:1px solid var(--border); padding:3px 8px; border-radius:12px; font-size:12px;';
+          tag.textContent = item;
+          tags.appendChild(tag);
+        });
+        section.appendChild(tags);
+      } else {
+        const valueEl = document.createElement('div');
+        valueEl.style.cssText = 'background:var(--bg2); padding:10px; border-radius:6px; margin-top:4px; white-space:pre-wrap;';
+        valueEl.textContent = value;
+        section.appendChild(valueEl);
+      }
+      resultsContent.appendChild(section);
+    };
 
-    if (data.tags && data.tags.length) {
-      out += '<div style="margin-bottom:16px;">' +
-        '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Etsy 13 Search Tags</label>' +
-        '<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">';
-      data.tags.forEach(t => {
-        out += '<span style="background:var(--bg2); border:1px solid var(--border); padding:3px 8px; border-radius:12px; font-size:12px;">' + t + '</span>';
-      });
-      out += '</div></div>';
-    }
-
-    if (data.backend_search_terms) {
-      out += '<div style="margin-bottom:16px;">' +
-        '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Amazon Backend Search Terms (Under 249 Bytes)</label>' +
-        '<div style="background:var(--bg2); padding:8px; border-radius:6px; font-family:monospace; font-size:12px; margin-top:4px;">' + data.backend_search_terms + '</div>' +
-        '</div>';
-    }
-
-    if (data.meta_description) {
-      out += '<div style="margin-bottom:16px;">' +
-        '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Shopify SEO Meta Description</label>' +
-        '<div style="background:var(--bg2); padding:8px; border-radius:6px; font-size:13px; margin-top:4px;">' + data.meta_description + '</div>' +
-        '</div>';
-    }
-
-    out += '<div>' +
-      '<label style="font-size:12px; font-weight:bold; color:var(--purple); text-transform:uppercase;">Structured Product Description</label>' +
-      '<div style="background:var(--bg2); padding:12px; border-radius:6px; font-size:13px; line-height:1.6; margin-top:4px;">' + data.structured_description + '</div>' +
-      '</div>';
-
-    resultsContent.innerHTML = out;
+    addSection('Optimized Listing Title', data.optimized_title);
+    addSection('Key Bullet Points / Feature Highlights', data.bullet_points, 'list');
+    addSection('Etsy 13 Search Tags', data.tags, 'tags');
+    addSection('Amazon Backend Search Terms (Under 249 Bytes)', data.backend_search_terms);
+    addSection('Shopify SEO Meta Description', data.meta_description);
+    addSection('Structured Product Description', data.structured_description);
   } catch (err) {
-    resultsContent.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Optimization failed: ' + err.message + '</div>';
+    showMessage(resultsContent, `Optimization failed: ${err.message}`, '#ff6b6b');
   }
 }
 
@@ -1965,24 +2047,46 @@ async function loadAddOnsStore() {
       card.style.flexDirection = 'column';
       card.style.justifyContent = 'space-between';
 
-      let featHtml = '';
-      (a.features || []).forEach(f => {
-        featHtml += '<li style="margin-bottom:6px; font-size:13px; color:var(--text);">' + f + '</li>';
+      const content = document.createElement('div');
+      const type = document.createElement('span');
+      type.style.cssText = 'display:inline-block; font-size:11px; font-weight:bold; text-transform:uppercase; color:var(--purple); background:rgba(142,68,173,0.1); padding:2px 8px; border-radius:10px; margin-bottom:8px;';
+      type.textContent = a.billing_type === 'monthly' ? 'Monthly Add-On' : 'One-Time Upgrade';
+      const name = document.createElement('h3');
+      name.style.cssText = 'margin:0 0 8px 0; font-size:18px;';
+      name.textContent = a.name || 'Add-on';
+      const price = document.createElement('div');
+      price.style.cssText = 'font-size:26px; font-weight:800; color:var(--text); margin-bottom:12px;';
+      price.textContent = `$${a.price_usd}`;
+      if (a.billing_type === 'monthly') {
+        const cadence = document.createElement('span');
+        cadence.style.cssText = 'font-size:14px; font-weight:normal; color:var(--muted);';
+        cadence.textContent = '/mo';
+        price.appendChild(cadence);
+      }
+      const description = document.createElement('p');
+      description.style.cssText = 'color:var(--muted); font-size:13px; line-height:1.5; margin-bottom:16px;';
+      description.textContent = a.description || '';
+      const features = document.createElement('ul');
+      features.style.cssText = 'margin:0 0 20px 16px; padding:0;';
+      (Array.isArray(a.features) ? a.features : []).slice(0, 50).forEach((feature) => {
+        const item = document.createElement('li');
+        item.style.cssText = 'margin-bottom:6px; font-size:13px; color:var(--text);';
+        item.textContent = feature;
+        features.appendChild(item);
       });
+      content.append(type, name, price, description, features);
 
-      card.innerHTML = '<div>' +
-        '<span style="display:inline-block; font-size:11px; font-weight:bold; text-transform:uppercase; color:var(--purple); background:rgba(142,68,173,0.1); padding:2px 8px; border-radius:10px; margin-bottom:8px;">' + (a.billing_type === 'monthly' ? 'Monthly Add-On' : 'One-Time Upgrade') + '</span>' +
-        '<h3 style="margin:0 0 8px 0; font-size:18px;">' + a.name + '</h3>' +
-        '<div style="font-size:26px; font-weight:800; color:var(--text); margin-bottom:12px;">$' + a.price_usd + (a.billing_type === 'monthly' ? '<span style="font-size:14px; font-weight:normal; color:var(--muted);">/mo</span>' : '') + '</div>' +
-        '<p style="color:var(--muted); font-size:13px; line-height:1.5; margin-bottom:16px;">' + a.description + '</p>' +
-        '<ul style="margin:0 0 20px 16px; padding:0;">' + featHtml + '</ul>' +
-        '</div>' +
-        '<button class="btn btn-primary" style="width:100%;" onclick="buyAddon(\'' + a.key + '\')">Get ' + a.name + '</button>';
+      const buyButton = document.createElement('button');
+      buyButton.className = 'btn btn-primary';
+      buyButton.style.width = '100%';
+      buyButton.textContent = `Get ${a.name || 'Add-on'}`;
+      buyButton.addEventListener('click', () => buyAddon(a.key));
+      card.append(content, buyButton);
 
       container.appendChild(card);
     });
   } catch (err) {
-    container.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Failed to load add-ons store.</div>';
+    showMessage(container, 'Failed to load add-ons store.', '#ff6b6b');
   }
 }
 
@@ -2056,11 +2160,14 @@ async function loadOpportunityLeads() {
     if (!res.ok) throw new Error("Failed to load leads");
     const leads = await res.json();
 
-    container.innerHTML = '';
-    if (!leads.length) {
-      container.innerHTML = '<div style="color:var(--muted); font-size:13px; padding:20px 0;">No active social leads discovered yet. The Opportunity Scout scans every 4 hours.</div>';
-      return;
-    }
+     container.replaceChildren();
+     if (!leads.length) {
+       const empty = document.createElement('div');
+       empty.style.cssText = 'color:var(--muted); font-size:13px; padding:20px 0;';
+       empty.textContent = 'No active social leads discovered yet. The Opportunity Scout scans every 4 hours.';
+       container.appendChild(empty);
+       return;
+     }
 
     leads.forEach((l, idx) => {
       const card = document.createElement('div');
@@ -2070,24 +2177,75 @@ async function loadOpportunityLeads() {
       card.style.borderRadius = '8px';
       card.style.padding = '16px';
 
-      card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
-        '<div style="display:flex; align-items:center; gap:8px;"><span style="font-weight:bold; color:var(--purple); font-size:12px; text-transform:uppercase;">' + l.platform + ' Thread</span><span style="background:rgba(46,204,113,0.15); color:#2ecc71; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:bold;">Intent Score: ' + (l.score || 85) + '/100</span></div>' +
-        '<span style="color:var(--muted); font-size:12px;">' + new Date(l.created_at).toLocaleTimeString() + ' ' + new Date(l.created_at).toLocaleDateString() + '</span>' +
-        '</div>' +
-        '<h4 style="margin:0 0 10px 0; font-size:15px;"><a href="' + (l.post_url || '#') + '" target="_blank" style="color:var(--text); text-decoration:none; border-bottom:1px dashed var(--muted);">' + l.post_title + ' &rarr;</a></h4>' +
-        '<div style="padding:12px; background:var(--bg); border-left:3px solid var(--purple); border-radius:4px; font-size:13px; margin-bottom:12px; line-height:1.5;">' +
-        '<strong style="color:var(--text); display:block; margin-bottom:4px;">AI Drafted Response:</strong>' +
-        '<span id="lead-draft-' + idx + '" style="color:var(--muted);">' + l.draft_reply + '</span>' +
-        '</div>' +
-        '<div style="display:flex; gap:8px;">' +
-        '<button class="btn btn-outline btn-sm" onclick="copyLeadDraft(' + idx + ')">Copy Draft Reply</button>' +
-        (l.post_url ? '<a href="' + l.post_url + '" target="_blank" class="btn btn-outline btn-sm">Open Thread</a>' : '') +
-        '</div>';
+       const header = document.createElement('div');
+       header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;';
+       const headerLeft = document.createElement('div');
+       headerLeft.style.cssText = 'display:flex; align-items:center; gap:8px;';
+       const platform = document.createElement('span');
+       platform.style.cssText = 'font-weight:bold; color:var(--purple); font-size:12px; text-transform:uppercase;';
+       platform.textContent = `${l.platform || 'Unknown'} Thread`;
+       const score = document.createElement('span');
+       score.style.cssText = 'background:rgba(46,204,113,0.15); color:#2ecc71; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:bold;';
+       score.textContent = `Intent Score: ${Number.isFinite(l.score) ? l.score : 'N/A'}/100`;
+       headerLeft.append(platform, score);
+       const timestamp = document.createElement('span');
+       timestamp.style.cssText = 'color:var(--muted); font-size:12px;';
+       const createdAt = l.created_at ? new Date(l.created_at) : null;
+       timestamp.textContent = createdAt && !Number.isNaN(createdAt.getTime()) ? `${createdAt.toLocaleTimeString()} ${createdAt.toLocaleDateString()}` : 'Unknown date';
+       header.append(headerLeft, timestamp);
+
+       const title = document.createElement('h4');
+       title.style.cssText = 'margin:0 0 10px 0; font-size:15px;';
+       const postUrl = typeof l.post_url === 'string' && /^https:\/\//i.test(l.post_url) ? l.post_url : '';
+       if (postUrl) {
+         const link = document.createElement('a');
+         link.href = postUrl;
+         link.target = '_blank';
+         link.rel = 'noopener noreferrer';
+         link.style.cssText = 'color:var(--text); text-decoration:none; border-bottom:1px dashed var(--muted);';
+         link.textContent = `${l.post_title || 'Untitled thread'} →`;
+         title.appendChild(link);
+       } else {
+         title.textContent = l.post_title || 'Untitled thread';
+       }
+
+       const draftBox = document.createElement('div');
+       draftBox.style.cssText = 'padding:12px; background:var(--bg); border-left:3px solid var(--purple); border-radius:4px; font-size:13px; margin-bottom:12px; line-height:1.5;';
+       const draftLabel = document.createElement('strong');
+       draftLabel.style.cssText = 'color:var(--text); display:block; margin-bottom:4px;';
+       draftLabel.textContent = 'AI Drafted Response:';
+       const draft = document.createElement('span');
+       draft.id = `lead-draft-${idx}`;
+       draft.style.color = 'var(--muted)';
+       draft.textContent = l.draft_reply || 'No draft response recorded.';
+       draftBox.append(draftLabel, draft);
+
+       const actions = document.createElement('div');
+       actions.style.cssText = 'display:flex; gap:8px;';
+       const copyButton = document.createElement('button');
+       copyButton.className = 'btn btn-outline btn-sm';
+       copyButton.textContent = 'Copy Draft Reply';
+       copyButton.addEventListener('click', () => copyLeadDraft(idx));
+       actions.appendChild(copyButton);
+       if (postUrl) {
+         const openLink = document.createElement('a');
+         openLink.href = postUrl;
+         openLink.target = '_blank';
+         openLink.rel = 'noopener noreferrer';
+         openLink.className = 'btn btn-outline btn-sm';
+         openLink.textContent = 'Open Thread';
+         actions.appendChild(openLink);
+       }
+       card.append(header, title, draftBox, actions);
 
       container.appendChild(card);
     });
   } catch (err) {
-    container.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Failed to load leads feed.</div>';
+     container.replaceChildren();
+     const error = document.createElement('div');
+     error.style.cssText = 'color:#ff6b6b; font-size:13px;';
+     error.textContent = 'Failed to load leads feed.';
+     container.appendChild(error);
   }
 }
 
@@ -2107,9 +2265,15 @@ async function loadPriceItems() {
     if (!res.ok) throw new Error("Failed to load price items");
     const items = await res.json();
 
-    tbody.innerHTML = '';
+    tbody.replaceChildren();
     if (!items.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; text-align:center; color:var(--muted);">No products tracked yet. Add your first product above.</td></tr>';
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = 7;
+      emptyCell.style.cssText = 'padding:20px; text-align:center; color:var(--muted);';
+      emptyCell.textContent = 'No products tracked yet. Add your first product above.';
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
       return;
     }
 
@@ -2130,17 +2294,35 @@ async function loadPriceItems() {
 
       const tdPrices = document.createElement('td');
       tdPrices.style.padding = '10px 8px';
-      tdPrices.innerHTML = '<span style="color:var(--muted);">$ ' + it.cogs_usd.toFixed(2) + '</span> / <strong>$ ' + it.selling_price_usd.toFixed(2) + '</strong>' + (it.competitor_price_usd ? ' / <span style="color:var(--purple);">$ ' + it.competitor_price_usd.toFixed(2) + '</span>' : '');
+      const cogs = Number(it.cogs_usd) || 0;
+      const sellingPrice = Number(it.selling_price_usd) || 0;
+      const competitorPrice = it.competitor_price_usd === null || it.competitor_price_usd === undefined ? null : Number(it.competitor_price_usd);
+      const cogsEl = document.createElement('span');
+      cogsEl.style.color = 'var(--muted)';
+      cogsEl.textContent = '$ ' + cogs.toFixed(2);
+      const sellingEl = document.createElement('strong');
+      sellingEl.textContent = '$ ' + sellingPrice.toFixed(2);
+      tdPrices.append(cogsEl, document.createTextNode(' / '), sellingEl);
+      if (Number.isFinite(competitorPrice)) {
+        const competitorEl = document.createElement('span');
+        competitorEl.style.color = 'var(--purple)';
+        competitorEl.textContent = '$ ' + competitorPrice.toFixed(2);
+        tdPrices.append(document.createTextNode(' / '), competitorEl);
+      }
 
       const tdMargin = document.createElement('td');
       tdMargin.style.padding = '10px 8px';
-      tdMargin.innerHTML = '<span style="font-weight:bold; color:' + statusColor + ';">' + it.current_margin_pct.toFixed(1) + '%</span>';
+      const margin = document.createElement('span');
+      margin.style.fontWeight = 'bold';
+      margin.style.color = statusColor;
+      margin.textContent = (Number(it.current_margin_pct) || 0).toFixed(1) + '%';
+      tdMargin.appendChild(margin);
 
       const tdProfit = document.createElement('td');
       tdProfit.style.padding = '10px 8px';
       tdProfit.style.fontWeight = 'bold';
       tdProfit.style.color = '#22c55e';
-      tdProfit.textContent = '$ ' + it.profit_per_unit_usd.toFixed(2);
+      tdProfit.textContent = '$ ' + (Number(it.profit_per_unit_usd) || 0).toFixed(2);
 
       const tdRec = document.createElement('td');
       tdRec.style.padding = '10px 8px';
@@ -2151,7 +2333,12 @@ async function loadPriceItems() {
       const tdAct = document.createElement('td');
       tdAct.style.padding = '10px 8px';
       tdAct.style.textAlign = 'right';
-      tdAct.innerHTML = '<button class="btn btn-outline btn-sm" onclick="deletePriceItem(\'' + it.id + '\')">&times;</button>';
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'btn btn-outline btn-sm';
+      deleteButton.setAttribute('aria-label', 'Delete price item');
+      deleteButton.textContent = '×';
+      deleteButton.addEventListener('click', () => deletePriceItem(it.id));
+      tdAct.appendChild(deleteButton);
 
       tr.appendChild(tdSku);
       tr.appendChild(tdProd);
@@ -2163,7 +2350,14 @@ async function loadPriceItems() {
       tbody.appendChild(tr);
     });
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; text-align:center; color:#ff6b6b;">Failed to load margin matrix.</td></tr>';
+    tbody.replaceChildren();
+    const errorRow = document.createElement('tr');
+    const errorCell = document.createElement('td');
+    errorCell.colSpan = 7;
+    errorCell.style.cssText = 'padding:20px; text-align:center; color:#ff6b6b;';
+    errorCell.textContent = 'Failed to load margin matrix.';
+    errorRow.appendChild(errorCell);
+    tbody.appendChild(errorRow);
   }
 }
 
@@ -2248,12 +2442,24 @@ async function generateUGCDrip() {
       card.className = 'card';
       card.style.background = 'var(--bg2)';
       card.style.border = '1px solid var(--border)';
-      card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">' +
-        '<span style="font-weight:bold; font-size:14px; color:var(--purple);">Step ' + em.step + ' (Day ' + em.day + '): ' + em.goal + '</span>' +
-        '<button class="btn btn-outline btn-sm" onclick="copyDripStep(' + idx + ')">Copy Email</button>' +
-        '</div>' +
-        '<div style="font-size:13px; font-weight:600; margin-bottom:6px;">Subject: ' + em.subject + '</div>' +
-        '<div id="drip-step-body-' + idx + '" style="font-size:13px; color:var(--muted); white-space:pre-wrap; line-height:1.6; border-top:1px solid var(--border); padding-top:10px;">' + em.body + '</div>';
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;';
+      const step = document.createElement('span');
+      step.style.cssText = 'font-weight:bold; font-size:14px; color:var(--purple);';
+      step.textContent = 'Step ' + em.step + ' (Day ' + em.day + '): ' + (em.goal || '');
+      const copyButton = document.createElement('button');
+      copyButton.className = 'btn btn-outline btn-sm';
+      copyButton.textContent = 'Copy Email';
+      copyButton.addEventListener('click', () => copyDripStep(idx));
+      header.append(step, copyButton);
+      const subject = document.createElement('div');
+      subject.style.cssText = 'font-size:13px; font-weight:600; margin-bottom:6px;';
+      subject.textContent = 'Subject: ' + (em.subject || '');
+      const body = document.createElement('div');
+      body.id = 'drip-step-body-' + idx;
+      body.style.cssText = 'font-size:13px; color:var(--muted); white-space:pre-wrap; line-height:1.6; border-top:1px solid var(--border); padding-top:10px;';
+      appendSafeRichText(body, em.body || '');
+      card.append(header, subject, body);
       container.appendChild(card);
     });
 
@@ -2283,7 +2489,7 @@ async function loadCustomerReviews() {
 
     container.innerHTML = '';
     if (!reviews.length) {
-      container.innerHTML = '<div style="color:var(--muted); font-size:13px; padding:16px 0;">No customer reviews submitted yet. Connect your store review widget to begin automated classification.</div>';
+      showMessage(container, 'No customer reviews submitted yet. Connect your store review widget to begin automated classification.');
       return;
     }
 
@@ -2294,20 +2500,46 @@ async function loadCustomerReviews() {
       div.style.border = '1px solid var(--border)';
       div.style.borderRadius = '8px';
 
-      const sentimentColor = r.sentiment === 'positive' ? '#22c55e' : (r.sentiment === 'negative' ? '#ef4444' : '#eab308');
-      const stars = '*'.repeat(r.rating) + ' '.repeat(5 - r.rating);
-
-      div.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
-        '<div><strong>' + r.customer_name + '</strong> on <em>' + r.product_name + '</em></div>' +
-        '<div><span style="color:#eab308; font-size:14px; margin-right:8px; font-family:monospace;">' + stars + '</span><span style="font-size:11px; font-weight:bold; padding:3px 8px; border-radius:12px; background:' + sentimentColor + '20; color:' + sentimentColor + ';">' + r.sentiment.toUpperCase() + '</span></div>' +
-        '</div>' +
-        '<div style="font-size:13px; margin-bottom:10px; line-height:1.5;">"' + r.review_text + '"</div>' +
-        (r.draft_reply ? '<div style="padding:10px; background:var(--bg); border-left:3px solid var(--purple); border-radius:4px; font-size:12px; color:var(--muted);"><strong style="color:var(--text);">AI Resolution Reply:</strong><br/>' + r.draft_reply.replace(/\n/g, '<br/>') + '</div>' : '');
+      const sentiment = ['positive', 'negative', 'neutral'].includes(r.sentiment) ? r.sentiment : 'neutral';
+      const sentimentColor = sentiment === 'positive' ? '#22c55e' : (sentiment === 'negative' ? '#ef4444' : '#eab308');
+      const rating = Math.min(5, Math.max(0, Number(r.rating) || 0));
+      const stars = '*'.repeat(rating) + ' '.repeat(5 - rating);
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;';
+      const identity = document.createElement('div');
+      const customer = document.createElement('strong');
+      customer.textContent = r.customer_name || 'Customer';
+      const product = document.createElement('em');
+      product.textContent = r.product_name || 'Product';
+      identity.append(customer, document.createTextNode(' on '), product);
+      const sentimentGroup = document.createElement('div');
+      const starsEl = document.createElement('span');
+      starsEl.style.cssText = 'color:#eab308; font-size:14px; margin-right:8px; font-family:monospace;';
+      starsEl.textContent = stars;
+      const sentimentEl = document.createElement('span');
+      sentimentEl.style.cssText = 'font-size:11px; font-weight:bold; padding:3px 8px; border-radius:12px; color:' + sentimentColor + '; background:' + sentimentColor + '20;';
+      sentimentEl.textContent = sentiment.toUpperCase();
+      sentimentGroup.append(starsEl, sentimentEl);
+      header.append(identity, sentimentGroup);
+      const reviewText = document.createElement('div');
+      reviewText.style.cssText = 'font-size:13px; margin-bottom:10px; line-height:1.5;';
+      reviewText.textContent = '"' + (r.review_text || '') + '"';
+      div.appendChild(header);
+      div.appendChild(reviewText);
+      if (r.draft_reply) {
+        const reply = document.createElement('div');
+        reply.style.cssText = 'padding:10px; background:var(--bg); border-left:3px solid var(--purple); border-radius:4px; font-size:12px; color:var(--muted); white-space:pre-wrap;';
+        const replyLabel = document.createElement('strong');
+        replyLabel.style.color = 'var(--text)';
+        replyLabel.textContent = 'AI Resolution Reply:';
+        reply.append(replyLabel, document.createTextNode('\n' + r.draft_reply));
+        div.appendChild(reply);
+      }
 
       container.appendChild(div);
     });
   } catch (err) {
-    container.innerHTML = '<div style="color:#ff6b6b; font-size:13px;">Failed to load reviews.</div>';
+    showMessage(container, 'Failed to load reviews.', '#ff6b6b');
   }
 }
 
@@ -2332,9 +2564,15 @@ async function loadInventory() {
     const logs = logsRes.ok ? await logsRes.json() : [];
 
     // Render Table
-    tbody.innerHTML = '';
+    tbody.replaceChildren();
     if (!items.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; color:var(--muted);">No SKUs registered yet. Add your first SKU above.</td></tr>';
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = 5;
+      emptyCell.style.cssText = 'padding:20px; text-align:center; color:var(--muted);';
+      emptyCell.textContent = 'No SKUs registered yet. Add your first SKU above.';
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
     } else {
       items.forEach(it => {
         const tr = document.createElement('tr');
@@ -2351,7 +2589,12 @@ async function loadInventory() {
 
         const tdStock = document.createElement('td');
         tdStock.style.padding = '10px 8px';
-        tdStock.innerHTML = '<span style="font-weight:bold; color:' + (it.total_stock > 10 ? '#22c55e' : (it.total_stock > 0 ? '#eab308' : '#ef4444')) + ';">' + it.total_stock + ' units</span>';
+        const stock = Number(it.total_stock) || 0;
+        const stockEl = document.createElement('span');
+        stockEl.style.fontWeight = 'bold';
+        stockEl.style.color = stock > 10 ? '#22c55e' : (stock > 0 ? '#eab308' : '#ef4444');
+        stockEl.textContent = stock + ' units';
+        tdStock.appendChild(stockEl);
 
         const tdDate = document.createElement('td');
         tdDate.style.padding = '10px 8px';
@@ -2361,7 +2604,11 @@ async function loadInventory() {
         const tdAction = document.createElement('td');
         tdAction.style.padding = '10px 8px';
         tdAction.style.textAlign = 'right';
-        tdAction.innerHTML = '<button class="btn btn-outline btn-sm" onclick="quickAdjustStock(\'' + it.sku + '\', \'' + it.title.replace(/'/g, "\\'") + '\', ' + it.total_stock + ')">Adjust</button>';
+        const adjustButton = document.createElement('button');
+        adjustButton.className = 'btn btn-outline btn-sm';
+        adjustButton.textContent = 'Adjust';
+        adjustButton.addEventListener('click', () => quickAdjustStock(it.sku, it.title, stock));
+        tdAction.appendChild(adjustButton);
 
         tr.appendChild(tdSku);
         tr.appendChild(tdTitle);
@@ -2375,9 +2622,9 @@ async function loadInventory() {
     // Render Logs
     const logsList = document.getElementById('inv-logs-list');
     if (logsList) {
-      logsList.innerHTML = '';
+      logsList.replaceChildren();
       if (!logs.length) {
-        logsList.innerHTML = '<div style="color:var(--muted); font-size:13px;">No recent sync events.</div>';
+        showMessage(logsList, 'No recent sync events.');
       } else {
         logs.forEach(l => {
           const div = document.createElement('div');
@@ -2388,7 +2635,21 @@ async function loadInventory() {
           div.style.fontSize = '12px';
           div.style.display = 'flex';
           div.style.justifyContent = 'space-between';
-          div.innerHTML = '<span><strong>' + l.sku + '</strong> (' + l.trigger_platform.toUpperCase() + ' event: <span style="color:' + (l.quantity_change < 0 ? '#ef4444' : '#22c55e') + ';">' + (l.quantity_change > 0 ? '+' : '') + l.quantity_change + '</span>) &rarr; New stock: <strong>' + l.new_quantity + '</strong></span><span style="color:var(--muted);">' + new Date(l.created_at).toLocaleTimeString() + '</span>';
+          const eventSummary = document.createElement('span');
+          const sku = document.createElement('strong');
+          sku.textContent = l.sku || 'Unknown SKU';
+          const platform = String(l.trigger_platform || 'unknown').toUpperCase();
+          const quantityChange = Number(l.quantity_change) || 0;
+          const change = document.createElement('span');
+          change.style.color = quantityChange < 0 ? '#ef4444' : '#22c55e';
+          change.textContent = (quantityChange > 0 ? '+' : '') + quantityChange;
+          const newQuantity = document.createElement('strong');
+          newQuantity.textContent = String(Number(l.new_quantity) || 0);
+          eventSummary.append(sku, document.createTextNode(' (' + platform + ' event: '), change, document.createTextNode(') → New stock: '), newQuantity);
+          const time = document.createElement('span');
+          time.style.color = 'var(--muted)';
+          time.textContent = new Date(l.created_at).toLocaleTimeString();
+          div.append(eventSummary, time);
           logsList.appendChild(div);
         });
       }
@@ -2453,7 +2714,10 @@ async function loadCustomAIKeyStatus() {
     const statusEl = document.getElementById('byok-status');
     if (statusEl) {
       if (data.has_custom_key) {
-        statusEl.innerHTML = '<span style="color:#22c55e;font-weight:bold;">Active:</span> Private ' + (data.provider || 'AI') + ' Key Configured. Unlimited generations active.';
+        const active = document.createElement('span');
+        active.style.cssText = 'color:#22c55e;font-weight:bold;';
+        active.textContent = 'Active:';
+        statusEl.replaceChildren(active, document.createTextNode(' Private ' + (data.provider || 'AI') + ' Key Configured. Unlimited generations active.'));
       } else {
         statusEl.textContent = 'No private AI key configured. Using default plan quota.';
       }

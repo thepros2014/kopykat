@@ -8,11 +8,11 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=72)
-    full_name: Optional[str] = None
+    full_name: Optional[str] = Field(default=None, max_length=255)
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1, max_length=72)
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -31,7 +31,7 @@ class UserProfile(BaseModel):
     created_at: datetime
 
 class APIKeyCreate(BaseModel):
-    name: str = Field(default="My Key", max_length=100)
+    name: str = Field(default="My Key", min_length=1, max_length=100)
 
 class APIKeyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -48,10 +48,11 @@ class APIKeyCreated(APIKeyResponse):
 
 class PublicMetricsSummary(BaseModel):
     total_campaigns_generated: int
-    supported_marketplaces_count: int = 5
+    supported_marketplaces_count: int
     active_subscribers_mrr_usd: float
     estimated_seller_hours_saved: int
-    platform_uptime_pct: float = 99.98
+    # Uptime is intentionally nullable until it is backed by a real monitor.
+    platform_uptime_pct: Optional[float] = None
     api_version: str = "2.0.0"
 
 COPY_TYPES = Literal[
@@ -110,7 +111,7 @@ class RequestPasswordReset(BaseModel):
     email: EmailStr
 
 class ResetPasswordSubmit(BaseModel):
-    token: str
+    token: str = Field(min_length=10, max_length=128)
     new_password: str = Field(min_length=8, max_length=72)
 
 class IntegrationSaveRequest(BaseModel):
@@ -119,8 +120,8 @@ class IntegrationSaveRequest(BaseModel):
 
 class PushRequest(BaseModel):
     platform: Literal["wordpress", "mailchimp", "hubspot", "shopify", "webflow", "amazon", "ebay", "walmart", "temu"]
-    content: str
-    title: Optional[str] = "Generated via KopyKat"
+    content: str = Field(min_length=1, max_length=100_000)
+    title: Optional[str] = Field(default="Generated via KopyKat", max_length=255)
     metadata: Optional[dict] = None
 
 class CampaignGenerateRequest(BaseModel):
@@ -154,7 +155,7 @@ class ConnectorCredentialsRequest(BaseModel):
     credentials: dict
 
 class ConnectorTestRequest(BaseModel):
-    operation_name: str
+    operation_name: str = Field(min_length=1, max_length=120)
     headers: Optional[dict] = None
     query: Optional[dict] = None
 
@@ -162,10 +163,12 @@ class ConnectorToggleRequest(BaseModel):
     active: bool
 
 class CampaignVisionGenerateRequest(BaseModel):
-    keyword: Optional[str] = ""
-    extra_context: Optional[str] = ""
-    image_base64: str = Field(min_length=1)
-    mime_type: Optional[str] = "image/jpeg"
+    keyword: Optional[str] = Field(default="", max_length=500)
+    extra_context: Optional[str] = Field(default="", max_length=2_000)
+    # 15 MB of base64 is a generous ceiling while preventing an unbounded
+    # request body from being copied into memory and sent to an AI provider.
+    image_base64: str = Field(min_length=1, max_length=15_000_000)
+    mime_type: Optional[str] = Field(default="image/jpeg", max_length=64)
 
 
 class CompetitorMineRequest(BaseModel):
@@ -207,10 +210,10 @@ class InventoryItemResponse(BaseModel):
     updated_at: datetime
 
 class InventoryWebhookPayload(BaseModel):
-    sku: str
-    quantity_delta: int  # e.g. -1 for a sale, +10 for a restock
-    order_id: Optional[str] = None
-    customer_email: Optional[str] = None
+    sku: str = Field(min_length=1, max_length=100)
+    quantity_delta: int = Field(ge=-2_000_000, le=2_000_000)  # e.g. -1 for a sale, +10 for a restock
+    order_id: Optional[str] = Field(default=None, max_length=100)
+    customer_email: Optional[str] = Field(default=None, max_length=255)
 
 class InventorySyncLogResponse(BaseModel):
     id: str
@@ -276,9 +279,9 @@ class PriceMarginItemResponse(BaseModel):
 
 
 class ShopifyImportRequest(BaseModel):
-    shop_url: Optional[str] = None
-    access_token: Optional[str] = None
-    limit: Optional[int] = 50
+    shop_url: Optional[str] = Field(default=None, max_length=255)
+    access_token: Optional[str] = Field(default=None, max_length=500)
+    limit: int = Field(default=50, ge=1, le=250)
 
 class ShopifyImportResponse(BaseModel):
     success: bool
@@ -291,9 +294,9 @@ class ShopifyImportResponse(BaseModel):
 class BrandPersonaRequest(BaseModel):
     brand_name: str = Field(min_length=1, max_length=255)
     brand_voice_tone: str = Field(min_length=2, max_length=255)
-    target_audience: Optional[str] = None
-    rules_and_guidelines: Optional[str] = None
-    sample_copy: Optional[str] = None
+    target_audience: Optional[str] = Field(default=None, max_length=500)
+    rules_and_guidelines: Optional[str] = Field(default=None, max_length=5_000)
+    sample_copy: Optional[str] = Field(default=None, max_length=5_000)
 
 class BrandPersonaResponse(BaseModel):
     id: str
@@ -309,19 +312,19 @@ class MarketplaceOptimizeRequest(BaseModel):
     product_name: str = Field(min_length=2, max_length=255)
     platform: str = Field(pattern="^(amazon|shopify|etsy|tiktok|tiktok_shop|ebay)$")
     raw_details: str = Field(min_length=5, max_length=5000)
-    keywords: Optional[str] = None
-    target_audience: Optional[str] = None
+    keywords: Optional[str] = Field(default=None, max_length=1_000)
+    target_audience: Optional[str] = Field(default=None, max_length=500)
 
 class MarketplaceOptimizeResponse(BaseModel):
     platform: str
     product_name: str
     optimized_title: str
-    bullet_points: list[str] = []
+    bullet_points: list[str] = Field(default_factory=list)
     meta_description: Optional[str] = None
     backend_search_terms: Optional[str] = None
-    tags: list[str] = []
-    short_hooks: list[str] = []
-    hashtags: list[str] = []
+    tags: list[str] = Field(default_factory=list)
+    short_hooks: list[str] = Field(default_factory=list)
+    hashtags: list[str] = Field(default_factory=list)
     sub_title: Optional[str] = None
     item_specifics: Optional[dict] = None
     structured_description: str
@@ -353,7 +356,9 @@ class AdminMRRMetricsResponse(BaseModel):
     total_lifetime_revenue_usd: float
     total_registered_merchants: int
     pricing_model: dict
-    software_asset_score: float
+    # A subjective valuation score is not a financial fact. Keep it nullable
+    # until an explicit, documented scoring model exists.
+    software_asset_score: Optional[float] = None
     valuation_estimate_usd: dict
 
 class SEOAnalyticsArticle(BaseModel):

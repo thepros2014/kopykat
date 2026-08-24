@@ -1,9 +1,40 @@
-MULTI-AGENT TEAMWORK DELIVERABLES (COMPLETED & VERIFIED):
-- [x] Milestone 1: Multi-Modal Vision & Generation Pipeline (Amazon, Shopify, Etsy, TikTok Shop, eBay schema validation).
-- [x] Milestone 2: Autonomous Connectors & Real-Time Sync Engine (SafeAsyncHTTPClient, SSRF/DNS rebinding defense, idempotent webhook processing).
-- [x] Milestone 3: Automated Growth Engine, Sentiment & Telemetry (SEO blog engine, customer review sentiment classifier, Reddit opportunity scout, MRR analytics).
-- [x] Milestone 4: Security Invariants, Multi-Tenant Isolation & Frontend Dashboard (IDOR prevention, dual-bucket atomic quota ledger, admin MRR UI).
-- [x] Tier 1-5 Test Suites: 404 / 404 Automated Tests Passing with 100% Green Status.
+KOPYKAT ENGINEERING HANDOFF SUMMARY
 
-# KOPYKAT - IDE HANDOFF ARCHIVE
-See docs/ACQUISITION_DOSSIER.md and PROJECT.md for full specs.
+Purpose
+-------
+This file is a concise handoff for the current repository snapshot. It
+summarizes implemented areas without asserting customer, revenue, benchmark,
+or deployment status.
+
+Implemented areas
+-----------------
+- FastAPI service with authenticated content, campaign, billing, connector,
+  inventory, review, pricing, and growth routes.
+- Static browser client and React/TypeScript client.
+- OpenAI Responses API adapter and Google Gen AI adapter with configured
+  provider selection and safe test isolation.
+- Encrypted marketplace credentials and BYOK storage.
+- Tenant-scoped queries, bounded inputs, security headers, and outbound SSRF
+  controls.
+- Stripe event signature verification and event idempotency.
+- Scheduled internal SEO, email, maintenance, and opportunity-draft jobs.
+- Backend, frontend, dependency, and adversarial verification commands
+  documented in TEST_READY.md.
+
+Operational boundaries
+----------------------
+- Provider credentials, Stripe price IDs, managed PostgreSQL, backups,
+  monitoring, and incident ownership are deployment responsibilities.
+- Generated marketing content requires human review before publication.
+- KopyKat does not implement an automated Moltbook visitor, scraper, or
+  commercial poster. Review the current Moltbook terms before considering any
+  future integration.
+
+Canonical references
+--------------------
+- README.md
+- PROJECT.md
+- SECURITY.md
+- TEST_READY.md
+- docs/TECHNICAL_SPEC_SHEET.md
+- docs/BUYER_READY_ARCHITECTURE.md

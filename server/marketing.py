@@ -14,10 +14,11 @@ from typing import Optional
 
 import httpx
 import bleach
-import google.generativeai as genai
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, BlogPost, User, DripLog, OpportunityLog
+from .gemini_client import generate_content_async
+from .openai_client import generate_text_async
 from .scheduler import _send_email
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,49 @@ def _resolve_unique_slug(db: Session, base_slug: str) -> str:
     return slug
 
 
+def _ai_provider_order() -> list[str]:
+    preferred = os.environ.get("AI_PROVIDER", "gemini").strip().lower()
+    if preferred not in {"gemini", "openai"}:
+        preferred = "gemini"
+    return [preferred, "openai" if preferred == "gemini" else "gemini"]
+
+
+async def _generate_marketing_text(
+    prompt: str,
+    *,
+    json_mode: bool = False,
+    max_output_tokens: int = 1800,
+) -> str:
+    """Use the configured provider for scheduled drafts without test egress."""
+
+    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    testing = os.environ.get("ENVIRONMENT", "").strip().lower() in {"test", "testing"}
+
+    for provider in _ai_provider_order():
+        try:
+            if provider == "gemini" and gemini_key:
+                response = await generate_content_async(
+                    api_key=gemini_key,
+                    model=os.environ.get("GEMINI_MODEL", "gemini-flash-latest"),
+                    contents=prompt,
+                )
+                return (getattr(response, "text", "") or "").strip()
+            if provider == "openai" and openai_key and not testing:
+                text, _ = await generate_text_async(
+                    api_key=openai_key,
+                    model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                    input_value=prompt,
+                    max_output_tokens=max_output_tokens,
+                    json_mode=json_mode,
+                )
+                return text.strip()
+        except Exception:
+            logger.warning("Scheduled marketing provider failed: %s", provider, exc_info=True)
+            continue
+    return ""
+
+
 async def generate_seo_post(db: Optional[Session] = None, keyword: Optional[str] = None) -> Optional[BlogPost]:
     """Generates and publishes an SEO-optimized blog post."""
     own_db = False
@@ -92,8 +136,7 @@ async def generate_seo_post(db: Optional[Session] = None, keyword: Optional[str]
         keyword = _strip_emojis(keyword) or "AI Ecommerce Guide"
         logger.info("Starting SEO blog generation for: %s", keyword)
 
-        api_key = os.environ.get('GEMINI_API_KEY', '')
-        if not api_key:
+        if not os.environ.get('GEMINI_API_KEY', '').strip() and not os.environ.get('OPENAI_API_KEY', '').strip():
             # Deterministic fallback when API key is unconfigured
             slug_base = _clean_slug(keyword)
             slug = _resolve_unique_slug(db, slug_base)
@@ -112,9 +155,6 @@ async def generate_seo_post(db: Optional[Session] = None, keyword: Optional[str]
             db.commit()
             return post
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(os.environ.get('GEMINI_MODEL', 'gemini-flash-latest'))
-
         prompt = f"""Write an SEO-optimized blog post about '{keyword}'.
         Output strictly as a JSON object with these exact keys:
         - "title": a catchy SEO title
@@ -124,8 +164,9 @@ async def generate_seo_post(db: Optional[Session] = None, keyword: Optional[str]
         
         Return ONLY valid JSON.
         """
-        response = await model.generate_content_async(prompt)
-        text = response.text.strip()
+        text = await _generate_marketing_text(prompt, json_mode=True, max_output_tokens=1800)
+        if not text:
+            raise RuntimeError("No configured marketing AI provider returned content")
         if text.startswith('```json'): text = text[7:]
         if text.endswith('```'): text = text[:-3]
         text = text.strip()
@@ -254,7 +295,6 @@ async def scan_reddit_opportunities(db: Optional[Session] = None) -> int:
         own_db = True
     found_count = 0
     try:
-        api_key = os.environ.get('GEMINI_API_KEY', '')
         headers = {'User-Agent': 'Mozilla/5.0 KopyKatScout/1.0'}
         
         async with httpx.AsyncClient(headers=headers, timeout=5.0) as http_client:
@@ -284,13 +324,12 @@ async def scan_reddit_opportunities(db: Optional[Session] = None) -> int:
                             continue
     
                         draft = f"I used to struggle with drafting product descriptions too until I started using KopyKat (https://kopykat.onrender.com) to automate catalog copy and syndication. Saves a huge amount of time."
-                        if api_key and not api_key.startswith("test-"):
+                        if (os.environ.get('GEMINI_API_KEY', '').strip() or os.environ.get('OPENAI_API_KEY', '').strip()):
                             try:
-                                genai.configure(api_key=api_key)
-                                model = genai.GenerativeModel(os.environ.get('GEMINI_MODEL', 'gemini-flash-latest'))
                                 prompt = f"Write a helpful, non-spammy Reddit reply to this post: '{title}\n{selftext}'. Suggest they try an AI tool called KopyKat (https://kopykat.onrender.com) to automate their copywriting. Keep it under 80 words, sound casual like a real redditor."
-                                response = await model.generate_content_async(prompt)
-                                draft = response.text.strip()
+                                generated = await _generate_marketing_text(prompt, max_output_tokens=300)
+                                if generated:
+                                    draft = generated
                             except Exception:
                                 pass
     

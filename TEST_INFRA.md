@@ -1,51 +1,95 @@
-# E2E Test Infra: KopyKat Enterprise Platform
+# KopyKat test infrastructure
 
-## Test Philosophy
-- Opaque-box, requirement-driven. No dependency on implementation design internals.
-- Methodology: Category-Partition + Boundary Value Analysis (BVA) + Pairwise Combinatorial Testing + Real-World Workload Testing.
+## Test philosophy
 
-## Feature Inventory & Test Coverage Matrix
-| # | Feature | Source (requirement) | Tier 1 (Feature) | Tier 2 (Boundary) | Tier 3 (Pairwise) | Tier 4 (Scenario) |
-|---|---------|---------------------|:----------------:|:-----------------:|:-----------------:|:-----------------:|
-| F1 | Multi-Modal Vision Pipeline | ORIGINAL_REQUEST §1 | ≥5 | ≥5 | ✓ | ✓ |
-| F2 | Amazon Listing Schema | ORIGINAL_REQUEST §1 | ≥5 | ≥5 | ✓ | ✓ |
-| F3 | Shopify Listing Schema | ORIGINAL_REQUEST §1 | ≥5 | ≥5 | ✓ | ✓ |
-| F4 | Etsy Listing Schema | ORIGINAL_REQUEST §1 | ≥5 | ≥5 | ✓ | ✓ |
-| F5 | TikTok Shop Listing Schema | ORIGINAL_REQUEST §1 | ≥5 | ≥5 | ✓ | ✓ |
-| F6 | eBay Listing Schema | ORIGINAL_REQUEST §1 | ≥5 | ≥5 | ✓ | ✓ |
-| F7 | Autonomous Platform Connectors | ORIGINAL_REQUEST §2 | ≥5 | ≥5 | ✓ | ✓ |
-| F8 | Real-Time Sync & Fanout Engine | ORIGINAL_REQUEST §2 | ≥5 | ≥5 | ✓ | ✓ |
-| F9 | Webhook Idempotency Ledger | ORIGINAL_REQUEST §2 | ≥5 | ≥5 | ✓ | ✓ |
-| F10 | Non-Blocking Async HTTP & SSRF Defense | ORIGINAL_REQUEST §2 | ≥5 | ≥5 | ✓ | ✓ |
-| F11 | SEO Blog Generation Engine | ORIGINAL_REQUEST §3 | ≥5 | ≥5 | ✓ | ✓ |
-| F12 | Review Sentiment & UGC Drips | ORIGINAL_REQUEST §3 | ≥5 | ≥5 | ✓ | ✓ |
-| F13 | Lead Gen & Competitor Mining | ORIGINAL_REQUEST §3 | ≥5 | ≥5 | ✓ | ✓ |
-| F14 | Admin Revenue & MRR Telemetry | ORIGINAL_REQUEST §3 | ≥5 | ≥5 | ✓ | ✓ |
-| F15 | Security & Tenant Isolation | ORIGINAL_REQUEST §4 | ≥5 | ≥5 | ✓ | ✓ |
-| F16 | Subscription Entitlements & BYOK | ORIGINAL_REQUEST §4 | ≥5 | ≥5 | ✓ | ✓ |
-| F17 | Financial Invariants & Quota Accounting | ORIGINAL_REQUEST §4 | ≥5 | ≥5 | ✓ | ✓ |
-| F18 | Zero-Emoji Invariant | ORIGINAL_REQUEST §4 | ≥5 | ≥5 | ✓ | ✓ |
+The suite combines unit tests, integration-style tests, boundary checks,
+pairwise workflows, adversarial cases, and browser-source checks. The goal is
+to verify observable behavior and security invariants without making the
+tests depend unnecessarily on private implementation details.
 
-## Test Architecture
-- Test Runner: `pytest`
-- Test Directory: `tests/`
-- Command: `python -m pytest tests/ -v`
-- Pass/Fail Semantics: 100% tests must pass with exit code 0.
-- Linter: `python -m flake8 server --count --select=E9,F63,F7,F82` (0 errors)
-- Emoji Invariant: `python tests/test_no_emojis.py` (0 errors)
+Tests should be deterministic, isolated, and safe to run without live
+customer data. Provider calls should be mocked or directed to explicit
+test-mode accounts.
 
-## Real-World Application Scenarios (Tier 4)
-| # | Scenario | Features Exercised | Complexity |
-|---|----------|--------------------|------------|
-| 1 | Enterprise Multi-Channel Syndication & Stock Sync | F1, F2, F3, F4, F5, F6, F7, F8, F9 | High |
-| 2 | Automated Lead Capture to Review Drip Cycle | F11, F12, F13, F14 | Medium |
-| 3 | Adversarial Quota Depletion, SSRF & Replay Defense | F9, F10, F15, F16, F17, F18 | High |
-| 4 | Megastore BYOK & Add-on Lifecycle | F14, F15, F16, F17 | Medium |
-| 5 | Unconfigured Payment Gateway & Failure Refunds | F1, F16, F17 | Medium |
+## Test organization
 
-## Coverage Thresholds
-- Tier 1: ≥5 per feature
-- Tier 2: ≥5 per feature (where boundaries exist)
-- Tier 3: pairwise coverage of major feature interactions
-- Tier 4: ≥5 realistic application scenarios
-- Tier 5: Adversarial white-box fuzzing and edge case hardening
+| Group | Examples | Focus |
+| --- | --- | --- |
+| Core behavior | test_campaigns.py, test_marketplace_schemas.py | Generation and response contracts |
+| Authentication | test_auth_verification.py | Passwords, tokens, API keys, reset flows |
+| Billing | test_billing_webhook.py, test_byok_pricing.py | Stripe events, entitlements, quota grants |
+| Connectors | test_connectors.py, test_ssrf_async.py | Outbound safety and platform adapters |
+| Inventory | test_inventory.py | Stock updates, fanout, reconciliation, replay handling |
+| Growth | test_growth_engines.py, test_reddit_scout.py, test_seo_marketing.py | SEO, review, drip, and opportunity workflows |
+| Hardening | test_adversarial_hardening.py, test_tier5_adversarial_hardening.py, test_production_hardening.py | Abuse cases and strict configuration |
+| Frontend | test_frontend_admin_m4.py, test_no_emojis.py | Safe rendering and repository-wide output policy |
+| End-to-end | test_e2e_tiers.py, test_e2e_enterprise.py | Cross-feature behavior |
+
+The exact number of tests changes as the repository evolves. Use pytest
+output from the current checkout as the source of truth.
+
+## Standard commands
+
+From the repository root:
+
+```powershell
+python -m pytest -q
+python -m compileall -q server tests
+python -m flake8 server tests --select=E9,F63,F7,F82 --count --statistics
+python -m bandit -r server -ll -ii -x server/tests,tests
+python -m pip_audit -r requirements.txt
+python tests/test_no_emojis.py
+```
+
+For the React application:
+
+```powershell
+Set-Location frontend/react-app
+npm ci
+npm run build
+npm audit --audit-level=high
+```
+
+## Invariants under test
+
+- Users cannot read or mutate another tenant's records.
+- Passwords and secrets are bounded, hashed or encrypted, and never returned
+  after the one-time API-key creation response.
+- Password resets and authentication-version changes invalidate older JWTs.
+- Generation credits are reserved before expensive provider calls and
+  refunded when the call fails.
+- Stripe and inventory event IDs prevent duplicate fulfillment or stock
+  changes when a provider retries a webhook.
+- Outbound connector requests reject local, private, link-local, metadata, and
+  otherwise unsafe destinations; redirects and oversized responses are bounded.
+- HTML content is sanitized before persistence or rendered through safe DOM
+  operations.
+- Strict environments do not start with placeholder secrets, SQLite, or an
+  insecure public base URL.
+- Public and administrative metrics are calculated from persisted instance
+  data rather than hard-coded marketing values.
+
+## Test data and isolation
+
+- Use temporary databases and unique test users.
+- Clear environment variables between tests that exercise configuration
+  import-time behavior.
+- Do not use `.env`, local database files, backup codes, or copied production
+  exports as fixtures.
+- Keep provider credentials in CI secret stores and use revocable test keys.
+- Verify that logs and assertion messages do not print tokens or credentials.
+
+## Release gates
+
+A release candidate should have:
+
+1. A clean pytest run and a reviewed warning list.
+2. A successful frontend production build.
+3. No high-severity dependency findings.
+4. Reviewed Bandit output and no unapproved exceptions.
+5. A successful strict-configuration startup check.
+6. Integration tests for every enabled provider.
+7. Database backup/restore evidence and a rollback procedure.
+
+Passing this suite is necessary for a controlled release, but it does not
+establish uptime, capacity, compliance, or provider certification.

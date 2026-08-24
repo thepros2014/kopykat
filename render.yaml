@@ -5,7 +5,34 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: sh -c "uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1"
+    startCommand: python -m server.runtime
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
+      - key: ENVIRONMENT
+        value: production
+      - key: ENABLE_API_DOCS
+        value: "false"
+      - key: AI_PROVIDER
+        value: openai
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: OPENAI_API_KEY
+        sync: false
+      # Render prompts for these values during blueprint setup. Keep them in
+      # the platform secret store; never commit real values here.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
+        sync: false
+      - key: ADMIN_SECRET
+        sync: false
+      - key: APP_BASE_URL
+        value: https://kopykat.onrender.com
+      - key: ALLOWED_HOSTS
+        value: kopykat.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: https://kopykat.onrender.com

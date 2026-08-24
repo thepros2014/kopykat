@@ -1,23 +1,40 @@
-# KopyKat — Automated Email Conversion Drip Bot
+# Email drip scheduler
 
-The Email Drip Bot is an autonomous onboarding engine that converts free trial users into paying subscribers through educational, value-first email sequences.
+The email drip job prepares and sends configured onboarding or upgrade
+messages to eligible free-plan users. It is a product workflow, not a
+guaranteed conversion system. Configure delivery, consent, unsubscribe
+handling, and support ownership before enabling it.
 
----
+## Schedule
 
-## 1. Nurture Schedule & Sequence
+- Runs daily at 10:00 UTC.
+- Selects users whose plan is free.
+- Uses account age to select the day-2, day-4, or day-7 step.
+- Records each sent step in drip_logs.
 
-- **Schedule:** Daily @ 10:00 UTC via APScheduler.
-- **Audience:** All users with `plan == "free"`.
+## Idempotency
 
-| Trigger Day | Email Goal | Core Value Delivered | Call to Action |
-|---|---|---|---|
-| **Day 2** | Value & Strategy | Why benefit-driven copy outperforms feature lists; AIDA & PAS frameworks. | Try Ad Copy Generator |
-| **Day 4** | Time Savings | Case study on saving 10+ hours per week using Omni-Campaigns. | Generate Landing Page Copy |
-| **Day 7** | Plan Upgrade | Quota notice and invitation to upgrade to Boutique or Standard tiers. | Upgrade in Dashboard |
+Before sending, the job checks for an existing record with the same user ID
+and step. It creates the delivery record after the mail call succeeds. Review
+delivery-provider behavior and add an outbox or provider idempotency key if
+the deployment requires stronger delivery guarantees.
 
----
+## Content and configuration
 
-## 2. Idempotency & Delivery Guarantees
+Message templates are stored in server/marketing.py. They should:
 
-- **Audit Log:** Every delivery is recorded in `drip_logs` (`user_id`, `step`, `sent_at`).
-- **Duplicate Prevention:** The scheduler queries `drip_logs` before dispatching to ensure a user never receives the same drip email twice.
+- Identify the sender and include a support address.
+- Avoid unverified savings, performance, or customer-result claims.
+- Include an unsubscribe or preference path appropriate to the mail provider.
+- Use a current application URL from configuration rather than a hard-coded
+  deployment URL.
+
+Email delivery requires the configured provider settings, OWNER_EMAIL or
+SUPPORT_EMAIL as appropriate, and a tested non-production account.
+
+## Analytics
+
+Authenticated GET /api/drip/analytics reports persisted counts for free users,
+sent steps, paying users, and the calculated instance conversion rate. The
+values describe the current database; they are not a forecast or a public
+marketing claim.

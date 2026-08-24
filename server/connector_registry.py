@@ -1,15 +1,46 @@
 """Validated connector registry and restricted HTTP execution runtime."""
 from __future__ import annotations
 
+import json
 from typing import Any
 from urllib.parse import urljoin
 
-import requests
-
-from .connector_engine import ConnectorError, SafeAsyncHTTPClient, validate_public_url
+from .connector_engine import ConnectorError, SafeAsyncHTTPClient, SafeSyncHTTPClient, validate_public_url
 
 MAX_RESPONSE_BYTES = 2_000_000
 ALLOWED_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+_BLOCKED_REQUEST_HEADERS = {
+    "connection",
+    "content-length",
+    "forwarded",
+    "host",
+    "proxy-authorization",
+    "proxy-connection",
+    "te",
+    "transfer-encoding",
+    "upgrade",
+    "x-forwarded-for",
+    "x-forwarded-host",
+    "x-forwarded-proto",
+}
+
+
+def _merge_safe_headers(headers: dict[str, str] | None, auth_headers: dict[str, str] | None) -> dict[str, str]:
+    """Merge connector headers while preventing request-smuggling controls."""
+
+    merged: dict[str, str] = {}
+    for source in (headers or {}, auth_headers or {}):
+        for name, value in source.items():
+            if not isinstance(name, str) or not isinstance(value, str):
+                raise ConnectorError("Connector headers must be text values.")
+            if name.lower() in _BLOCKED_REQUEST_HEADERS:
+                raise ConnectorError(f"Connector header {name!r} is not permitted.")
+            if any(character in name or character in value for character in ("\r", "\n", "\0")):
+                raise ConnectorError("Connector headers cannot contain control characters.")
+            if len(name) > 128 or len(value) > 8_192:
+                raise ConnectorError("Connector header exceeds the supported size limit.")
+            merged[name] = value
+    return {"Accept": "application/json", **merged}
 
 
 def validate_connector_spec(spec: dict[str, Any]) -> dict[str, Any]:
@@ -67,19 +98,20 @@ def execute_operation(spec: dict[str, Any], operation_name: str, *, path_params:
         path = path.replace("{" + key + "}", str(value))
     url = urljoin(spec["base_url"] + "/", path.lstrip("/"))
     validate_public_url(url)
-    merged_headers = {"Accept": "application/json", **(headers or {}), **(auth_headers or {})}
-    response = requests.request(operation["method"], url, params=query or {}, json=json_body, headers=merged_headers, timeout=(5, 30), allow_redirects=False, stream=True)
-    if 300 <= response.status_code < 400:
-        response.close()
-        raise ConnectorError("Redirects are disabled for connector execution.")
-    body = response.raw.read(MAX_RESPONSE_BYTES + 1)
-    response.close()
-    if len(body) > MAX_RESPONSE_BYTES:
-        raise ConnectorError("Connector response exceeds the size limit.")
+    merged_headers = _merge_safe_headers(headers, auth_headers)
+    with SafeSyncHTTPClient(timeout_seconds=30.0, max_response_bytes=MAX_RESPONSE_BYTES) as client:
+        response = client.request(
+            operation["method"],
+            url,
+            params=query or {},
+            json_body=json_body,
+            headers=merged_headers,
+            allow_redirects=False,
+        )
     try:
-        data = response.json() if body else None
-    except ValueError:
-        data = body.decode("utf-8", errors="replace")
+        data = response.json() if response.content else None
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        data = response.text
     return {"status_code": response.status_code, "data": data}
 
 
@@ -90,7 +122,7 @@ async def async_execute_operation(spec: dict[str, Any], operation_name: str, *, 
         path = path.replace("{" + key + "}", str(value))
     url = urljoin(spec["base_url"] + "/", path.lstrip("/"))
     validate_public_url(url)
-    merged_headers = {"Accept": "application/json", **(headers or {}), **(auth_headers or {})}
+    merged_headers = _merge_safe_headers(headers, auth_headers)
     async with SafeAsyncHTTPClient(timeout_seconds=timeout_seconds, max_response_bytes=MAX_RESPONSE_BYTES) as client:
         response = await client.request(operation["method"], url, params=query, json_body=json_body, headers=merged_headers, allow_redirects=False)
         try:
@@ -98,4 +130,3 @@ async def async_execute_operation(spec: dict[str, Any], operation_name: str, *, 
         except ValueError:
             data = response.text
         return {"status_code": response.status_code, "data": data}
-

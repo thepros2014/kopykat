@@ -1,6 +1,11 @@
 .env
+.env.*
+!.env.example
 snapcopy.db
 *.db
+*.sqlite
+*.sqlite3
+data/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -10,6 +15,10 @@ __pycache__/
 node_modules/
 dist/
 Backup-codes*.txt
+backup-codes*.txt
+*backup*codes*.txt
+*.pem
+*.key
 
 
 *.msi
@@ -17,3 +26,6 @@ Backup-codes*.txt
 .coverage
 kopykat/
 scratch_*.py
+frontend/react-app/node_modules/
+frontend/react-app/dist/
+npm-debug.log*

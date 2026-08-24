@@ -108,8 +108,9 @@ def test_admin_mrr_metrics_endpoint(client, db_session, test_user):
         assert data["mrr_usd"] >= 379.49
         assert data["arr_usd"] >= 4553.88
         assert data["active_subscribers"] >= 1
-        assert data["software_asset_score"] == 9.2
-        assert "$120,000" in data["valuation_estimate_usd"]["asset_sale_range"]
+        assert data["software_asset_score"] is None
+        assert data["valuation_estimate_usd"]["arr_multiple_range"] == "3x - 5x ARR"
+        assert data["valuation_estimate_usd"]["asset_sale_range"].startswith("$")
 
 
 def test_admin_mrr_metrics_multi_tier_and_churn_tracking(client, db_session):
@@ -169,10 +170,9 @@ def test_public_metrics_summary_endpoint(client):
     res = client.get("/api/metrics/summary")
     assert res.status_code == 200
     data = res.json()
-    assert data["total_campaigns_generated"] >= 12450
-    assert data["supported_marketplaces_count"] == 5
-    assert data["active_subscribers_mrr_usd"] == 3450.0
-    assert data["estimated_seller_hours_saved"] >= 18000
-    assert data["platform_uptime_pct"] == 99.98
+    assert data["total_campaigns_generated"] == 0
+    assert data["supported_marketplaces_count"] == 8
+    assert data["active_subscribers_mrr_usd"] == 0.0
+    assert data["estimated_seller_hours_saved"] == 0
+    assert data["platform_uptime_pct"] is None
     assert data["api_version"] == "2.0.0"
-
