@@ -11,10 +11,10 @@ def test_cors_preflight_headers(client):
     response = client.options(
         "/api/generate",
         headers={
-            "Origin": "https://kopykat.onrender.com",
+            "Origin": "https://snapcopy-ai.onrender.com",
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "Authorization, Content-Type",
         },
     )
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "https://kopykat.onrender.com"
+    assert response.headers.get("access-control-allow-origin") == "https://snapcopy-ai.onrender.com"

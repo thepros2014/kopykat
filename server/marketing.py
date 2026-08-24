@@ -251,7 +251,7 @@ def run_drip_campaigns(db: Optional[Session] = None) -> int:
             steps = {
                 2: (
                     "The secret to high-converting product copy", 
-                    "Hi there,<br><br>The biggest mistake marketers make? Talking about features instead of <b>benefits</b>. KopyKat automatically uses proven copywriting frameworks (like AIDA and PAS) to generate copy that actually sells.<br><br><a href='https://kopykat.onrender.com/dashboard'>Log in and try the Ad Copy Generator</a> today."
+                    "Hi there,<br><br>The biggest mistake marketers make? Talking about features instead of <b>benefits</b>. KopyKat automatically uses proven copywriting frameworks (like AIDA and PAS) to generate copy that actually sells.<br><br><a href='https://snapcopy-ai.onrender.com/dashboard'>Log in and try the Ad Copy Generator</a> today."
                 ),
                 4: (
                     "Save 10+ hours this week with automated copy", 
@@ -259,7 +259,7 @@ def run_drip_campaigns(db: Optional[Session] = None) -> int:
                 ),
                 7: (
                     "Your free test drive generations are running low", 
-                    "Hey there,<br><br>I hope you have loved using KopyKat. If you want to scale up your multi-channel catalog, it is time to upgrade.<br><br>Our <b>Boutique Plan</b> gives you <b>150 campaigns</b> and multi-platform syndication every month.<br><br><a href='https://kopykat.onrender.com/dashboard'>Upgrade in your dashboard now</a> and automate your catalog operations."
+                    "Hey there,<br><br>I hope you have loved using KopyKat. If you want to scale up your multi-channel catalog, it is time to upgrade.<br><br>Our <b>Boutique Plan</b> gives you <b>150 campaigns</b> and multi-platform syndication every month.<br><br><a href='https://snapcopy-ai.onrender.com/dashboard'>Upgrade in your dashboard now</a> and automate your catalog operations."
                 )
             }
 
@@ -323,10 +323,10 @@ async def scan_reddit_opportunities(db: Optional[Session] = None) -> int:
                         if db.query(OpportunityLog).filter_by(post_id=post_id).first():
                             continue
     
-                        draft = f"I used to struggle with drafting product descriptions too until I started using KopyKat (https://kopykat.onrender.com) to automate catalog copy and syndication. Saves a huge amount of time."
+                        draft = f"I used to struggle with drafting product descriptions too until I started using KopyKat (https://snapcopy-ai.onrender.com) to automate catalog copy and syndication. Saves a huge amount of time."
                         if (os.environ.get('GEMINI_API_KEY', '').strip() or os.environ.get('OPENAI_API_KEY', '').strip()):
                             try:
-                                prompt = f"Write a helpful, non-spammy Reddit reply to this post: '{title}\n{selftext}'. Suggest they try an AI tool called KopyKat (https://kopykat.onrender.com) to automate their copywriting. Keep it under 80 words, sound casual like a real redditor."
+                                prompt = f"Write a helpful, non-spammy Reddit reply to this post: '{title}\n{selftext}'. Suggest they try an AI tool called KopyKat (https://snapcopy-ai.onrender.com) to automate their copywriting. Keep it under 80 words, sound casual like a real redditor."
                                 generated = await _generate_marketing_text(prompt, max_output_tokens=300)
                                 if generated:
                                     draft = generated

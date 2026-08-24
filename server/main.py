@@ -63,10 +63,10 @@ if os.environ.get("SENTRY_DSN"):
         profiles_sample_rate=env_float("SENTRY_PROFILES_SAMPLE_RATE", 0.0),
     )
 
-ALLOWED_ORIGINS = env_list("ALLOWED_ORIGINS", ["https://kopykat.onrender.com"])
+ALLOWED_ORIGINS = env_list("ALLOWED_ORIGINS", ["https://snapcopy-ai.onrender.com"])
 ALLOWED_HOSTS = env_list(
     "ALLOWED_HOSTS",
-    ["kopykat.onrender.com", "localhost", "127.0.0.1", "testserver"],
+    ["snapcopy-ai.onrender.com", "localhost", "127.0.0.1", "testserver"],
 )
 TRUSTED_PROXIES = env_list("TRUSTED_PROXIES", ["127.0.0.1"])
 ENABLE_API_DOCS = os.getenv("ENABLE_API_DOCS", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -318,12 +318,12 @@ async def blog_post(slug: str, db: Session = Depends(get_db)):
 
 @app.get("/robots.txt", response_class=HTMLResponse, include_in_schema=False)
 async def get_robots_txt():
-    robots = """User-agent: *
+    robots = f"""User-agent: *
 Allow: /
 Allow: /blog
 Allow: /blog/
 
-Sitemap: https://kopykat.onrender.com/sitemap.xml
+Sitemap: {PUBLIC_BASE_URL}/sitemap.xml
 """
     return HTMLResponse(robots, media_type="text/plain")
 

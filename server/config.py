@@ -84,7 +84,7 @@ if STRICT_CONFIG and (_is_placeholder(ADMIN_SECRET) or len(ADMIN_SECRET) < 24):
 PUBLIC_BASE_URL = (
     os.getenv("APP_BASE_URL")
     or os.getenv("BASE_URL")
-    or ("https://kopykat.onrender.com" if STRICT_CONFIG else "http://localhost:8000")
+    or ("https://snapcopy-ai.onrender.com" if STRICT_CONFIG else "http://localhost:8000")
 ).strip().rstrip("/")
 if STRICT_CONFIG and not PUBLIC_BASE_URL.startswith("https://"):
     raise RuntimeError("APP_BASE_URL or BASE_URL must use HTTPS in strict environments.")

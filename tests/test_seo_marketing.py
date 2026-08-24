@@ -41,7 +41,7 @@ def test_sitemap_and_robots_endpoints(client, db_session):
 @pytest.mark.asyncio
 async def test_generate_seo_post_bleach_xss_sanitization(db_session):
     """Verifies that bleach strips script tags, iframes, comments, and javascript: links."""
-    mock_ai_json = '{"title": "SEO Security Guide", "slug": "seo-security-guide", "meta_desc": "Secure blog generation.", "content": "<h2>Clean Header</h2><!-- malicious comment --><script>alert(\'xss\')</script><p>Safe text with <a href=\\"javascript:alert(\'pwn\')\\">malicious link</a> and <a href=\\"https://kopykat.onrender.com\\">valid link</a>.<iframe src=\\"http://evil.com\\"></iframe></p>"}'
+    mock_ai_json = '{"title": "SEO Security Guide", "slug": "seo-security-guide", "meta_desc": "Secure blog generation.", "content": "<h2>Clean Header</h2><!-- malicious comment --><script>alert(\'xss\')</script><p>Safe text with <a href=\\"javascript:alert(\'pwn\')\\">malicious link</a> and <a href=\\"https://snapcopy-ai.onrender.com\\">valid link</a>.<iframe src=\\"http://evil.com\\"></iframe></p>"}'
     
     mock_resp = AsyncMock()
     mock_resp.text = mock_ai_json
@@ -55,7 +55,7 @@ async def test_generate_seo_post_bleach_xss_sanitization(db_session):
         assert "javascript:" not in post.content
         assert "malicious comment" not in post.content
         assert "<h2>Clean Header</h2>" in post.content
-        assert "https://kopykat.onrender.com" in post.content
+    assert "https://snapcopy-ai.onrender.com" in post.content
 
 
 @pytest.mark.asyncio

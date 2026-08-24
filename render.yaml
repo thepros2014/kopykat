@@ -31,8 +31,8 @@ services:
       - key: ADMIN_SECRET
         sync: false
       - key: APP_BASE_URL
-        value: https://kopykat.onrender.com
+        value: https://snapcopy-ai.onrender.com
       - key: ALLOWED_HOSTS
-        value: kopykat.onrender.com
+        value: snapcopy-ai.onrender.com
       - key: ALLOWED_ORIGINS
-        value: https://kopykat.onrender.com
+        value: https://snapcopy-ai.onrender.com
