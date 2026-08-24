@@ -129,7 +129,7 @@ class CampaignGenerateRequest(BaseModel):
     product_desc: str = Field(min_length=2, max_length=1000)
 
 class CampaignPushRequest(BaseModel):
-    campaign_id: str
+    campaign_id: str = Field(min_length=1, max_length=100)
     destinations: dict
 
 
@@ -227,8 +227,8 @@ class InventorySyncLogResponse(BaseModel):
 
 class PostPurchaseDripRequest(BaseModel):
     product_name: str = Field(min_length=2, max_length=200)
-    brand_tone: Optional[str] = "Warm, grateful, and helpful"
-    incentive_offer: Optional[str] = "15% off your next purchase"
+    brand_tone: Optional[str] = Field(default="Warm, grateful, and helpful", max_length=500)
+    incentive_offer: Optional[str] = Field(default="15% off your next purchase", max_length=500)
 
 class PostPurchaseDripResponse(BaseModel):
     id: str
@@ -237,7 +237,7 @@ class PostPurchaseDripResponse(BaseModel):
 
 class CustomerReviewSubmitRequest(BaseModel):
     customer_name: str = Field(min_length=1, max_length=100)
-    customer_email: Optional[str] = None
+    customer_email: Optional[EmailStr] = None
     product_name: str = Field(min_length=2, max_length=255)
     rating: int = Field(ge=1, le=5)
     review_text: str = Field(min_length=5, max_length=5000)
@@ -260,8 +260,8 @@ class PriceMarginItemCreate(BaseModel):
     product_name: str = Field(min_length=1, max_length=255)
     cogs_usd: float = Field(ge=0.0)
     selling_price_usd: float = Field(gt=0.0)
-    competitor_price_usd: Optional[float] = None
-    target_margin_pct: Optional[float] = 40.0
+    competitor_price_usd: Optional[float] = Field(default=None, ge=0.0)
+    target_margin_pct: Optional[float] = Field(default=40.0, ge=0.0, le=100.0)
 
 class PriceMarginItemResponse(BaseModel):
     id: str

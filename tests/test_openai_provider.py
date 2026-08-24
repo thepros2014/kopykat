@@ -112,3 +112,27 @@ async def test_scheduled_marketing_does_not_call_openai_in_testing(monkeypatch):
     result = await marketing._generate_marketing_text("Draft a reply")
 
     assert result == ""
+
+
+def test_ai_provider_resolution_defaults_to_openai(monkeypatch):
+    monkeypatch.setattr(ai_engine, "AI_PROVIDER", "openai")
+    monkeypatch.setattr(ai_engine, "OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setattr(ai_engine, "GEMINI_API_KEY", "")
+
+    assert ai_engine.resolve_ai_provider() == "openai"
+
+
+def test_ai_provider_resolution_falls_back_when_preferred_key_is_missing(monkeypatch):
+    monkeypatch.setattr(ai_engine, "AI_PROVIDER", "openai")
+    monkeypatch.setattr(ai_engine, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(ai_engine, "GEMINI_API_KEY", "test-gemini-key")
+
+    assert ai_engine.resolve_ai_provider() == "gemini"
+
+
+def test_ai_provider_resolution_rejects_unknown_provider_without_keys(monkeypatch):
+    monkeypatch.setattr(ai_engine, "AI_PROVIDER", "unknown")
+    monkeypatch.setattr(ai_engine, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(ai_engine, "GEMINI_API_KEY", "")
+
+    assert ai_engine.resolve_ai_provider(allow_none=True) is None

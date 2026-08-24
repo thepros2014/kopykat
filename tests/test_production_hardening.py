@@ -2,10 +2,12 @@ import json
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from server.connector_engine import SSRFError, SafeSyncHTTPClient
 from server.connector_registry import execute_operation
 from server.main import _sanitize_campaign_assets
+from server.models import PriceMarginItemCreate
 from server.shopify_import import normalize_shopify_domain
 
 
@@ -15,6 +17,39 @@ def test_ready_probe_and_request_id_are_operational(client):
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
     assert response.headers["X-Request-ID"] == "release-check-01"
+    assert float(response.headers["X-Response-Time-Ms"]) >= 0
+
+
+def test_validation_errors_include_request_id(client):
+    response = client.post(
+        "/auth/register",
+        headers={"X-Request-ID": "validation-check-01"},
+        json={"email": "not-an-email", "password": "short"},
+    )
+
+    assert response.status_code == 422
+    assert response.headers["X-Request-ID"] == "validation-check-01"
+    assert response.json()["request_id"] == "validation-check-01"
+
+
+def test_price_margin_inputs_have_bounded_values():
+    with pytest.raises(ValidationError):
+        PriceMarginItemCreate(
+            sku="SKU-1",
+            product_name="Example",
+            cogs_usd=1,
+            selling_price_usd=10,
+            target_margin_pct=101,
+        )
+
+    with pytest.raises(ValidationError):
+        PriceMarginItemCreate(
+            sku="SKU-1",
+            product_name="Example",
+            cogs_usd=1,
+            selling_price_usd=10,
+            competitor_price_usd=-1,
+        )
 
 
 def test_trusted_host_rejects_unlisted_host(client):

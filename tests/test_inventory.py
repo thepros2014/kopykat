@@ -1,6 +1,5 @@
-import pytest
 from server.database import InventoryItem, InventorySyncLog, UserIntegration
-from server.inventory import normalize_platform_name, reconcile_inventory_sku
+from server.inventory import normalize_platform_name, reconcile_inventory_sku, sync_inventory_across_platforms
 
 def test_inventory_item_crud(client, auth_headers, test_user, db_session):
     res = client.post("/api/inventory/item", json={"sku": "BACKPACK-001", "title": "UltraShield Backpack", "total_stock": 50}, headers=auth_headers)
@@ -76,3 +75,18 @@ def test_inventory_reconcile_drift_correction(client, auth_headers, test_user, d
     assert result["reconciled_stock"] == 75
     assert result["fanout_results"]["shopify"] == "reconciled_to_75"
     assert result["fanout_results"]["amazon"] == "reconciled_to_75"
+
+
+def test_inventory_routes_reject_unsupported_platform_and_negative_stock(client, auth_headers):
+    invalid_platform = client.post(
+        "/api/inventory/webhook/not-a-platform",
+        json={"sku": "SKU-1", "quantity_delta": -1},
+        headers=auth_headers,
+    )
+    assert invalid_platform.status_code == 400
+
+    negative_stock = client.post(
+        "/api/inventory/reconcile?sku=SKU-1&canonical_stock=-1",
+        headers=auth_headers,
+    )
+    assert negative_stock.status_code == 422

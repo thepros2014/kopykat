@@ -65,6 +65,10 @@ def sync_inventory_across_platforms(
     """
     clean_sku = sku.strip()
     trigger_normalized = normalize_platform_name(trigger_platform)
+    if not clean_sku or len(clean_sku) > 100:
+        raise ValueError("Inventory SKU must be between 1 and 100 characters")
+    if delta < -2_000_000 or delta > 2_000_000:
+        raise ValueError("Inventory quantity delta is outside the supported range")
 
     # Idempotency deduplication via InventoryWebhookEvent
     if event_id:
@@ -205,6 +209,10 @@ def reconcile_inventory_sku(
     and re-synchronizing all connected sales channels.
     """
     clean_sku = sku.strip()
+    if not clean_sku or len(clean_sku) > 100:
+        raise ValueError("Inventory SKU must be between 1 and 100 characters")
+    if canonical_stock < 0 or canonical_stock > 2_000_000:
+        raise ValueError("Canonical stock is outside the supported range")
     query = db.query(InventoryItem).filter(
         InventoryItem.user_id == user_id,
         (InventoryItem.sku == clean_sku) | (InventoryItem.sku == clean_sku.upper()) | (InventoryItem.sku == clean_sku.lower()),

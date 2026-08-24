@@ -8,6 +8,7 @@ import uuid
 import logging
 import hmac
 import re
+from time import perf_counter
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +17,9 @@ import threading
 
 import bleach
 import stripe
-from fastapi import (FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, File, UploadFile)
+from fastapi import (FastAPI, Depends, HTTPException, Request, Header, BackgroundTasks, File, UploadFile, Query)
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -157,12 +160,26 @@ async def reject_oversized_requests(request: Request, call_next):
 
 
 @app.middleware("http")
-async def add_request_id(request: Request, call_next):
+async def add_request_context(request: Request, call_next):
+    """Attach a safe correlation ID and server timing to every response."""
+
     supplied = request.headers.get("X-Request-ID", "")
     request_id = supplied if _REQUEST_ID_RE.fullmatch(supplied) else uuid.uuid4().hex
     request.state.request_id = request_id
+    started = perf_counter()
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
+    response.headers["X-Response-Time-Ms"] = str(round((perf_counter() - started) * 1000, 2))
+    if response.status_code >= 500:
+        logger.error(
+            "Request completed with server error",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+            },
+        )
     return response
 
 @app.middleware("http")
@@ -190,6 +207,40 @@ async def add_security_headers(request: Request, call_next):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+    """Return a stable validation shape while retaining the request correlation ID."""
+
+    request_id = getattr(request.state, "request_id", "")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": jsonable_encoder(exc.errors()),
+            "request_id": request_id,
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Log unexpected failures server-side without exposing implementation details."""
+
+    request_id = getattr(request.state, "request_id", "")
+    logger.exception(
+        "Unhandled application error",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+        },
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "request_id": request_id},
+    )
+
 
 _ALLOWED_TAGS = ["p", "h2", "h3", "h4", "ul", "ol", "li", "strong", "em", "b", "i", "a", "br", "blockquote"]
 _ALLOWED_ATTRS = {"a": ["href", "title", "rel"]}
@@ -289,7 +340,8 @@ async def dashboard_page():
     return HTMLResponse(dash.read_text(encoding="utf-8")) if dash.exists() else HTMLResponse("<h1>Dashboard — Loading...</h1>")
 
 @app.post("/admin/trigger-seo", include_in_schema=False)
-async def trigger_seo(background_tasks: BackgroundTasks, x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret")):
+@limiter.limit("10/minute")
+async def trigger_seo(request: Request, background_tasks: BackgroundTasks, x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret")):
     if not _is_valid_admin_secret(x_admin_secret):
         raise HTTPException(status_code=401, detail="Unauthorized")
     background_tasks.add_task(generate_seo_post)
@@ -818,20 +870,23 @@ async def get_usage(current_user: User = Depends(get_current_user_jwt), db: Sess
     )
 
 @app.get("/admin/revenue", tags=["Admin"])
-async def admin_revenue(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def admin_revenue(request: Request, x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
     if not _is_valid_admin_secret(x_admin_secret):
         raise HTTPException(status_code=403, detail="Forbidden")
     return get_total_revenue(db)
 
 @app.get("/admin/mrr-metrics", tags=["Admin"], response_model=AdminMRRMetricsResponse)
-async def admin_mrr_metrics(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def admin_mrr_metrics(request: Request, x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
     if not _is_valid_admin_secret(x_admin_secret):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     return _calculate_mrr_metrics(db)
 
 @app.get("/api/admin/stats", tags=["Admin"])
-async def admin_stats(x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def admin_stats(request: Request, x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"), db: Session = Depends(get_db)):
     if not _is_valid_admin_secret(x_admin_secret):
         raise HTTPException(status_code=401, detail="Unauthorized")
     from sqlalchemy import func
@@ -1498,14 +1553,17 @@ async def inventory_webhook(
     auth: tuple = Depends(get_current_user_apikey),
     db: Session = Depends(get_db)
 ):
-    from .inventory import sync_inventory_across_platforms
+    from .inventory import SUPPORTED_INVENTORY_PLATFORMS, normalize_platform_name, sync_inventory_across_platforms
     user, _ = auth
+    normalized_platform = normalize_platform_name(platform)
+    if normalized_platform not in SUPPORTED_INVENTORY_PLATFORMS:
+        raise HTTPException(status_code=400, detail="Unsupported inventory platform")
     event_id = body.order_id or request.headers.get("X-Event-ID", "")
     res = sync_inventory_across_platforms(
         user_id=user.id,
         sku=body.sku,
         delta=body.quantity_delta,
-        trigger_platform=platform,
+        trigger_platform=normalized_platform,
         db=db,
         event_id=event_id
     )
@@ -1513,8 +1571,8 @@ async def inventory_webhook(
 
 @app.post("/api/inventory/reconcile", tags=["Inventory Balancer"])
 async def reconcile_inventory(
-    sku: str,
-    canonical_stock: int,
+    sku: str = Query(..., min_length=1, max_length=100),
+    canonical_stock: int = Query(..., ge=0, le=2_000_000),
     auth: tuple = Depends(get_current_user_apikey),
     db: Session = Depends(get_db)
 ):
@@ -1662,7 +1720,7 @@ async def create_or_update_price_item(
         cogs=body.cogs_usd,
         selling_price=body.selling_price_usd,
         competitor_price=body.competitor_price_usd,
-        target_margin=body.target_margin_pct or 40.0
+        target_margin=body.target_margin_pct if body.target_margin_pct is not None else 40.0
     )
 
     item = db.query(PriceMarginItem).filter(PriceMarginItem.user_id == user.id, PriceMarginItem.sku == clean_sku).first()
@@ -1671,7 +1729,7 @@ async def create_or_update_price_item(
         item.cogs_usd = body.cogs_usd
         item.selling_price_usd = body.selling_price_usd
         item.competitor_price_usd = body.competitor_price_usd
-        item.target_margin_pct = body.target_margin_pct or 40.0
+        item.target_margin_pct = body.target_margin_pct if body.target_margin_pct is not None else 40.0
         item.current_margin_pct = analysis["current_margin_pct"]
         item.profit_per_unit_usd = analysis["profit_per_unit_usd"]
         item.status = analysis["status"]
@@ -1686,7 +1744,7 @@ async def create_or_update_price_item(
             cogs_usd=body.cogs_usd,
             selling_price_usd=body.selling_price_usd,
             competitor_price_usd=body.competitor_price_usd,
-            target_margin_pct=body.target_margin_pct or 40.0,
+            target_margin_pct=body.target_margin_pct if body.target_margin_pct is not None else 40.0,
             current_margin_pct=analysis["current_margin_pct"],
             profit_per_unit_usd=analysis["profit_per_unit_usd"],
             status=analysis["status"],

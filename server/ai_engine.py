@@ -80,6 +80,34 @@ COST_PER_1K = {
     "gemini-1.5-pro":   0.00125,
 }
 
+
+SUPPORTED_AI_PROVIDERS = ("openai", "gemini")
+
+
+def resolve_ai_provider(*, allow_none: bool = False) -> Optional[str]:
+    """Resolve the configured provider against the keys available at runtime."""
+
+    preferred = (AI_PROVIDER or "openai").strip().lower()
+    if preferred not in SUPPORTED_AI_PROVIDERS:
+        logger.warning("Unsupported AI_PROVIDER=%r; defaulting to openai", preferred)
+        preferred = "openai"
+
+    available = {
+        "openai": bool(OPENAI_API_KEY.strip()),
+        "gemini": bool(GEMINI_API_KEY.strip()),
+    }
+    if available[preferred]:
+        return preferred
+
+    fallback = "gemini" if preferred == "openai" else "openai"
+    if available[fallback]:
+        logger.warning("AI provider %s is unavailable; falling back to %s", preferred, fallback)
+        return fallback
+
+    if allow_none:
+        return None
+    raise RuntimeError("No AI API key configured. Set OPENAI_API_KEY or GEMINI_API_KEY in .env")
+
 #  Prompt templates for each copy type 
 
 PROMPTS = {
@@ -205,13 +233,11 @@ Return a JSON object with exactly two string keys:
 "desc_col": the exact header string that represents the product description (or empty string if none exists).
 """
     
-    provider = AI_PROVIDER
-    if provider == "openai" and not OPENAI_API_KEY: provider = "gemini"
-    if provider == "gemini" and not GEMINI_API_KEY: provider = "openai"
+    provider = resolve_ai_provider(allow_none=True)
 
-    if provider == "openai" and OPENAI_API_KEY:
+    if provider == "openai":
         text, _ = await _generate_openai(prompt, 500)
-    elif provider == "gemini" and GEMINI_API_KEY:
+    elif provider == "gemini":
         text, _ = await _generate_gemini(prompt, 500)
     else:
         # Fallback to crude heuristics if no AI key is configured
@@ -253,18 +279,12 @@ async def generate_copy(
     prompt   = template.format(context=context, tone=tone, variations=variations)
 
     # Choose provider
-    provider = AI_PROVIDER
-    
-    if provider == "openai" and OPENAI_API_KEY:
+    provider = resolve_ai_provider()
+
+    if provider == "openai":
         text, tokens = await _generate_openai(prompt, max_tokens)
-    elif provider == "gemini" and GEMINI_API_KEY:
+    elif provider == "gemini":
         text, tokens = await _generate_gemini(prompt, max_tokens)
-    elif OPENAI_API_KEY:   # auto-fallback
-        text, tokens = await _generate_openai(prompt, max_tokens)
-    elif GEMINI_API_KEY:
-        text, tokens = await _generate_gemini(prompt, max_tokens)
-    else:
-        raise RuntimeError("No AI API key configured. Set OPENAI_API_KEY or GEMINI_API_KEY in .env")
 
     # Parse JSON
     try:
@@ -360,15 +380,13 @@ Exact required JSON structure:
 }}
 """
     
-    provider = AI_PROVIDER
-    if provider == "openai" and not OPENAI_API_KEY: provider = "gemini"
-    if provider == "gemini" and not GEMINI_API_KEY: provider = "openai"
+    provider = resolve_ai_provider(allow_none=True)
 
     text = ""
     try:
-        if provider == "openai" and OPENAI_API_KEY:
+        if provider == "openai":
             text, _ = await _generate_openai(prompt, 1800)
-        elif provider == "gemini" and GEMINI_API_KEY:
+        elif provider == "gemini":
             text, _ = await _generate_gemini(prompt, 1800)
     except Exception as e:
         logger.warning("AI competitor review mining failed: %s", e)
