@@ -181,6 +181,8 @@ The principal route groups are:
   platform workflows.
 - `/api/inventory/*`, `/api/reviews/*`, and `/api/pricing/*` for merchant
   operations.
+- `/api/dropship-partners` for active paid partner placements and the private
+  `/dropship-partners/activate` flow for Stripe-backed partner onboarding.
 - `/billing/*` and `/api/plans` for billing.
 - `/health` and `/ready` for service checks.
 

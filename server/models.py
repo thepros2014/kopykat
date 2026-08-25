@@ -86,6 +86,16 @@ class CheckoutResponse(BaseModel):
     checkout_url: str
     session_id: str
 
+
+class PartnerPlacementCheckoutRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=128)
+    placement_type: Literal["featured", "directory"]
+    slot: int = Field(ge=1, le=8)
+    interval: Literal["monthly", "yearly"]
+    logo_url: Optional[str] = Field(default=None, max_length=2_000)
+    service_url: Optional[str] = Field(default=None, max_length=2_000)
+
+
 class SubscriptionStatus(BaseModel):
     plan: str
     status: str

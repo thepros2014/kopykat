@@ -21,73 +21,77 @@ PARTNERS: dict[str, dict[str, Any]] = {
     "printful": {
         "key": "printful",
         "name": "Printful",
-        "niche": "Print-on-Demand — Apparel, Accessories, Home",
+        "niche": "Print-on-demand fulfillment",
         "description": (
-            "Printful handles printing, fulfilment, and shipping for custom-branded "
-            "products. Orders route automatically via their REST API."
+            "Printful offers print-on-demand fulfillment for custom products. Review "
+            "its public API documentation before deciding whether it fits your store."
         ),
         "docs_url": "https://developers.printful.com/docs/",
         "api_base": "https://api.printful.com",
         "auth_type": "bearer",
         "regions": ["Global"],
         "paid_placement": True,
+        "contact_email_env": "DROPSHIP_PARTNER_PRINTFUL_EMAIL",
     },
     "printify": {
         "key": "printify",
         "name": "Printify",
-        "niche": "Print-on-Demand — 900+ Products",
+        "niche": "Print-on-demand supplier network",
         "description": (
-            "Printify connects you to a global network of print providers. "
-            "Their API manages shops, products, and order submission."
+            "Printify connects merchants with print providers. Review its public API "
+            "documentation before deciding whether it fits your store."
         ),
         "docs_url": "https://printify.com/app/store/api",
         "api_base": "https://api.printify.com/v1",
         "auth_type": "bearer",
         "regions": ["Global"],
         "paid_placement": True,
+        "contact_email_env": "DROPSHIP_PARTNER_PRINTIFY_EMAIL",
     },
     "cjdropshipping": {
         "key": "cjdropshipping",
         "name": "CJ Dropshipping",
-        "niche": "General Merchandise — Electronics, Apparel, More",
+        "niche": "General merchandise supplier",
         "description": (
-            "CJ Dropshipping offers a broad catalogue of general merchandise with "
-            "warehouses in multiple countries. API supports product listing, "
-            "order creation, and tracking queries."
+            "CJ Dropshipping offers a general-merchandise supplier service. Review its "
+            "public API documentation and commercial terms before integrating."
         ),
         "docs_url": "https://developers.cjdropshipping.com/",
         "api_base": "https://developers.cjdropshipping.com/api2.0/v1",
         "auth_type": "api_key",
         "regions": ["CN", "US", "EU"],
         "paid_placement": True,
+        "contact_email_env": "DROPSHIP_PARTNER_CJ_EMAIL",
     },
     "bigbuy": {
         "key": "bigbuy",
         "name": "BigBuy",
-        "niche": "European Wholesale — 200,000+ Products",
+        "niche": "European wholesale supplier",
         "description": (
-            "Leading European wholesale and dropshipping distributor. REST API "
-            "provides real-time stock, pricing, and order management across the EU."
+            "BigBuy offers a European wholesale and dropshipping service. Review its "
+            "public API documentation and commercial terms before integrating."
         ),
         "docs_url": "https://api.bigbuy.eu/",
         "api_base": "https://api.bigbuy.eu/rest",
         "auth_type": "api_key",
         "regions": ["EU"],
         "paid_placement": True,
+        "contact_email_env": "DROPSHIP_PARTNER_BIGBUY_EMAIL",
     },
     "spocket": {
         "key": "spocket",
         "name": "Spocket",
-        "niche": "US & EU Suppliers — Fast Shipping",
+        "niche": "US and EU supplier marketplace",
         "description": (
-            "Spocket focuses on US and EU-based suppliers for faster domestic shipping. "
-            "API supports product import, order automation, and real-time inventory updates."
+            "Spocket presents a supplier marketplace serving US and EU merchants. Review "
+            "its public API documentation and commercial terms before integrating."
         ),
         "docs_url": "https://developer.spocket.co/",
         "api_base": "https://api.spocket.co",
         "auth_type": "oauth2",
         "regions": ["US", "EU"],
         "paid_placement": True,
+        "contact_email_env": "DROPSHIP_PARTNER_SPOCKET_EMAIL",
     },
 }
 

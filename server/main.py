@@ -32,9 +32,8 @@ from sqlalchemy.orm import Session
 
 from .database import get_db, init_db, User, APIKey, UsageRecord, BlogPost
 from .models import (
-    AdminMRRMetricsResponse, SEOAnalyticsResponse, SEOPingIndexResponse, OpportunityLeadItemResponse,
-    DripAnalyticsResponse, BrandPersonaRequest, BrandPersonaResponse, MarketplaceOptimizeRequest,
-    MarketplaceOptimizeResponse, AddOnCheckoutRequest, AddOnItemResponse, RequestPasswordReset,
+    AdminMRRMetricsResponse, BrandPersonaRequest, BrandPersonaResponse, MarketplaceOptimizeRequest,
+    MarketplaceOptimizeResponse, AddOnCheckoutRequest, RequestPasswordReset,
     ResetPasswordSubmit, IntegrationSaveRequest, PushRequest, CampaignGenerateRequest,
     CampaignPushRequest, ConnectorDiscoverRequest, CampaignVisionGenerateRequest,
     CompetitorMineRequest, CompetitorMineResponse, CustomAIKeyRequest, CustomAIKeyResponse,
@@ -45,9 +44,21 @@ from .models import (
     ConnectorCredentialsRequest, VerifyEmailRequest, RequestVerificationRequest, UserRegister,
     UserLogin, TokenResponse, UserProfile, APIKeyCreate, APIKeyResponse, APIKeyCreated,
     GenerateRequest, GenerateResponse, CheckoutRequest, OneTimeGenerationsRequest,
-    CheckoutResponse, SubscriptionStatus, UsageSummary, HealthResponse, PublicMetricsSummary
+    CheckoutResponse, PartnerPlacementCheckoutRequest, UsageSummary,
+    HealthResponse, PublicMetricsSummary
 )
-from .auth import register_user, authenticate_user, create_access_token, create_user_api_key, revoke_api_key, get_current_user_jwt, get_current_user_apikey, normalize_email
+from .auth import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    SESSION_COOKIE_NAME,
+    register_user,
+    authenticate_user,
+    create_access_token,
+    create_user_api_key,
+    revoke_api_key,
+    get_current_user_jwt,
+    get_current_user_apikey,
+    normalize_email,
+)
 from .ai_engine import generate_copy
 from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
 from .marketing import generate_seo_post
@@ -191,7 +202,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
@@ -687,19 +698,44 @@ async def reset_password(request: Request, body: ResetPasswordSubmit, db: Sessio
 
 @app.post("/auth/register", response_model=TokenResponse, tags=["Auth"])
 @limiter.limit("5/minute")
-async def register(request: Request, body: UserRegister, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def register(request: Request, response: Response, body: UserRegister, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = register_user(body.email, body.password, body.full_name, db)
     from .scheduler import _send_email
     background_tasks.add_task(_send_email, "Welcome to KopyKat", f"Hi {body.full_name or 'there'},<br><br>Welcome to KopyKat! Your account is loaded with 5 free generations.", user.email)
-    return TokenResponse(access_token=create_access_token(user.id, user.email, user.auth_version), plan=user.plan, generations=user.generations)
+    token = create_access_token(user.id, user.email, user.auth_version)
+    _set_session_cookie(response, token)
+    return TokenResponse(access_token=token, plan=user.plan, generations=user.generations)
 
 @app.post("/auth/login", response_model=TokenResponse, tags=["Auth"])
 @limiter.limit("10/minute")
-async def login(request: Request, body: UserLogin, db: Session = Depends(get_db)):
+async def login(request: Request, response: Response, body: UserLogin, db: Session = Depends(get_db)):
     user = authenticate_user(body.email, body.password, db)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    return TokenResponse(access_token=create_access_token(user.id, user.email, user.auth_version), plan=user.plan, generations=user.generations)
+    token = create_access_token(user.id, user.email, user.auth_version)
+    _set_session_cookie(response, token)
+    return TokenResponse(access_token=token, plan=user.plan, generations=user.generations)
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    """Issue a browser session cookie without changing the API token contract."""
+
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=True,
+        secure=STRICT_CONFIG,
+        samesite="lax",
+        path="/",
+    )
+
+
+@app.post("/auth/logout", tags=["Auth"])
+@limiter.limit("20/minute")
+async def logout(request: Request, response: Response):
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    return {"status": "logged_out"}
 
 @app.get("/auth/me", response_model=UserProfile, tags=["Auth"])
 async def get_profile(current_user: User = Depends(get_current_user_jwt)):
@@ -789,7 +825,7 @@ async def generate(request: Request, body: GenerateRequest, auth: tuple = Depend
             user_id=user.id,
             db=db
         )
-    except Exception as e:
+    except Exception:
         refund_user_generations(user.id, monthly_used, purchased_used, db)
         raise HTTPException(status_code=500, detail="AI generation failed. Your credits have been refunded.")
 
@@ -1010,41 +1046,111 @@ async def api_public_demo(request: Request, body: CampaignGenerateRequest, db: S
         raise HTTPException(status_code=500, detail="Demo generation failed due to an internal error.")
 
 # ---------------------------------------------------------------------------
-# Dropship Partners — page + API directory + one-click connect
+# Dropship Partners — paid directory + private activation + merchant connector
 # ---------------------------------------------------------------------------
 
 @app.get("/dropship-partners", response_class=HTMLResponse, include_in_schema=False)
 async def dropship_partners_page():
-    """Serve the dropship partner directory page (paid advertising listings)."""
+    """Serve the public paid-placement directory page."""
     page = BASE_DIR / "frontend" / "dropship-partners.html"
     if not page.exists():
         raise HTTPException(status_code=404, detail="Page not found.")
     return FileResponse(page)
 
 
+@app.get("/dropship-partners/activate", response_class=HTMLResponse, include_in_schema=False)
+async def dropship_partner_activation_page():
+    """Serve the private partner activation page without caching its token."""
+
+    page = BASE_DIR / "frontend" / "partner-activation.html"
+    if not page.exists():
+        raise HTTPException(status_code=404, detail="Page not found.")
+    return FileResponse(
+        page,
+        headers={
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            "X-Robots-Tag": "noindex, nofollow, noarchive",
+        },
+    )
+
+
 @app.get("/api/dropship-partners", tags=["Dropship Partners"])
 @limiter.limit("60/minute")
-async def api_dropship_partners_list(request: Request):
-    """Return public metadata for all verified dropship API partners. No auth required."""
-    from .dropship_connectors import PARTNERS
+async def api_dropship_partners_list(request: Request, db: Session = Depends(get_db)):
+    """Return only active paid placements; private contact data is never included."""
+    from .dropship_billing import active_partner_records
+
     return {
         "disclaimer": (
             "All listings are paid advertising placements. KopyKat does not endorse "
             "or certify any listed vendor. API availability is not guaranteed."
         ),
-        "partners": [
-            {
-                "key": p["key"],
-                "name": p["name"],
-                "niche": p["niche"],
-                "description": p["description"],
-                "docs_url": p["docs_url"],
-                "auth_type": p["auth_type"],
-                "regions": p["regions"],
-            }
-            for p in PARTNERS.values()
-        ],
+        "partners": active_partner_records(db),
     }
+
+
+@app.get("/api/dropship-partners/featured", tags=["Dropship Partners"])
+@limiter.limit("60/minute")
+async def api_featured_dropship_partners(request: Request, db: Session = Depends(get_db)):
+    """Return active featured front-page placements in slot order."""
+
+    from .dropship_billing import active_partner_records
+
+    return {"partners": active_partner_records(db, placement_type="featured")[:5]}
+
+
+@app.get("/api/dropship-partners/activation", tags=["Dropship Partners"])
+@limiter.limit("20/minute")
+async def api_dropship_partner_activation_status(
+    request: Request,
+    token: str = Query(..., min_length=32, max_length=128),
+    db: Session = Depends(get_db),
+):
+    """Return private activation status for a holder of a valid invite token."""
+
+    from .dropship_billing import activation_status
+
+    return activation_status(token, db)
+
+
+@app.post("/api/dropship-partners/activation/checkout", tags=["Dropship Partners"])
+@limiter.limit("5/minute")
+async def api_dropship_partner_activation_checkout(
+    request: Request,
+    body: PartnerPlacementCheckoutRequest,
+    db: Session = Depends(get_db),
+):
+    """Create a fixed-price Stripe subscription checkout for a partner invite."""
+
+    from .dropship_billing import create_partner_checkout
+
+    return create_partner_checkout(
+        token=body.token,
+        placement_type=body.placement_type,
+        slot=body.slot,
+        interval=body.interval,
+        logo_url=body.logo_url,
+        service_url=body.service_url,
+        db=db,
+    )
+
+
+@app.post("/admin/dropship-partners/invitations", tags=["Admin"])
+@limiter.limit("10/hour")
+async def admin_send_dropship_partner_invitations(
+    request: Request,
+    partner_key: Optional[str] = Query(None, max_length=50),
+    x_admin_secret: Optional[str] = Header(None, alias="x-admin-secret"),
+    db: Session = Depends(get_db),
+):
+    """Manually trigger the same per-partner invitation job used by the scheduler."""
+
+    if not _is_valid_admin_secret(x_admin_secret):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    from .dropship_billing import send_configured_partner_invites
+
+    return {"results": send_configured_partner_invites(db, partner_key=partner_key)}
 
 
 @app.post("/api/dropship-partners/{partner_key}/connect", tags=["Dropship Partners"])
@@ -1056,11 +1162,12 @@ async def api_dropship_partner_connect(
     db: Session = Depends(get_db),
 ):
     """
-    Pre-load a verified dropship partner connector spec into the user's account.
-    Creates a draft CustomConnector record. Idempotent — returns existing record
-    if connector for this partner already exists. Requires auth.
+    Pre-load an active paid partner's verified connector spec into the user's
+    account. Creates a draft CustomConnector record. Idempotent — returns the
+    existing record if a connector for this partner already exists. Requires auth.
     """
     from .dropship_connectors import PARTNERS, CONNECTOR_SPECS
+    from .dropship_billing import active_partner_keys
     from .connector_registry import validate_connector_spec, ConnectorError
     from .database import CustomConnector
 
@@ -1071,6 +1178,12 @@ async def api_dropship_partner_connect(
             status_code=404,
             detail=f"Unknown partner key '{partner_key}'. "
                    f"Valid keys: {', '.join(PARTNERS.keys())}",
+        )
+
+    if partner_key not in active_partner_keys(db):
+        raise HTTPException(
+            status_code=403,
+            detail="This partner placement is not currently active.",
         )
 
     partner_meta = PARTNERS[partner_key]
@@ -1107,10 +1220,12 @@ async def api_dropship_partner_connect(
         id=connector_id,
         user_id=user.id,
         platform_name=validated_spec["platform_name"],
+        source_url=partner_meta["docs_url"],
         base_url=validated_spec["base_url"],
         spec=_json.dumps(validated_spec),
+        authentication_modes=str((validated_spec.get("auth") or {}).get("type") or "unknown"),
+        operation_count=len(validated_spec.get("operations") or []),
         status="draft",
-        is_active=False,
     )
     db.add(new_connector)
     db.commit()
@@ -1153,7 +1268,7 @@ async def api_connector_discover(
         spec = discover_connector(body.url)
     except ConnectorError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="An error occurred during discovery.")
         
     connector_id = str(uuid.uuid4())
@@ -1299,7 +1414,7 @@ async def api_campaign_generate_vision(
     except ValueError as e:
         refund_user_generations(user.id, monthly_used, purchased_used, db)
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         refund_user_generations(user.id, monthly_used, purchased_used, db)
         raise HTTPException(status_code=500, detail="Vision generation failed due to an internal error. Your balance was refunded.")
 
@@ -1480,7 +1595,7 @@ async def api_connector_test(request: Request, connector_id: str, body: Connecto
         ))
         db.commit()
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Connector test execution failed.")
 
 @app.post("/api/connector/{connector_id}/toggle", tags=["Connectors"])
@@ -1596,7 +1711,7 @@ async def set_custom_ai_key(request: Request, body: CustomAIKeyRequest, auth: tu
         "has_custom_key": True,
         "provider": user.custom_ai_provider,
         "unlimited_active": True,
-        "message": "Custom AI API Key securely saved. Unlimited generations via your infrastructure are now active."
+        "message": "Custom AI provider key securely saved. Future generations can use the configured provider."
     }
 
 @app.delete("/api/user/custom-ai-key", tags=["BYOK"])

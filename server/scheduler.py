@@ -29,10 +29,10 @@ def _send_email(subject: str, body: str, to: str):
     """Send an email via SMTP. No-op when SMTP is not configured."""
     if not all([SMTP_USER, SMTP_PASSWORD]):
         logger.info("Email not configured — skipping notification")
-        return
+        return False
     if not to:
         logger.warning("Email destination missing — skipping notification")
-        return
+        return False
     try:
         msg = MIMEMultipart()
         msg["From"] = SMTP_USER
@@ -44,8 +44,28 @@ def _send_email(subject: str, body: str, to: str):
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
         logger.info("Email sent: %s", subject)
+        return True
     except Exception as exc:
         logger.error("Email send failed: %s", exc)
+        return False
+
+
+def _send_partner_activation_invites():
+    """Send configured partner invitations one at a time with cooldowns."""
+
+    db: Session = SessionLocal()
+    try:
+        from .dropship_billing import send_configured_partner_invites
+
+        results = send_configured_partner_invites(db)
+        sent = sum(1 for result in results if result.get("status") == "sent")
+        if sent:
+            logger.info("Sent %s dropship partner activation invitation(s)", sent)
+    except Exception:
+        logger.exception("Partner activation invite job failed")
+        db.rollback()
+    finally:
+        db.close()
 
 
 def _reset_daily_api_counters():
@@ -150,8 +170,9 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(generate_seo_post, CronTrigger(day_of_week="mon,wed,fri", hour=14, minute=0), id="seo_blog_engine", replace_existing=True)
     scheduler.add_job(run_drip_campaigns, CronTrigger(hour=10, minute=0), id="email_drip_bot", replace_existing=True)
     scheduler.add_job(scan_reddit_opportunities, CronTrigger(hour="*/4", minute=15), id="opportunity_scout", replace_existing=True)
+    scheduler.add_job(_send_partner_activation_invites, CronTrigger(hour=9, minute=0), id="partner_activation_invites", replace_existing=True)
 
-    logger.info("Background scheduler configured with 7 automated tasks (including marketing)")
+    logger.info("Background scheduler configured with 8 automated tasks (including marketing and partner invitations)")
     return scheduler
 
 

@@ -71,7 +71,22 @@ Content-Type: application/json
 The server verifies the signature before processing and stores event IDs to
 prevent duplicate fulfillment. Supported event families include subscription
 creation/change/deletion, successful and failed invoices, and completed
-checkout sessions.
+checkout sessions, including paid partner-directory placements.
+
+## Private dropship partner placements
+
+Partner contacts are deployment-only environment values. The scheduled
+emailer sends each configured company a short-lived activation link; contact
+addresses and activation tokens are not returned by the public directory and
+only the token hash is stored.
+
+The private activation page offers the configured featured and ranked placement
+products to the invitation holder. Exact amounts are shown only inside that
+private checkout flow. Stripe Price IDs for every product are configured in
+deployment secrets; the browser cannot submit its own price or Price ID. A listing is returned by
+`/api/dropship-partners` only after a verified Stripe subscription webhook
+marks it active. The public projection may include a partner-supplied HTTPS
+logo and service URL only after that point.
 
 ## BYOK status
 

@@ -8,7 +8,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Cookie, Depends, HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
 import bcrypt
 import jwt
@@ -31,6 +31,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = env_int(
     minimum=5,
     maximum=10080,
 )
+
+SESSION_COOKIE_NAME = "kk_session"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -115,6 +117,7 @@ def hash_api_key(raw_key: str) -> str:
 
 def get_current_user_jwt(
     token: Optional[str] = Depends(oauth2_scheme),
+    session_token: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     db: Session = Depends(get_db),
 ) -> User:
     credentials_exception = HTTPException(
@@ -122,6 +125,7 @@ def get_current_user_jwt(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token = token or session_token
     if not token:
         raise credentials_exception
     payload = decode_access_token(token)
@@ -135,12 +139,12 @@ def get_current_user_jwt(
 
 def get_current_user_apikey(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
+    session_token: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     db: Session = Depends(get_db),
 ) -> tuple[User, Optional[APIKey]]:
-    if not credentials:
+    raw_key = credentials.credentials if credentials else session_token
+    if not raw_key:
         raise HTTPException(status_code=401, detail="Authentication required")
-
-    raw_key = credentials.credentials
     
     # 1. Check if token is a valid user JWT session
     payload = decode_access_token(raw_key)

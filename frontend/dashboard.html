@@ -8,15 +8,10 @@
   <script>
     const APP_VERSION = "1.2.1";
     if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
-      // Retain auth session while purging old application cache
-      const savedToken = localStorage.getItem("sc_token");
-      const savedUser = localStorage.getItem("sc_user");
-      
+      // Purge legacy client-side sessions while retaining only the HttpOnly
+      // browser cookie issued by /auth/login or /auth/register.
       sessionStorage.clear();
       localStorage.clear();
-      
-      if (savedToken) localStorage.setItem("sc_token", savedToken);
-      if (savedUser) localStorage.setItem("sc_user", savedUser);
       localStorage.setItem("kopykat_version", APP_VERSION);
       
       // Purge all Service Workers and CacheStorage
@@ -193,10 +188,10 @@
       <div class="card" style="margin-top:24px; border:1px solid var(--purple); background:rgba(142,68,173,0.03);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
           <h3 style="margin:0;">Bring Your Own Key (BYOK) — Megastore Tier</h3>
-          <span style="font-size:11px; font-weight:bold; text-transform:uppercase; color:var(--purple); background:rgba(142,68,173,0.1); padding:2px 8px; border-radius:10px;">Unlimited AI</span>
+          <span style="font-size:11px; font-weight:bold; text-transform:uppercase; color:var(--purple); background:rgba(142,68,173,0.1); padding:2px 8px; border-radius:10px;">BYOK</span>
         </div>
         <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
-          Connect your own OpenAI, Gemini, or Anthropic API key for high-throughput, unmetered generations on your private infrastructure. Encrypted at rest via Fernet.
+          Connect your own supported AI provider key. KopyKat encrypts the saved credential at rest; provider limits and your plan rules still apply.
         </p>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
           <select id="byok-provider" style="padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text); min-width:140px;">
@@ -273,9 +268,9 @@
           <div class="plan-name">Store</div>
           <div class="plan-price">$179.49<span>/mo</span></div>
           <ul class="plan-features">
-            <li>250 monthly campaigns</li>
-            <li>Top 5 Integrations</li>
-            <li>Email support</li>
+            <li>150 monthly campaigns</li>
+            <li>2 connectors</li>
+            <li>1 automation feature</li>
           </ul>
           <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('boutique')">Upgrade to Boutique</button>
         </div>
@@ -285,8 +280,9 @@
           <div class="plan-price">$379.49<span>/mo</span></div>
           <ul class="plan-features">
             <li>1,000 monthly campaigns</li>
-            <li>Priority speed</li>
-            <li>Priority support</li>
+            <li>10 connectors</li>
+            <li>2 automation features</li>
+            <li>Priority generation speed</li>
           </ul>
           <button class="btn btn-primary btn-full btn-sm" onclick="startCheckout('standard')">Upgrade to Standard</button>
         </div>
@@ -295,9 +291,9 @@
           <div class="plan-name">Enterprise</div>
           <div class="plan-price">$9,639.63<span>/mo</span></div>
           <ul class="plan-features">
-            <li>5,000 monthly campaigns</li>
-            <li>Unlimited BYOK AI Key</li>
-            <li>24/7 dedicated support</li>
+            <li>2,500 monthly campaigns</li>
+            <li>BYOK support for your own AI key</li>
+            <li>Native and custom connector capabilities</li>
           </ul>
           <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('megastore')">Upgrade to Megastore</button>
         </div>
@@ -345,7 +341,7 @@
         <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">
           Test every endpoint directly in your browser.
         </p>
-        <a href="/api/docs" target="_blank" class="btn btn-primary">Open Swagger UI &rarr;</a>
+        <a href="/api/docs" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Open Swagger UI &rarr;</a>
       </div>
     </section>
 
@@ -1017,12 +1013,22 @@ let integrationMetadata = { wordpress: [], mailchimp: [], webflow: [] };
 let currentCampaignId = null;
 let bulkItems = [];
 
-function getToken() { return localStorage.getItem('sc_token'); }
+// Browser authentication is carried by the HttpOnly session cookie. Strip any
+// legacy Authorization header assembled by older dashboard code so it cannot
+// reintroduce Web Storage token handling.
+const nativeFetch = window.fetch.bind(window);
+window.fetch = function cookieFetch(input, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.delete('Authorization');
+  return nativeFetch(input, { ...init, headers, credentials: 'include' });
+};
 
-// Redirect to login if unauthenticated
-if (!getToken()) {
-  window.location.href = '/#signup';
-}
+function getToken() { return ''; }
+
+// Redirect to login if the HttpOnly browser session is missing or expired.
+fetch(`${API}/auth/me`, { headers: { Accept: 'application/json' } }).then((response) => {
+  if (!response.ok) window.location.href = '/#signup';
+}).catch(() => { window.location.href = '/#signup'; });
 
 // Navigation & Section Visibility
 function showSection(id, btnElement) {
@@ -1066,9 +1072,11 @@ function activateBottomNav(btn) {
 }
 
 function logout() {
-  localStorage.removeItem('sc_token');
-  localStorage.removeItem('sc_user');
-  window.location.href = '/';
+  fetch('/auth/logout', { method: 'POST' }).finally(() => {
+    localStorage.removeItem('sc_token');
+    localStorage.removeItem('sc_user');
+    window.location.href = '/';
+  });
 }
 
 function copyElementText(elemId) {
@@ -2717,7 +2725,7 @@ async function loadCustomAIKeyStatus() {
         const active = document.createElement('span');
         active.style.cssText = 'color:#22c55e;font-weight:bold;';
         active.textContent = 'Active:';
-        statusEl.replaceChildren(active, document.createTextNode(' Private ' + (data.provider || 'AI') + ' Key Configured. Unlimited generations active.'));
+        statusEl.replaceChildren(active, document.createTextNode(' Private ' + (data.provider || 'AI') + ' Key configured for future generations.'));
       } else {
         statusEl.textContent = 'No private AI key configured. Using default plan quota.';
       }

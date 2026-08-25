@@ -153,6 +153,15 @@
     .su-input:focus{border-color:#3b82f6;}
     .su-input::placeholder{color:#374151;}
     .cta-note{margin-top:20px;font-size:13px;color:#475569;position:relative;z-index:1;}
+    /* FEATURED PARTNER PLACEMENTS */
+    .featured-partners{background:#060d1a;padding:86px 24px;}
+    .featured-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-top:40px;}
+    .featured-card{display:flex;flex-direction:column;gap:12px;padding:22px;background:#0d1525;border:1px solid #162035;border-radius:16px;min-height:150px;}
+    .featured-card img{width:42px;height:42px;object-fit:contain;border-radius:9px;background:#07111f;border:1px solid #162035;}
+    .featured-card h3{font-size:16px;margin:0;color:#fff;}
+    .featured-card p{font-size:12px;color:#64748b;line-height:1.5;margin:0;}
+    .featured-card a{color:#6ee7b7;font-size:12px;font-weight:700;text-decoration:none;margin-top:auto;}
+    .featured-empty{color:#475569;font-size:14px;text-align:center;}
     .auth-block{display:none;margin-top:32px;}
     .auth-tabs{display:flex;margin-bottom:24px;border:1px solid #162035;border-radius:10px;overflow:hidden;}
     .auth-tab{flex:1;padding:12px;background:transparent;color:#64748b;border:none;cursor:pointer;font-weight:600;font-size:14px;transition:all .2s;}
@@ -291,6 +300,20 @@
 
 <div class="divg"></div>
 
+<!-- ACTIVE FEATURED PARTNERS -->
+<section class="featured-partners" id="featured-partners" hidden>
+  <div class="cv2">
+    <div class="sec-center">
+      <span class="sec-label">Featured partner placements</span>
+      <h2 class="sec-h2">Connect with active <span class="tg-green">dropship solutions</span></h2>
+      <p class="sec-sub">These independent companies have paid for featured placement. KopyKat does not endorse or certify their services or APIs.</p>
+    </div>
+    <div id="featuredPartnerGrid" class="featured-grid" aria-live="polite"></div>
+  </div>
+</section>
+
+<div class="divg"></div>
+
 <!-- FEATURES BENTO -->
 <section class="sv2 feat-bg" id="features">
   <div class="cv2">
@@ -348,57 +371,48 @@
     <div class="sec-center fu">
       <span class="sec-label">Transparent Pricing</span>
       <h2 class="sec-h2">Start free. <span class="tg-green">Upgrade when you are ready.</span></h2>
-      <p class="sec-sub">No hidden fees. No long-term contracts. Cancel any time from your dashboard.</p>
+    <p class="sec-sub">Configured plan limits are shown below. Review the current terms before purchasing.</p>
     </div>
     <div class="price-grid">
       <div class="pc fu">
-        <div class="pc-tier">Starter</div>
+        <div class="pc-tier">Free</div>
         <div class="pc-price"><span class="pc-dollar">$</span><span class="pc-amt">0</span><span class="pc-period">/ month</span></div>
-        <div class="pc-desc">Try every feature. No card needed.</div>
+        <div class="pc-desc">Explore the core workflow without a paid subscription.</div>
         <ul class="pc-feats">
-          <li>Up to 25 products</li>
-          <li>5 AI listing generations</li>
-          <li>3 platform integrations</li>
-          <li>1 connected store</li>
-          <li>Community support</li>
-          <li class="off">Advanced analytics</li>
-          <li class="off">Campaign builder</li>
-          <li class="off">Multi-channel sync</li>
+          <li>5 monthly campaigns</li>
+          <li>1 connector</li>
+          <li>Core engine preview</li>
+          <li class="off">Paid plan entitlements</li>
+          <li class="off">Additional automation features</li>
         </ul>
         <a href="#signup" onclick="switchTab('register')" class="btn-outl">Get Started Free</a>
       </div>
       <div class="pc feat fu" style="transition-delay:.1s">
-        <div class="pc-badge">Most Popular</div>
-        <div class="pc-tier">Growth</div>
-        <div class="pc-price"><span class="pc-dollar">$</span><span class="pc-amt">49</span><span class="pc-period">/ month</span></div>
-        <div class="pc-desc">For sellers ready to scale operations.</div>
+        <div class="pc-badge">Configured tier</div>
+        <div class="pc-tier">Standard</div>
+        <div class="pc-price"><span class="pc-dollar">$</span><span class="pc-amt">379.49</span><span class="pc-period">/ month</span></div>
+        <div class="pc-desc">Higher monthly campaign allowance and connector access.</div>
         <ul class="pc-feats">
-          <li>Unlimited products</li>
-          <li>100 AI generations / month</li>
-          <li>All platform integrations</li>
-          <li>5 connected stores</li>
-          <li>Real-time inventory sync</li>
-          <li>Margin analyser</li>
-          <li>Campaign builder</li>
-          <li>Priority support</li>
+          <li>1,000 monthly campaigns</li>
+          <li>10 connectors</li>
+          <li>2 automation features</li>
+          <li>Priority generation speed</li>
+          <li>Reviewable campaign workflow</li>
         </ul>
-        <a href="#signup" onclick="switchTab('register')" class="btn-prim">Start 14-Day Free Trial</a>
+        <a href="#signup" onclick="switchTab('register')" class="btn-prim">Create an account</a>
       </div>
       <div class="pc fu" style="transition-delay:.2s">
-        <div class="pc-tier">Pro</div>
-        <div class="pc-price"><span class="pc-dollar">$</span><span class="pc-amt">129</span><span class="pc-period">/ month</span></div>
-        <div class="pc-desc">For multi-store operators and agencies.</div>
+        <div class="pc-tier">Megastore</div>
+        <div class="pc-price"><span class="pc-dollar">$</span><span class="pc-amt">9,639.63</span><span class="pc-period">/ month</span></div>
+        <div class="pc-desc">The highest configured campaign allowance and BYOK option.</div>
         <ul class="pc-feats">
-          <li>Everything in Growth</li>
-          <li>Unlimited AI generations</li>
-          <li>Unlimited store connections</li>
-          <li>Custom API connector builder</li>
-          <li>White-label reports</li>
-          <li>Dedicated onboarding call</li>
-          <li>Advanced analytics</li>
-          <li>SLA-backed support</li>
+          <li>Standard plan capabilities</li>
+          <li>2,500 monthly campaigns</li>
+          <li>BYOK support for your own AI key</li>
+          <li>Native and custom connector capabilities</li>
+          <li>Configured automation features</li>
         </ul>
-        <a href="#signup" onclick="switchTab('register')" class="btn-outl">Start 14-Day Free Trial</a>
+        <a href="#signup" onclick="switchTab('register')" class="btn-outl">Create an account</a>
       </div>
     </div>
   </div>
@@ -423,7 +437,7 @@
       </div>
       <div class="faq-item fu" style="transition-delay:.1s">
         <button class="faq-q" onclick="toggleFaq(this)">Does KopyKat support dropshipping?<span class="faq-arr">+</span></button>
-        <div class="faq-a">Yes, through our API connector engine. If a dropship supplier has a public API, you can connect them directly in KopyKat and have orders routed automatically. We maintain a curated list of verified dropship partners with open API documentation. <a href="/dropship-partners" style="color:#34d399;">View the partner directory &rarr;</a></div>
+        <div class="faq-a">Yes, through our API connector engine. If a dropship supplier has public API documentation, you can review whether its API fits your workflow and connect it through KopyKat. The public directory shows active paid placements only; KopyKat does not endorse or certify listed vendors. <a href="/dropship-partners" style="color:#34d399;">View the partner directory &rarr;</a></div>
       </div>
       <div class="faq-item fu" style="transition-delay:.15s">
         <button class="faq-q" onclick="toggleFaq(this)">How does the AI content generation work?<span class="faq-arr">+</span></button>
@@ -431,11 +445,11 @@
       </div>
       <div class="faq-item fu" style="transition-delay:.2s">
         <button class="faq-q" onclick="toggleFaq(this)">Is there a free plan?<span class="faq-arr">+</span></button>
-        <div class="faq-a">Yes. The Starter plan is permanently free and includes 5 AI generations, support for up to 25 products, and 3 platform integrations. No credit card is required to sign up.</div>
+        <div class="faq-a">Yes. The free plan currently provides 5 monthly campaigns and one connector. No credit card is required to create an account.</div>
       </div>
       <div class="faq-item fu" style="transition-delay:.25s">
         <button class="faq-q" onclick="toggleFaq(this)">Can I cancel my subscription at any time?<span class="faq-arr">+</span></button>
-        <div class="faq-a">Absolutely. No contracts and no cancellation fees. You can cancel from your account dashboard at any time and will retain access until the end of your current billing period.</div>
+        <div class="faq-a">Review the billing terms in the dashboard and with the payment processor before purchasing. Availability and cancellation handling depend on the configured billing account.</div>
       </div>
     </div>
   </div>
@@ -558,6 +572,7 @@
       const res=await fetch('/auth/register',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
+        credentials:'include',
         body:JSON.stringify({
           full_name:document.getElementById('rName').value.trim(),
           email:document.getElementById('rEmail').value.trim(),
@@ -578,13 +593,17 @@
     const btn=e.target.querySelector('button[type="submit"]');
     btn.textContent='Logging in...';btn.disabled=true;
     try{
-      const fd=new URLSearchParams();
-      fd.append('username',document.getElementById('lEmail').value.trim());
-      fd.append('password',document.getElementById('lPass').value);
-      const res=await fetch('/auth/login',{method:'POST',body:fd});
+      const res=await fetch('/auth/login',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body:JSON.stringify({
+          email:document.getElementById('lEmail').value.trim(),
+          password:document.getElementById('lPass').value
+        })
+      });
       if(res.ok){
-        const d=await res.json();
-        if(d.access_token){localStorage.setItem('kk_token',d.access_token);window.location.href='/dashboard.html';}
+        window.location.href='/dashboard.html';
       }else{btn.textContent='Log In';btn.disabled=false;alert('Invalid email or password.');}
     }catch{btn.textContent='Log In';btn.disabled=false;alert('Network error. Please try again.');}
   }
@@ -604,10 +623,41 @@
   },{threshold:0.1});
   document.querySelectorAll('.fu').forEach(el=>obs.observe(el));
 
+  (async function loadFeaturedPartners(){
+    const section=document.getElementById('featured-partners');
+    const grid=document.getElementById('featuredPartnerGrid');
+    if(!section||!grid)return;
+    const safeUrl=value=>{
+      try{const url=new URL(value);return url.protocol==='https:'?url.href:'';}catch{return '';}
+    };
+    try{
+      const res=await fetch('/api/dropship-partners/featured',{headers:{Accept:'application/json'}});
+      if(!res.ok)return;
+      const data=await res.json();
+      const partners=Array.isArray(data.partners)?data.partners:[];
+      if(!partners.length)return;
+      partners.forEach(partner=>{
+        const card=document.createElement('article');card.className='featured-card';
+        const logoUrl=safeUrl(partner.logo_url);
+        if(logoUrl){const img=document.createElement('img');img.src=logoUrl;img.alt=`${partner.name||'Partner'} logo`;img.loading='lazy';img.referrerPolicy='no-referrer';card.appendChild(img);}
+        const name=document.createElement('h3');name.textContent=partner.name||'Partner solution';card.appendChild(name);
+        const niche=document.createElement('p');niche.textContent=partner.niche||'Dropship partner solution';card.appendChild(niche);
+        const serviceUrl=safeUrl(partner.service_url||partner.docs_url);
+        if(serviceUrl){const link=document.createElement('a');link.href=serviceUrl;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Connect to partner service';card.appendChild(link);}
+        grid.appendChild(card);
+      });
+      section.hidden=false;
+    }catch{ /* Keep the marketing page usable if the optional directory is unavailable. */ }
+  })();
+
   (function(){
-    const token=localStorage.getItem('kk_token');
+    // Legacy browser tokens are not needed after the HttpOnly cookie migration.
+    localStorage.removeItem('kk_token');
+    localStorage.removeItem('sc_token');
     const btn=document.getElementById('nav-login-btn');
-    if(token&&btn){btn.textContent='Dashboard';btn.href='/dashboard.html';btn.removeAttribute('onclick');}
+    fetch('/auth/me',{credentials:'include',headers:{Accept:'application/json'}}).then(function(res){
+      if(res.ok&&btn){btn.textContent='Dashboard';btn.href='/dashboard.html';btn.removeAttribute('onclick');}
+    }).catch(function(){});
   })();
 </script>
 </body>

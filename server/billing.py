@@ -29,8 +29,8 @@ PLANS = {
         "automation_features_allowed": 1,
         "features": [
             "5 monthly campaigns",
-            "1 connector of choice",
-            "Core engine preview"
+            "1 connector",
+            "Core engine preview",
         ],
     },
     "boutique": {
@@ -43,8 +43,7 @@ PLANS = {
         "features": [
             "150 monthly campaigns",
             "2 connectors of choice",
-            "1 automation feature (CSV or Auto-Sync)",
-            "Email support"
+            "1 automation feature (CSV or auto-sync)"
         ],
     },
     "standard": {
@@ -58,7 +57,7 @@ PLANS = {
             "1,000 monthly campaigns",
             "10 connectors of choice",
             "2 automation features",
-            "Priority generation speed"
+            "Configured priority generation tier"
         ],
     },
     "megastore": {
@@ -70,12 +69,10 @@ PLANS = {
         "automation_features_allowed": 999,
         "byok_unlimited": True,
         "features": [
-            "2,500 monthly campaigns (using our API)",
-            "Unlimited campaigns with your own AI API key (BYOK)",
-            "All native and custom connectors included",
-            "All automation engines and review miners",
-            "Dedicated high-throughput cluster",
-            "24/7 VIP priority support"
+            "2,500 monthly campaigns using the KopyKat API",
+            "BYOK support for your own AI provider key",
+            "Native and custom connector capabilities",
+            "Configured automation features"
         ],
     },
 }
@@ -212,15 +209,30 @@ def handle_stripe_webhook(payload: bytes, sig_header: str, db: Session) -> dict:
     db.flush()
 
     if event_type == "customer.subscription.created":
-        _handle_subscription_created(data_obj, db)
+        from .dropship_billing import handle_partner_subscription_created
+
+        if not handle_partner_subscription_created(data_obj, db):
+            _handle_subscription_created(data_obj, db)
     elif event_type == "invoice.payment_succeeded":
-        _handle_invoice_paid(data_obj, db)
+        from .dropship_billing import handle_partner_invoice_paid
+
+        if not handle_partner_invoice_paid(data_obj, db):
+            _handle_invoice_paid(data_obj, db)
     elif event_type in ("customer.subscription.deleted", "customer.subscription.updated"):
-        _handle_subscription_changed(data_obj, db)
+        from .dropship_billing import handle_partner_subscription_changed
+
+        if not handle_partner_subscription_changed(data_obj, db):
+            _handle_subscription_changed(data_obj, db)
     elif event_type == "checkout.session.completed":
-        _handle_one_time_purchased(data_obj, db)
+        from .dropship_billing import handle_partner_checkout_completed
+
+        if not handle_partner_checkout_completed(data_obj, db):
+            _handle_one_time_purchased(data_obj, db)
     elif event_type == "invoice.payment_failed":
-        _handle_payment_failed(data_obj, db)
+        from .dropship_billing import handle_partner_payment_failed
+
+        if not handle_partner_payment_failed(data_obj, db):
+            _handle_payment_failed(data_obj, db)
 
     db.commit()
     return {"status": "processed", "event": event_type}

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Partner Placement Activation - KopyKat</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    :root{--navy:#060d1a;--card:#0d1525;--border:#1b2a42;--green:#34d399;--muted:#94a3b8;}
+    body{margin:0;background:var(--navy);color:#fff;font-family:Inter,system-ui,sans-serif;}
+    .wrap{max-width:680px;margin:0 auto;padding:70px 24px;}
+    .brand{color:#fff;font-size:21px;font-weight:800;text-decoration:none;}
+    .card{margin-top:48px;padding:34px;background:var(--card);border:1px solid var(--border);border-radius:20px;}
+    .eyebrow{color:var(--green);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;}
+    h1{font-size:clamp(30px,5vw,46px);line-height:1.1;margin:16px 0;}
+    p{color:var(--muted);line-height:1.7;}
+    .notice{margin:22px 0;padding:15px;border:1px solid rgba(52,211,153,.25);border-radius:11px;color:#cbd5e1;font-size:13px;line-height:1.6;}
+    .fields{display:grid;gap:12px;margin-top:24px;}
+    .fields label{display:grid;gap:6px;color:#cbd5e1;font-size:13px;}
+    .fields input{padding:12px 13px;border:1px solid var(--border);border-radius:9px;background:#08101f;color:#fff;font:inherit;font-size:13px;}
+    .fields input:focus{border-color:var(--green);outline:none;}
+    .fields small{color:#64748b;font-size:11px;}
+    .plans{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:26px;}
+    .plan{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:18px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:13px;color:#fff;text-align:left;cursor:pointer;}
+    .plan:hover,.plan:focus{border-color:var(--green);outline:none;}
+    .plan strong{font-size:15px;}
+    .plan span{color:var(--muted);font-size:12px;line-height:1.5;}
+    .status{margin-top:22px;color:#cbd5e1;font-size:14px;}
+    .error{color:#fca5a5;}
+    .success{color:var(--green);}
+    .back{display:inline-block;margin-top:28px;color:var(--muted);font-size:13px;}
+    @media(max-width:560px){.plans{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a href="/" class="brand">KopyKat</a>
+    <section class="card" aria-live="polite">
+      <div class="eyebrow">Private partner activation</div>
+      <h1 id="title">Review your placement options</h1>
+      <p id="intro">This private link is for the company that received the invitation. Choose a recurring placement plan through Stripe. Your listing is published only after the payment processor confirms the subscription.</p>
+      <div class="notice">KopyKat is an advertising directory, not a reseller or dropship company. A paid placement does not mean KopyKat endorses the partner or guarantees its API, products, service, or fulfillment.</div>
+      <div class="fields">
+        <label for="logoUrl">Logo URL (optional, HTTPS)
+          <input id="logoUrl" type="url" inputmode="url" maxlength="2000" placeholder="https://partner.example/logo.png" autocomplete="off">
+        </label>
+        <label for="serviceUrl">Service link (optional, HTTPS)
+          <input id="serviceUrl" type="url" inputmode="url" maxlength="2000" placeholder="https://partner.example/" autocomplete="off">
+        </label>
+        <small>These links are stored privately with the activation request and are published only after Stripe confirms payment. Leave them blank to use the partner's API documentation link.</small>
+      </div>
+      <div id="plans" class="plans"></div>
+      <div id="status" class="status">Validating activation link...</div>
+      <a class="back" href="/dropship-partners">Back to public directory</a>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token') || '';
+      const payment = params.get('payment') || '';
+      // Keep the one-time activation secret in memory only; do not leave it
+      // in browser history or expose it to later navigation referrers.
+      if (window.history && window.history.replaceState) {
+        const cleanPath = payment
+          ? `/dropship-partners/activate?payment=${encodeURIComponent(payment)}`
+          : '/dropship-partners/activate';
+        window.history.replaceState(null, '', cleanPath);
+      }
+      const title = document.getElementById('title');
+      const intro = document.getElementById('intro');
+      const plans = document.getElementById('plans');
+      const status = document.getElementById('status');
+      const logoUrl = document.getElementById('logoUrl');
+      const serviceUrl = document.getElementById('serviceUrl');
+
+      const setStatus = (message, kind) => {
+        status.className = `status ${kind || ''}`;
+        status.textContent = message;
+      };
+
+      const beginCheckout = async (option, plan, buttons) => {
+        buttons.forEach((button) => { button.disabled = true; });
+        setStatus('Opening secure Stripe checkout...', '');
+        try {
+          const response = await fetch('/api/dropship-partners/activation/checkout', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+            body: JSON.stringify({
+              token,
+              placement_type: option.placement_type,
+              slot: option.slot,
+              interval: plan.interval,
+              logo_url: logoUrl.value.trim() || null,
+              service_url: serviceUrl.value.trim() || null
+            })
+          });
+          const data = await response.json();
+          if (!response.ok || !data.checkout_url) throw new Error(data.detail || 'Checkout could not be created');
+          const checkoutUrl = new URL(data.checkout_url, window.location.origin);
+          if (checkoutUrl.protocol !== 'https:') throw new Error('Checkout URL was rejected');
+          window.location.assign(checkoutUrl.href);
+        } catch (error) {
+          buttons.forEach((button) => { button.disabled = false; });
+          setStatus(error.message || 'Checkout could not be created. Please try again later.', 'error');
+        }
+      };
+
+      const loadActivation = async () => {
+        if (payment === 'success') {
+          title.textContent = 'Payment submitted';
+          intro.textContent = 'Stripe has received the checkout result. Your placement will appear in the public directory after the signed payment webhook is processed.';
+        } else if (payment === 'cancelled') {
+          setStatus('Checkout was cancelled. You can choose a plan below when ready.', '');
+        }
+        if (token.length < 32) {
+          plans.replaceChildren();
+          setStatus('This activation link is missing or invalid.', 'error');
+          return;
+        }
+        try {
+          const response = await fetch(`/api/dropship-partners/activation?token=${encodeURIComponent(token)}`, {headers: {'Accept': 'application/json'}});
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || 'This activation link is invalid or expired');
+          title.textContent = `${data.partner_name} placement activation`;
+          plans.replaceChildren();
+          const buttons = [];
+          (Array.isArray(data.placement_options) ? data.placement_options : []).forEach((option) => {
+            (Array.isArray(option.plans) ? option.plans : []).forEach((plan) => {
+              const button = document.createElement('button');
+              button.type = 'button';
+              button.className = 'plan';
+              const label = document.createElement('strong');
+              label.textContent = `${option.placement_type === 'featured' ? 'Featured front page' : 'Dropshipping tab'} slot ${option.slot}`;
+              const description = document.createElement('span');
+              description.textContent = `${plan.label}. ${plan.description}`;
+              button.append(label, description);
+              buttons.push(button);
+              button.addEventListener('click', () => beginCheckout(option, plan, buttons));
+              plans.append(button);
+            });
+          });
+          const optionCount = Array.isArray(data.placement_options) ? data.placement_options.length : 0;
+          if (data.status === 'active') {
+            plans.replaceChildren();
+            setStatus('This placement is already active.', 'success');
+          } else if (!optionCount) {
+            setStatus('All placement slots are currently held. Please contact KopyKat for availability.', '');
+          } else if (payment !== 'success' && payment !== 'cancelled') {
+            setStatus('Choose a billing interval to continue.', '');
+          }
+        } catch (error) {
+          plans.replaceChildren();
+          if (payment === 'success') {
+            setStatus('Payment was submitted. The listing will update after webhook confirmation.', 'success');
+          } else {
+            setStatus(error.message || 'This activation link is invalid or expired.', 'error');
+          }
+        }
+      };
+
+      loadActivation();
+    })();
+  </script>
+</body>
+</html>

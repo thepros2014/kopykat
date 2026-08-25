@@ -1,6 +1,6 @@
 /**
  * api.js — Modern JavaScript API Client Wrapper for KopyKat.
- * Provides unified HTTP methods, authentication header injection, token caching, and error handling.
+ * Provides unified HTTP methods, browser-cookie authentication, and error handling.
  */
 
 class KopyKatAPI {
@@ -9,15 +9,11 @@ class KopyKatAPI {
   }
 
   getToken() {
-    return localStorage.getItem('sc_token');
+    return null;
   }
 
-  setToken(token) {
-    if (token) {
-      localStorage.setItem('sc_token', token);
-    } else {
-      localStorage.removeItem('sc_token');
-    }
+  setToken(_token) {
+    // Tokens must not be persisted in Web Storage.
   }
 
   getHeaders(customHeaders = {}) {
@@ -25,10 +21,6 @@ class KopyKatAPI {
       'Content-Type': 'application/json',
       ...customHeaders
     };
-    const token = this.getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
     return headers;
   }
 
@@ -37,7 +29,8 @@ class KopyKatAPI {
     const headers = this.getHeaders(options.headers || {});
     const config = {
       ...options,
-      headers
+      headers,
+      credentials: options.credentials || 'include'
     };
 
     if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {
@@ -53,8 +46,6 @@ class KopyKatAPI {
 
       if (response.status === 401) {
         // Clear session on unauthenticated and redirect
-        localStorage.removeItem('sc_token');
-        localStorage.removeItem('sc_user');
         if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
           window.location.href = '/';
         }

@@ -184,6 +184,55 @@ class CustomConnector(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class PartnerListing(Base):
+    """Private state for paid dropship-partner directory placements.
+
+    Partner contact addresses are intentionally not stored here. They are
+    deployment configuration used only by the invitation job. Activation
+    tokens are stored as hashes so a database read cannot be used to activate
+    a listing.
+    """
+    __tablename__ = "partner_listings"
+    partner_key = Column(String(50), primary_key=True)
+    status = Column(String(30), default="pending", nullable=False)
+    placement_type = Column(String(20), default="directory", nullable=False)
+    placement_slot = Column(Integer, nullable=True)
+    activation_id = Column(String(64), nullable=True, index=True)
+    logo_url = Column(String(2_000), nullable=True)
+    service_url = Column(String(2_000), nullable=True)
+    billing_interval = Column(String(10), nullable=True)
+    stripe_customer_id = Column(String(50), nullable=True)
+    stripe_subscription_id = Column(String(50), unique=True, nullable=True)
+    stripe_checkout_session_id = Column(String(100), unique=True, nullable=True)
+    stripe_checkout_url = Column(String(2_000), nullable=True)
+    activation_token_hash = Column(String(64), unique=True, nullable=True)
+    activation_token_expires_at = Column(DateTime, nullable=True)
+    invite_sent_at = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PartnerPlacementReservation(Base):
+    """Atomic slot reservation used while a partner checkout is in flight.
+
+    The composite key prevents two concurrent checkouts from purchasing the
+    same paid placement. A checkout reservation expires if a provider call
+    dies before the session ID is stored; active subscriptions retain their
+    reservation until the signed cancellation event arrives.
+    """
+
+    __tablename__ = "partner_placement_reservations"
+    placement_type = Column(String(20), primary_key=True)
+    placement_slot = Column(Integer, primary_key=True)
+    partner_key = Column(String(50), nullable=False)
+    activation_id = Column(String(64), nullable=False)
+    status = Column(String(20), default="checkout", nullable=False)
+    stripe_checkout_session_id = Column(String(100), nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ConnectorAuditLog(Base):
     __tablename__ = "connector_audit_logs"
     id = Column(String(36), primary_key=True)
@@ -374,6 +423,13 @@ _LEGACY_COLUMN_MIGRATIONS = {
     },
     "opportunity_logs": {
         "score": ("INTEGER", "85"),
+    },
+    "partner_listings": {
+        "activation_id": ("VARCHAR(64)", None),
+        "placement_type": ("VARCHAR(20)", "'directory'"),
+        "placement_slot": ("INTEGER", None),
+        "logo_url": ("VARCHAR(2000)", None),
+        "service_url": ("VARCHAR(2000)", None),
     },
 }
 

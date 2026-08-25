@@ -1,4 +1,3 @@
-import pytest
 import hashlib
 from datetime import datetime, timedelta
 from server.database import User, VerificationToken
@@ -77,3 +76,7 @@ def test_password_reset_flow(client, db_session, test_user):
     })
     assert login_res.status_code == 200
     assert "access_token" in login_res.json()
+    session_cookie = login_res.cookies.get("kk_session")
+    assert session_cookie
+    assert "HttpOnly" in login_res.headers.get("set-cookie", "")
+    assert client.get("/auth/me").status_code == 200

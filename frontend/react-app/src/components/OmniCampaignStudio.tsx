@@ -42,12 +42,6 @@ export const OmniCampaignStudio: React.FC = () => {
       return;
     }
 
-    const token = localStorage.getItem('sc_token');
-    if (!token) {
-      setError('Sign in before generating a campaign.');
-      return;
-    }
-
     setIsGenerating(true);
     setError('');
     setCampaign(null);
@@ -56,8 +50,8 @@ export const OmniCampaignStudio: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token,
         },
+        credentials: 'include',
         body: JSON.stringify({ keyword, product_desc: productDesc }),
       });
       if (!response.ok) throw new Error(await readError(response));
