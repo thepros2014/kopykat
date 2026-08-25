@@ -1,26 +1,26 @@
-/* KopyKat — Global Styles & Modern SaaS Theme */
+﻿/* KopyKat — Global Styles & Modern SaaS Theme */
 
 :root {
-  --primary: #7c3aed;
-  --primary-hover: #6d28d9;
-  --primary-light: rgba(124, 58, 237, 0.15);
-  --secondary: #06b6d4;
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --primary-light: rgba(29, 78, 216, 0.15);
+  --secondary: #10b981;
   --accent: #ec4899;
   --green: #10b981;
   --yellow: #f59e0b;
-  --bg: #09090b;
-  --bg-card: #121217;
-  --bg-card-hover: #181820;
-  --bg-glass: rgba(18, 18, 24, 0.7);
-  --border: #272730;
-  --border-bright: #3f3f4e;
+  --bg: #060d1a;
+  --bg-card: #0d1525;
+  --bg-card-hover: #0f1e35;
+  --bg-glass: rgba(13, 21, 37, 0.75);
+  --border: #162035;
+  --border-bright: #1e3a5f;
   --text: #f4f4f7;
   --text-muted: #9494a6;
   --font: 'Inter', system-ui, -apple-system, sans-serif;
   --radius: 12px;
   --radius-lg: 18px;
   --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 35px -5px rgba(124, 58, 237, 0.35);
+  --shadow-glow: 0 0 35px -5px rgba(29, 78, 216, 0.35);
 }
 
 *, *::before, *::after {
@@ -61,7 +61,7 @@ h1, h2, h3, h4 {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #a78bfa 0%, #38bdf8 50%, #f472b6 100%);
+  background: linear-gradient(135deg, #60a5fa 0%, #34d399 50%, #3b82f6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -83,14 +83,14 @@ h1, h2, h3, h4 {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #9333ea 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, #059669 100%);
   color: #fff;
-  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
+  box-shadow: 0 4px 15px rgba(29, 78, 216, 0.4);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
-  box-shadow: 0 6px 25px rgba(124, 58, 237, 0.6);
+  background: linear-gradient(135deg, #2563eb 0%, #059669 100%);
+  box-shadow: 0 6px 25px rgba(29, 78, 216, 0.6);
   transform: translateY(-2px);
   color: #fff;
 }
