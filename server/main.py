@@ -1009,6 +1009,131 @@ async def api_public_demo(request: Request, body: CampaignGenerateRequest, db: S
         logger.error("Public demo failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Demo generation failed due to an internal error.")
 
+# ---------------------------------------------------------------------------
+# Dropship Partners — page + API directory + one-click connect
+# ---------------------------------------------------------------------------
+
+@app.get("/dropship-partners", response_class=HTMLResponse, include_in_schema=False)
+async def dropship_partners_page():
+    """Serve the dropship partner directory page (paid advertising listings)."""
+    page = BASE_DIR / "frontend" / "dropship-partners.html"
+    if not page.exists():
+        raise HTTPException(status_code=404, detail="Page not found.")
+    return FileResponse(page)
+
+
+@app.get("/api/dropship-partners", tags=["Dropship Partners"])
+@limiter.limit("60/minute")
+async def api_dropship_partners_list(request: Request):
+    """Return public metadata for all verified dropship API partners. No auth required."""
+    from .dropship_connectors import PARTNERS
+    return {
+        "disclaimer": (
+            "All listings are paid advertising placements. KopyKat does not endorse "
+            "or certify any listed vendor. API availability is not guaranteed."
+        ),
+        "partners": [
+            {
+                "key": p["key"],
+                "name": p["name"],
+                "niche": p["niche"],
+                "description": p["description"],
+                "docs_url": p["docs_url"],
+                "auth_type": p["auth_type"],
+                "regions": p["regions"],
+            }
+            for p in PARTNERS.values()
+        ],
+    }
+
+
+@app.post("/api/dropship-partners/{partner_key}/connect", tags=["Dropship Partners"])
+@limiter.limit("10/minute")
+async def api_dropship_partner_connect(
+    request: Request,
+    partner_key: str,
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db),
+):
+    """
+    Pre-load a verified dropship partner connector spec into the user's account.
+    Creates a draft CustomConnector record. Idempotent — returns existing record
+    if connector for this partner already exists. Requires auth.
+    """
+    from .dropship_connectors import PARTNERS, CONNECTOR_SPECS
+    from .connector_registry import validate_connector_spec, ConnectorError
+    from .database import CustomConnector
+
+    user, _ = auth
+
+    if partner_key not in PARTNERS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown partner key '{partner_key}'. "
+                   f"Valid keys: {', '.join(PARTNERS.keys())}",
+        )
+
+    partner_meta = PARTNERS[partner_key]
+    spec = CONNECTOR_SPECS[partner_key]
+
+    existing = (
+        db.query(CustomConnector)
+        .filter(
+            CustomConnector.user_id == user.id,
+            CustomConnector.platform_name == partner_meta["name"],
+        )
+        .first()
+    )
+    if existing:
+        return {
+            "status": "existing",
+            "connector_id": existing.id,
+            "platform_name": existing.platform_name,
+            "message": (
+                f"A connector for {partner_meta['name']} already exists in your account. "
+                "Add your API credentials in the dashboard to activate it."
+            ),
+        }
+
+    try:
+        validated_spec = validate_connector_spec(spec)
+    except ConnectorError as exc:
+        logger.error("Dropship connector spec validation failed for %s: %s", partner_key, exc)
+        raise HTTPException(status_code=500, detail="Partner connector spec is invalid.")
+
+    connector_id = str(uuid.uuid4())
+    import json as _json
+    new_connector = CustomConnector(
+        id=connector_id,
+        user_id=user.id,
+        platform_name=validated_spec["platform_name"],
+        base_url=validated_spec["base_url"],
+        spec=_json.dumps(validated_spec),
+        status="draft",
+        is_active=False,
+    )
+    db.add(new_connector)
+    db.commit()
+    db.refresh(new_connector)
+
+    logger.info(
+        "Dropship partner connector created: user=%s partner=%s connector=%s",
+        user.id, partner_key, connector_id,
+    )
+
+    return {
+        "status": "created",
+        "connector_id": connector_id,
+        "platform_name": partner_meta["name"],
+        "docs_url": partner_meta["docs_url"],
+        "auth_type": partner_meta["auth_type"],
+        "message": (
+            f"{partner_meta['name']} connector added as a draft. "
+            "Go to Dashboard → Connectors to enter your API credentials and activate it."
+        ),
+    }
+
+
 @app.post("/api/connector/discover", tags=["Connectors"])
 @limiter.limit("5/minute")
 async def api_connector_discover(
