@@ -1,33 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Force Cache & State Wipe on Update -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <script>
-    const APP_VERSION = "1.2.1";
-    if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
-      // Purge legacy client-side sessions while retaining only the HttpOnly
-      // browser cookie issued by /auth/login or /auth/register.
-      sessionStorage.clear();
-      localStorage.clear();
-      localStorage.setItem("kopykat_version", APP_VERSION);
-      
-      // Purge all Service Workers and CacheStorage
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (let r of registrations) { r.unregister(); }
-        });
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (let n of names) { caches.delete(n); }
-        });
-      }
-    }
-  </script>
-
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard — KopyKat</title>
@@ -36,8 +12,6 @@
   <meta name="theme-color" content="#8e44ad"/>
   <link rel="apple-touch-icon" href="/static/icon.png"/>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/static/styles.css"/>
   <script src="/api.js"></script>
 </head>
@@ -157,6 +131,7 @@
           </div>
         </div>
       </div>
+
     </section>
 
     <!-- 2. API KEYS & BYOK -->
@@ -191,13 +166,15 @@
           <span style="font-size:11px; font-weight:bold; text-transform:uppercase; color:var(--purple); background:rgba(142,68,173,0.1); padding:2px 8px; border-radius:10px;">BYOK</span>
         </div>
         <p style="font-size:13px; color:var(--muted); margin-bottom:16px;">
-          Connect your own supported AI provider key. KopyKat encrypts the saved credential at rest; provider limits and your plan rules still apply.
+          Connect your own OpenAI or Gemini key. KopyKat encrypts the saved credential at rest and routes supported generation work through it. Provider charges are yours; KopyKat server activity remains bounded by the allowance shown below.
+        </p>
+        <p style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+          Need the application on infrastructure you control? The annual self-hosted license catalog is shown under Billing &amp; Plan; implementation, support, and final contract terms are confirmed privately.
         </p>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
           <select id="byok-provider" style="padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg2); color:var(--text); min-width:140px;">
             <option value="openai">OpenAI (GPT-4o)</option>
             <option value="gemini">Google Gemini</option>
-            <option value="anthropic">Anthropic Claude</option>
           </select>
           <input type="password" id="byok-key-input" placeholder="sk-..." class="input" style="flex:1; min-width:200px;" />
           <button class="btn btn-primary btn-sm" onclick="saveCustomAIKey()">Save Private Key</button>
@@ -297,6 +274,27 @@
           </ul>
           <button class="btn btn-outline btn-full btn-sm" onclick="startCheckout('megastore')">Upgrade to Megastore</button>
         </div>
+      </div>
+    </section>
+
+      <div class="card" style="border:1px solid var(--purple); background:rgba(142,68,173,0.03);">
+        <h3>Customer-managed deployment licenses</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">
+          Deploy and run the KopyKat software on your own server or cloud account under a private full-year software-license agreement. These acquisition amounts are separate from managed Stripe subscriptions; implementation and support terms are confirmed contractually.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+          <div class="stat-card"><div class="stat-card-label">Self-Hosted Pro / year</div><div class="stat-card-value purple">$7,500</div></div>
+          <div class="stat-card"><div class="stat-card-label">Self-Hosted Business / year</div><div class="stat-card-value purple">$15,000</div></div>
+          <div class="stat-card"><div class="stat-card-label">Self-Hosted Enterprise / year</div><div class="stat-card-value purple">$30,000</div></div>
+          <div class="stat-card"><div class="stat-card-label">KopyKat White-label / year</div><div class="stat-card-value purple">$50,000</div></div>
+        </div>
+        <p style="color:var(--muted);font-size:12px;margin-top:14px;">
+          Annual-license catalog. The amounts above do not include a bundled implementation promise.
+          <a href="mailto:hello@kopykat.io" style="color:var(--purple);">Request terms</a>.
+        </p>
+        <p style="color:var(--muted);font-size:12px;margin-top:8px;">
+          Deployment and implementation: <strong>$12,000 per development deployment</strong>, not per user.
+        </p>
       </div>
     </section>
 
@@ -1073,8 +1071,6 @@ function activateBottomNav(btn) {
 
 function logout() {
   fetch('/auth/logout', { method: 'POST' }).finally(() => {
-    localStorage.removeItem('sc_token');
-    localStorage.removeItem('sc_user');
     window.location.href = '/';
   });
 }
@@ -1343,6 +1339,18 @@ async function deleteKey(id) {
 }
 
 // -- BILLING CHECKOUT --------------------------------------------------------
+function navigateToStripeCheckout(value) {
+  try {
+    const url = new URL(value);
+    const allowedHosts = new Set(['checkout.stripe.com', 'buy.stripe.com']);
+    if (url.protocol !== 'https:' || !allowedHosts.has(url.hostname)) return false;
+    window.location.assign(url.href);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function startCheckout(plan) {
   try {
     const res = await fetch(`${API}/billing/subscribe`, {
@@ -1351,8 +1359,8 @@ async function startCheckout(plan) {
       body: JSON.stringify({ plan })
     });
     const data = await res.json();
-    if (data.checkout_url) {
-      window.location.href = data.checkout_url;
+    if (data.checkout_url && navigateToStripeCheckout(data.checkout_url)) {
+      return;
     } else {
       alert(data.detail || 'Checkout unavailable.');
     }
@@ -1369,8 +1377,8 @@ async function buyGenerations(pack) {
       body: JSON.stringify({ pack })
     });
     const data = await res.json();
-    if (data.checkout_url) {
-      window.location.href = data.checkout_url;
+    if (data.checkout_url && navigateToStripeCheckout(data.checkout_url)) {
+      return;
     } else {
       alert(data.detail || 'Checkout unavailable.');
     }
@@ -2106,8 +2114,8 @@ async function buyAddon(addonKey) {
       body: JSON.stringify({ addon_key: addonKey })
     });
     const data = await res.json();
-    if (data.checkout_url) {
-      window.location.href = data.checkout_url;
+    if (data.checkout_url && navigateToStripeCheckout(data.checkout_url)) {
+      return;
     } else {
       alert(data.detail || "Checkout unavailable.");
     }
@@ -2725,7 +2733,13 @@ async function loadCustomAIKeyStatus() {
         const active = document.createElement('span');
         active.style.cssText = 'color:#22c55e;font-weight:bold;';
         active.textContent = 'Active:';
-        statusEl.replaceChildren(active, document.createTextNode(' Private ' + (data.provider || 'AI') + ' Key configured for future generations.'));
+        const remaining = Number.isFinite(Number(data.server_activity_remaining)) ? Number(data.server_activity_remaining).toLocaleString() : '—';
+        const limit = Number.isFinite(Number(data.server_activity_limit)) ? Number(data.server_activity_limit).toLocaleString() : '—';
+        const reset = data.server_activity_reset_at ? new Date(data.server_activity_reset_at).toLocaleDateString() : 'the next period';
+        statusEl.replaceChildren(
+          active,
+          document.createTextNode(' Private ' + (data.provider || 'AI') + ' key active. ' + remaining + ' of ' + limit + ' KopyKat server-activity units remain; resets ' + reset + '.')
+        );
       } else {
         statusEl.textContent = 'No private AI key configured. Using default plan quota.';
       }

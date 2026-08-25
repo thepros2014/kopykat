@@ -10,8 +10,7 @@ import os
 import time
 import uuid
 import json
-from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy.orm import Session
 import re
@@ -63,6 +62,7 @@ def _strip_emojis(text: str) -> str:
 
 
 from .database import UsageRecord
+from .ai_credentials import get_active_ai_credentials
 
 #  Config 
 
@@ -86,6 +86,10 @@ SUPPORTED_AI_PROVIDERS = ("openai", "gemini")
 
 def resolve_ai_provider(*, allow_none: bool = False) -> Optional[str]:
     """Resolve the configured provider against the keys available at runtime."""
+
+    customer_credentials = get_active_ai_credentials()
+    if customer_credentials:
+        return customer_credentials.provider
 
     preferred = (AI_PROVIDER or "openai").strip().lower()
     if preferred not in SUPPORTED_AI_PROVIDERS:
@@ -183,8 +187,11 @@ async def _generate_openai(prompt: str, max_tokens: int) -> tuple[str, int]:
     try:
         from .openai_client import generate_text_async
 
+        customer_credentials = get_active_ai_credentials()
+        api_key = customer_credentials.api_key if customer_credentials and customer_credentials.provider == "openai" else OPENAI_API_KEY
+
         return await generate_text_async(
-            api_key=OPENAI_API_KEY,
+            api_key=api_key,
             model=OPENAI_MODEL,
             input_value=prompt,
             system_instruction=SYSTEM_PROMPT,
@@ -203,8 +210,11 @@ async def _generate_gemini(prompt: str, max_tokens: int) -> tuple[str, int]:
     try:
         from .gemini_client import generate_content_async
 
+        customer_credentials = get_active_ai_credentials()
+        api_key = customer_credentials.api_key if customer_credentials and customer_credentials.provider == "gemini" else GEMINI_API_KEY
+
         response = await generate_content_async(
-            api_key=GEMINI_API_KEY,
+            api_key=api_key,
             model=GEMINI_MODEL,
             contents=prompt,
             system_instruction=SYSTEM_PROMPT,
@@ -528,21 +538,40 @@ Return strictly JSON with keys:
     prompt += "\n\nReturn ONLY valid JSON."
 
     try:
-        api_key = os.getenv("GEMINI_API_KEY", "")
+        customer_credentials = get_active_ai_credentials()
+        if customer_credentials:
+            api_key = customer_credentials.api_key
+            provider = customer_credentials.provider
+        else:
+            api_key = os.getenv("GEMINI_API_KEY", "")
+            provider = "gemini"
         # Test and local development environments commonly use placeholder
         # credentials.  Do not make an external network call for those runs;
         # the deterministic fallback below keeps the endpoint usable offline
         # and prevents a request from hanging while an SDK retries a fake key.
         use_remote_ai = os.getenv("ENVIRONMENT", "").lower() not in {"test", "testing"}
         if api_key and use_remote_ai:
-            from .gemini_client import generate_content_async
+            if provider == "gemini":
+                from .gemini_client import generate_content_async
 
-            res = await generate_content_async(
-                api_key=api_key,
-                model=os.getenv("GEMINI_MODEL", "gemini-flash-latest"),
-                contents=prompt,
-            )
-            data = _extract_json_block(res.text.strip())
+                res = await generate_content_async(
+                    api_key=api_key,
+                    model=os.getenv("GEMINI_MODEL", "gemini-flash-latest"),
+                    contents=prompt,
+                )
+                text = res.text.strip()
+            else:
+                from .openai_client import generate_text_async
+
+                text, _ = await generate_text_async(
+                    api_key=api_key,
+                    model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                    input_value=prompt,
+                    max_output_tokens=2500,
+                    temperature=0.7,
+                    json_mode=True,
+                )
+            data = _extract_json_block(text)
             if data:
                 data["platform"] = platform
                 data["product_name"] = product_name

@@ -5,8 +5,35 @@ import random
 import re
 
 from .gemini_client import generate_content, image_part
+from .ai_credentials import get_active_ai_credentials
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_campaign_text(prompt: str, *, gemini_model: str) -> str:
+    """Generate campaign JSON using the request-scoped provider when present."""
+
+    customer_credentials = get_active_ai_credentials()
+    if customer_credentials and customer_credentials.provider == "openai":
+        from .openai_client import generate_text
+
+        text, _ = generate_text(
+            api_key=customer_credentials.api_key,
+            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            input_value=prompt,
+            max_output_tokens=2500,
+            temperature=0.8,
+            json_mode=True,
+        )
+        return text
+
+    api_key = customer_credentials.api_key if customer_credentials else os.environ.get("GEMINI_API_KEY", "")
+    response = generate_content(
+        api_key=api_key,
+        model=gemini_model,
+        contents=prompt,
+    )
+    return response.text
 
 def scrape_pain_points(keyword: str) -> str:
     """
@@ -72,12 +99,10 @@ The JSON must have the following exact structure:
 }}
 """
     
-    response = generate_content(
-        api_key=os.environ.get("GEMINI_API_KEY", ""),
-        model=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
-        contents=prompt,
-    )
-    text = response.text.strip()
+    text = _generate_campaign_text(
+        prompt,
+        gemini_model=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
+    ).strip()
     
     if text.startswith("```json"):
         text = text[7:]
@@ -88,7 +113,7 @@ The JSON must have the following exact structure:
         
     try:
         return json.loads(text.strip())
-    except json.JSONDecodeError as e:
+    except json.JSONDecodeError:
         logger.error(f"Failed to parse Omni-Campaign JSON: {text}")
         raise ValueError("AI returned invalid campaign formatting. Please try again.")
 
@@ -120,12 +145,10 @@ DO NOT include markdown wrappers like ```json.
 }}
 """
     
-    response = generate_content(
-        api_key=os.environ.get("GEMINI_API_KEY", ""),
-        model=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
-        contents=prompt,
-    )
-    text = response.text.strip()
+    text = _generate_campaign_text(
+        prompt,
+        gemini_model=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
+    ).strip()
     
     if text.startswith("```json"):
         text = text[7:]
@@ -136,7 +159,7 @@ DO NOT include markdown wrappers like ```json.
         
     try:
         return json.loads(text.strip())
-    except json.JSONDecodeError as e:
+    except json.JSONDecodeError:
         logger.error(f"Failed to parse Demo Omni-Campaign JSON: {text}")
         raise ValueError("AI returned invalid formatting. Please try again.")
 
@@ -242,6 +265,37 @@ Exact structure required:
 }}
 """
     
+    customer_credentials = get_active_ai_credentials()
+    if customer_credentials:
+        if customer_credentials.provider == "gemini":
+            try:
+                response = generate_content(
+                    api_key=customer_credentials.api_key,
+                    model=os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash'),
+                    contents=[image_part(image_bytes, mime_type or "image/jpeg"), prompt],
+                )
+                return _extract_clean_json(response.text)
+            except Exception as e:
+                logger.warning("Customer Gemini vision failed: %s", e)
+        else:
+            try:
+                from .openai_client import generate_vision_json
+
+                text, _ = generate_vision_json(
+                    api_key=customer_credentials.api_key,
+                    model=os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
+                    image_bytes=image_bytes,
+                    mime_type=mime_type or 'image/jpeg',
+                    prompt=prompt,
+                    max_output_tokens=2500,
+                )
+                return _extract_clean_json(text)
+            except Exception as e:
+                logger.warning("Customer OpenAI vision failed: %s", e)
+        if allow_fallback:
+            return _generate_fallback_vision_campaign(keyword, extra_context)
+        raise ValueError("Vision campaign generation failed with the configured BYOK provider.")
+
     gemini_key = os.environ.get('GEMINI_API_KEY', '')
     openai_key = os.environ.get('OPENAI_API_KEY', '')
     provider = os.environ.get('AI_PROVIDER', 'openai').lower()

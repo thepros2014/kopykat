@@ -111,6 +111,10 @@ class UsageSummary(BaseModel):
     plan: str
     period_start: Optional[str]
     period_end: Optional[str]
+    byok_server_activity_used: int = 0
+    byok_server_activity_limit: int = 0
+    byok_server_activity_remaining: int = 0
+    byok_server_activity_reset_at: Optional[str] = None
 
 class HealthResponse(BaseModel):
     status: str
@@ -204,6 +208,10 @@ class CustomAIKeyResponse(BaseModel):
     has_custom_key: bool
     provider: Optional[str] = None
     unlimited_active: bool
+    server_activity_used: int = 0
+    server_activity_limit: int = 0
+    server_activity_remaining: int = 0
+    server_activity_reset_at: Optional[str] = None
 
 
 class InventoryItemCreate(BaseModel):

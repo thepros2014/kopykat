@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>KopyKat — E-Commerce Automation for Growing Stores</title>
   <meta name="description" content="KopyKat helps you launch and run your online store with AI-powered listings, multi-channel sync, and API integrations. Built for entrepreneurs at every level."/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/static/styles.css"/>
   <link rel="manifest" href="/manifest.json"/>
   <meta name="theme-color" content="#1d4ed8"/>
@@ -408,11 +406,23 @@
         <ul class="pc-feats">
           <li>Standard plan capabilities</li>
           <li>2,500 monthly campaigns</li>
-          <li>BYOK support for your own AI key</li>
+          <li>BYOK provider usage with separate server-activity limits</li>
           <li>Native and custom connector capabilities</li>
           <li>Configured automation features</li>
         </ul>
         <a href="#signup" onclick="switchTab('register')" class="btn-outl">Create an account</a>
+      </div>
+      <div class="pc fu" style="margin:24px auto 0;max-width:920px;text-align:left;border-color:rgba(142,68,173,.55);">
+        <div class="pc-badge">Customer-controlled infrastructure</div>
+        <div class="pc-tier">Annual Self-Hosted Software Licenses</div>
+        <div class="pc-desc">Deploy and run KopyKat on your own server or cloud account. These are annual software-license amounts, separate from managed hosting subscriptions.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0;">
+          <div><strong>Pro</strong><br>$7,500 / year</div>
+          <div><strong>Business</strong><br>$15,000 / year</div>
+          <div><strong>Enterprise</strong><br>$30,000 / year</div>
+          <div><strong>White-label</strong><br>$50,000 / year</div>
+        </div>
+        <div class="pc-desc">Deployment and implementation: $12,000 per development deployment, not per user. Implementation, support, branding, and final terms are agreed separately. <a href="mailto:hello@kopykat.io" style="color:#34d399;">Request license terms</a>.</div>
       </div>
     </div>
   </div>
@@ -493,7 +503,7 @@
       <a href="#how-it-works">How It Works</a>
       <a href="#features">Features</a>
       <a href="#pricing">Pricing</a>
-      <a href="/dashboard.html">Dashboard</a>
+      <a href="/dashboard">Dashboard</a>
       <a href="/dropship-partners">Dropship Partners</a>
     </div>
     <div class="foot-col">
@@ -579,7 +589,7 @@
           password:document.getElementById('rPass').value
         })
       });
-      if(res.ok){window.location.href='/dashboard.html';}
+      if(res.ok){window.location.href='/dashboard';}
       else{
         const d=await res.json().catch(()=>({}));
         btn.textContent='Create Free Account';btn.disabled=false;
@@ -603,7 +613,7 @@
         })
       });
       if(res.ok){
-        window.location.href='/dashboard.html';
+        window.location.href='/dashboard';
       }else{btn.textContent='Log In';btn.disabled=false;alert('Invalid email or password.');}
     }catch{btn.textContent='Log In';btn.disabled=false;alert('Network error. Please try again.');}
   }
@@ -652,11 +662,9 @@
 
   (function(){
     // Legacy browser tokens are not needed after the HttpOnly cookie migration.
-    localStorage.removeItem('kk_token');
-    localStorage.removeItem('sc_token');
     const btn=document.getElementById('nav-login-btn');
     fetch('/auth/me',{credentials:'include',headers:{Accept:'application/json'}}).then(function(res){
-      if(res.ok&&btn){btn.textContent='Dashboard';btn.href='/dashboard.html';btn.removeAttribute('onclick');}
+      if(res.ok&&btn){btn.textContent='Dashboard';btn.href='/dashboard';btn.removeAttribute('onclick');}
     }).catch(function(){});
   })();
 </script>

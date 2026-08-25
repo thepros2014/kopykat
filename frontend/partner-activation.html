@@ -98,8 +98,10 @@
           });
           const data = await response.json();
           if (!response.ok || !data.checkout_url) throw new Error(data.detail || 'Checkout could not be created');
-          const checkoutUrl = new URL(data.checkout_url, window.location.origin);
-          if (checkoutUrl.protocol !== 'https:') throw new Error('Checkout URL was rejected');
+          const checkoutUrl = new URL(data.checkout_url);
+          if (checkoutUrl.protocol !== 'https:' || !['checkout.stripe.com', 'buy.stripe.com'].includes(checkoutUrl.hostname)) {
+            throw new Error('Checkout URL was rejected');
+          }
           window.location.assign(checkoutUrl.href);
         } catch (error) {
           buttons.forEach((button) => { button.disabled = false; });

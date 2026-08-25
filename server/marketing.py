@@ -272,7 +272,7 @@ def run_drip_campaigns(db: Optional[Session] = None) -> int:
                     db.add(DripLog(id=str(uuid.uuid4()), user_id=user.id, step=age_days))
                     db.commit()
                     sent_count += 1
-                    logger.info("Sent drip day %d to %s", age_days, user.email)
+                    logger.info("Sent drip day %d for user_id=%s", age_days, user.id)
         return sent_count
     except Exception as e:
         logger.error("Drip campaign failed: %s", e)

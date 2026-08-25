@@ -31,7 +31,14 @@ dashboard.
 - Run scheduled SEO, email, and opportunity-scanning jobs when the required
   provider and delivery configuration is present.
 - Use Stripe subscriptions, one-time generation packs, add-ons, and encrypted
-  BYOK configuration where enabled for the account.
+  BYOK configuration where enabled for the account. BYOK provider charges are
+  the customer's responsibility; KopyKat still applies a separate bounded
+  server-activity allowance. Annual self-hosted software licenses let a
+  customer deploy and run KopyKat on its own server or cloud account: Pro
+  $7,500/year, Business $15,000/year, Enterprise $30,000/year, and White-label
+  $50,000/year. Implementation and support terms are contracted separately.
+  A separate $12,000 deployment/implementation fee applies per development
+  deployment, not per user.
 
 External platform actions are credential-dependent. A connector being present
 in the registry does not mean that a production account has been connected or

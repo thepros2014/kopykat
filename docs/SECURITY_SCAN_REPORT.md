@@ -24,6 +24,22 @@ flows, and tracked configuration templates.
   sanitizer before insertion.
 - Unsupported public plan and support claims were removed or aligned with the
   configured billing entitlements.
+- HTML responses now receive a request-scoped CSP nonce; unsafe inline script
+  execution and the Tailwind browser CDN were removed. Static admin utilities
+  are served locally, sensitive pages are non-cacheable, and the service worker
+  only caches same-origin static assets.
+- Strict deployments fail closed when browser origins or host allowlists are
+  missing or insecure. Cross-origin isolation and restrictive resource, frame,
+  form, object, and permissions headers are applied centrally.
+- BYOK credentials are decrypted only inside a request-scoped context and are
+  routed to supported generation paths without entering logs or responses.
+  Provider usage is separated from a bounded managed server-activity allowance
+  with atomic reservation/refund behavior and a configurable reset period.
+- Self-hosted deployment is represented separately from managed Stripe plans:
+  annual Pro ($7,500), Business ($15,000), Enterprise ($30,000), and
+  White-label ($50,000) licenses, plus a $12,000 per-development-deployment
+  implementation fee that is explicitly not per user.
+- Billing and marketing logs no longer include customer email addresses.
 - Stale runtime duplicates and exports with no repository references were
   removed: `worker.py`, `products.csv`, `schema.json`, and `updates snap 2.txt`.
 
@@ -31,7 +47,7 @@ flows, and tracked configuration templates.
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest -q` | 435 passed, 9 warnings |
+| `python -m pytest -q` | 442 passed, 9 warnings |
 | Focused auth/partner/security tests | Passed |
 | `python -m compileall -q server tests` | Passed |
 | `git diff --check` | Passed; only Git line-ending warnings |
@@ -53,11 +69,11 @@ flows, and tracked configuration templates.
    torchvision/Torch). They are not direct dependencies in `requirements.txt`;
    rebuild the environment from the pinned requirements for a clean deployment
    check.
-3. The legacy HTML clients still contain inline scripts and the admin page uses
-   the Tailwind browser CDN. CSP therefore retains `unsafe-inline` and explicitly
-   allows that CDN. Replace those pages with nonce-based scripts and a pinned,
-   locally served CSS build before treating the app as hardened against supply
-   chain or injected-script risk.
+3. Legacy HTML clients still use many inline `style` attributes and dynamic
+   `element.style` assignments. The CSP no longer permits inline scripts, but
+   `style-src-attr 'unsafe-inline'` remains for visual compatibility. Replace
+   those styles with local classes and nonce/hash-compatible styles before
+   claiming a zero-inline CSP.
 4. The broad Flake8 run reports legacy formatting findings across the preexisting
    codebase. This pass removed the actionable unused exception bindings and keeps
    the targeted syntax/name checks clean; formatting cleanup should be a separate

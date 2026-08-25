@@ -65,6 +65,10 @@ class User(Base):
     auth_version = Column(Integer, default=1, nullable=False)
     custom_ai_key_encrypted = Column(Text, nullable=True)
     custom_ai_provider = Column(String(50), nullable=True)
+    # BYOK provider calls are not charged against KopyKat's managed-provider
+    # generation balance, but managed server work remains bounded separately.
+    byok_activity_used = Column(Integer, default=0, nullable=False)
+    byok_activity_period_start = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
@@ -397,6 +401,8 @@ _LEGACY_COLUMN_MIGRATIONS = {
         "updated_at": ("TIMESTAMP", "CURRENT_TIMESTAMP"),
         "custom_ai_key_encrypted": ("TEXT", None),
         "custom_ai_provider": ("VARCHAR(50)", None),
+        "byok_activity_used": ("INTEGER", "0"),
+        "byok_activity_period_start": ("TIMESTAMP", None),
     },
     "api_keys": {
         "is_active": ("BOOLEAN", "TRUE"),

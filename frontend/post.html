@@ -1,50 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script>
-    const APP_VERSION = "1.2.0";
-    if (localStorage.getItem("kopykat_version") !== APP_VERSION) {
-      localStorage.clear();
-      sessionStorage.clear();
-      
-      // Comprehensive Cookie Purge across domains and paths
-      const cookies = document.cookie.split(";");
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i];
-        const eqPos = cookie.indexOf("=");
-        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-        if (name) {
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + window.location.hostname;
-        }
-      }
-      
-      // Purge all Service Workers and CacheStorage
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (let r of registrations) { r.unregister(); }
-        });
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (let n of names) { caches.delete(n); }
-        });
-      }
-      
-      localStorage.setItem("kopykat_version", APP_VERSION);
-      // Hard reload with cache purge
-      if (window.location.search.indexOf('v=') === -1) {
-        window.location.replace(window.location.pathname + '?v=' + APP_VERSION + window.location.hash);
-      }
-    }
-  </script>
  <meta charset="UTF-8" />
  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
  <title>{{title}} — KopyKat</title>
  <meta name="description" content="{{meta_desc}}"/>
- <link rel="preconnect" href="https://fonts.googleapis.com"/>
- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
  <link rel="stylesheet" href="/static/styles.css"/>
  <style>
  .post-header { padding: 80px 20px 40px; }

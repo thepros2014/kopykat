@@ -39,8 +39,10 @@ Response shape:
 ```
 
 Credits are reserved before the provider call. If generation fails, the
-reserved credits are refunded. The endpoint is rate-limited and all request
-fields are bounded.
+reserved credits are refunded. Megastore accounts with an active BYOK key use
+the key's provider account and reserve the separate managed server-activity
+allowance instead of managed-provider generation credits. The endpoint is
+rate-limited and all request fields are bounded.
 
 ## Text campaign generation
 

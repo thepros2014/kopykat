@@ -69,12 +69,52 @@ PLANS = {
         "automation_features_allowed": 999,
         "byok_unlimited": True,
         "features": [
-            "2,500 monthly campaigns using the KopyKat API",
-            "BYOK support for your own AI provider key",
+            "2,500 monthly campaigns using the managed KopyKat provider",
+            "BYOK provider usage routed through your own OpenAI or Gemini key",
+            "BYOK server activity remains subject to a separate fair-use allowance",
             "Native and custom connector capabilities",
             "Configured automation features"
         ],
     },
+}
+
+# Self-hosted licensing is intentionally separate from managed subscriptions.
+# These are the owner's supplied full-year license amounts; contract terms,
+# implementation scope, and support remain private agreement details until a
+# real commercial checkout is configured.
+SELF_HOSTED_LICENSES = {
+    "pro": {
+        "name": "Self-Hosted Pro",
+        "price_usd": 7500,
+        "billing_type": "annual_license",
+        "description": "Full-year license to deploy and run KopyKat in a customer-controlled server or cloud account.",
+    },
+    "business": {
+        "name": "Self-Hosted Business",
+        "price_usd": 15000,
+        "billing_type": "annual_license",
+        "description": "Full-year license to deploy and run KopyKat in a customer-controlled server or cloud account with expanded deployment scope.",
+    },
+    "enterprise": {
+        "name": "Self-Hosted Enterprise",
+        "price_usd": 30000,
+        "billing_type": "annual_license",
+        "description": "Full-year enterprise license to deploy and run KopyKat in a customer-controlled server or cloud account with terms agreed privately.",
+    },
+    "white_label": {
+        "name": "KopyKat White-label",
+        "price_usd": 50000,
+        "billing_type": "annual_license",
+        "description": "Full-year white-label license to deploy and run KopyKat in a customer-controlled server or cloud account with branding and commercial terms agreed privately.",
+    },
+}
+
+SELF_HOSTED_DEPLOYMENT = {
+    "name": "Self-hosted deployment",
+    "price_usd": 12000,
+    "billing_type": "per_development_deployment",
+    "per_user": False,
+    "description": "Deployment and implementation fee charged per development deployment, not per user.",
 }
 
 ADD_ONS = {
@@ -386,7 +426,7 @@ def _handle_one_time_purchased(session: dict, db: Session):
                 amount_cents=session.get("amount_total", 0), currency=session.get("currency", "usd"),
                 plan=f"one_time_{pack}", type="generation_pack", status="succeeded",
             ))
-        logger.info("Generation pack fulfilled: user=%s +%s generations (total purchased=%s)", user.email, generations, user.purchased_generations)
+        logger.info("Generation pack fulfilled: user_id=%s +%s generations (total purchased=%s)", user.id, generations, user.purchased_generations)
     elif addon_key and addon_key in ADD_ONS:
         addon = ADD_ONS[addon_key]
         if payment_id and not db.query(RevenueRecord).filter(RevenueRecord.stripe_payment_id == payment_id).first():
@@ -412,7 +452,7 @@ def _handle_one_time_purchased(session: dict, db: Session):
                 entitlement_type="addon",
                 active=True
             ))
-        logger.info("Addon fulfilled & entitlement granted: user=%s addon=%s", user.email, addon_key)
+        logger.info("Addon fulfilled & entitlement granted: user_id=%s addon=%s", user.id, addon_key)
     elif metadata.get("plan") and metadata.get("plan") in PLANS and metadata.get("plan") != "free":
         plan = metadata.get("plan")
         info = PLANS[plan]
@@ -448,7 +488,7 @@ def _handle_one_time_purchased(session: dict, db: Session):
             ))
         db.add(user)
         db.commit()
-        logger.info("Plan checkout fulfilled: user=%s plan=%s", user.email, plan)
+        logger.info("Plan checkout fulfilled: user_id=%s plan=%s", user.id, plan)
 
 
 def _handle_payment_failed(invoice: dict, db: Session):

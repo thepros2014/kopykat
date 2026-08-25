@@ -101,7 +101,11 @@ Response:
 {
   "has_custom_key": false,
   "provider": null,
-  "unlimited_active": false
+  "unlimited_active": false,
+  "server_activity_used": 0,
+  "server_activity_limit": 0,
+  "server_activity_remaining": 0,
+  "server_activity_reset_at": null
 }
 ```
 
@@ -121,7 +125,25 @@ Content-Type: application/json
 ```
 
 The key is encrypted with INTEGRATION_ENCRYPTION_KEY before persistence and is
-never returned. Remove it with:
+never returned. Supported generation work is routed through that request-scoped
+key. Provider charges, quotas, and policies belong to the customer's provider
+account; KopyKat does not charge managed-provider credits for those calls.
+
+BYOK is not an unlimited claim against KopyKat infrastructure. Each operation
+uses a separate managed server-activity allowance configured by
+`BYOK_SERVER_ACTIVITY_LIMIT` for `BYOK_SERVER_ACTIVITY_PERIOD_DAYS` days. The
+status response exposes used, remaining, limit, and reset values, and failed
+work refunds reserved server activity. Customers can deploy and run the
+application on their own server or cloud account under a private annual
+self-hosted software license: $7,500/year for Self-Hosted Pro, $15,000/year
+for Self-Hosted Business, $30,000/year for Self-Hosted Enterprise, or
+$50,000/year for KopyKat White-label. Implementation, support, branding, and
+final contract terms are confirmed separately; these are not managed-hosting
+subscriptions.
+
+Self-hosted deployments also carry a $12,000 deployment and implementation fee
+per development deployment, not per user. The deployment fee and annual
+license are separate private commercial line items. Remove the key with:
 
 ```http
 DELETE /api/user/custom-ai-key

@@ -8,12 +8,18 @@ import uuid
 import logging
 import hmac
 import re
+import base64
+import hashlib
+import secrets
+from html import escape as html_escape, unescape
 from time import perf_counter
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 import threading
+from urllib.parse import quote, urlsplit
 
 import bleach
 import stripe
@@ -60,7 +66,17 @@ from .auth import (
     normalize_email,
 )
 from .ai_engine import generate_copy
-from .billing import create_subscription_checkout, create_one_time_checkout, handle_stripe_webhook, get_total_revenue, PLANS, ONE_TIME_GENERATIONS
+from .ai_credentials import get_user_ai_credentials, user_ai_credentials
+from .billing import (
+    create_subscription_checkout,
+    create_one_time_checkout,
+    handle_stripe_webhook,
+    get_total_revenue,
+    PLANS,
+    ONE_TIME_GENERATIONS,
+    SELF_HOSTED_LICENSES,
+    SELF_HOSTED_DEPLOYMENT,
+)
 from .marketing import generate_seo_post
 from .config import ADMIN_SECRET, ENVIRONMENT, PUBLIC_BASE_URL, STRICT_CONFIG, TESTING, env_float, env_int, env_list
 
@@ -83,6 +99,36 @@ ALLOWED_HOSTS = env_list(
     ["snapcopy-ai.onrender.com", "localhost", "127.0.0.1", "testserver"],
 )
 TRUSTED_PROXIES = env_list("TRUSTED_PROXIES", ["127.0.0.1"])
+
+
+def _validate_network_boundaries(
+    allowed_origins: Optional[list[str]] = None,
+    allowed_hosts: Optional[list[str]] = None,
+) -> None:
+    """Fail closed on insecure browser origins or wildcard production hosts."""
+
+    origins = ALLOWED_ORIGINS if allowed_origins is None else allowed_origins
+    hosts = ALLOWED_HOSTS if allowed_hosts is None else allowed_hosts
+    if allowed_origins is None and not os.getenv("ALLOWED_ORIGINS", "").strip():
+        raise RuntimeError("ALLOWED_ORIGINS must be explicitly configured in strict environments.")
+    if allowed_hosts is None and not os.getenv("ALLOWED_HOSTS", "").strip():
+        raise RuntimeError("ALLOWED_HOSTS must be explicitly configured in strict environments.")
+    invalid_origins = []
+    for origin in origins:
+        parsed = urlsplit(origin)
+        if parsed.scheme != "https" or not parsed.netloc or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            invalid_origins.append(origin)
+    if invalid_origins:
+        raise RuntimeError(
+            "ALLOWED_ORIGINS must contain HTTPS origins without paths in strict environments: "
+            + ", ".join(invalid_origins)
+        )
+    if not hosts or "*" in hosts:
+        raise RuntimeError("ALLOWED_HOSTS must name explicit hosts in strict environments.")
+
+
+if STRICT_CONFIG:
+    _validate_network_boundaries()
 ENABLE_API_DOCS = os.getenv("ENABLE_API_DOCS", "").strip().lower() in {"1", "true", "yes", "on"}
 DOCS_URL = "/api/docs" if not STRICT_CONFIG or ENABLE_API_DOCS else None
 REDOC_URL = "/api/redoc" if not STRICT_CONFIG or ENABLE_API_DOCS else None
@@ -146,13 +192,69 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials="*" not in ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Accept", "Authorization", "Content-Type", "X-Admin-Secret", "X-Event-ID"],
+    # Browser clients only need the standard JSON and bearer headers. Admin
+    # secrets and webhook event IDs are same-origin/server-to-server concerns
+    # and should not be exposed through the public CORS contract.
+    allow_headers=["Accept", "Authorization", "Content-Type"],
 )
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=TRUSTED_PROXIES)
 
 
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+_CSP_INLINE_ELEMENT_RE = re.compile(r"<(?P<tag>script|style)(?P<attrs>[^>]*)>", re.IGNORECASE)
+_CSP_ATTRIBUTE_RE = re.compile(
+    r"\bon(?:[a-z]+)\s*=\s*(?P<quote>[\"'])(?P<value>.*?)(?P=quote)",
+    re.IGNORECASE | re.DOTALL,
+)
+_CSP_STYLE_ATTRIBUTE_RE = re.compile(
+    r"\bstyle\s*=\s*(?P<quote>[\"'])(?P<value>.*?)(?P=quote)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _csp_attribute_hashes(document: str, pattern: re.Pattern[str]) -> list[str]:
+    """Return CSP hashes for the page's known inline attribute handlers/styles."""
+
+    values: set[str] = set()
+    for match in pattern.finditer(document):
+        value = unescape(match.group("value"))
+        if value:
+            values.add(value)
+            stripped = value.strip()
+            if stripped:
+                values.add(stripped)
+    return sorted(
+        base64.b64encode(hashlib.sha256(value.encode("utf-8")).digest()).decode("ascii")
+        for value in values
+    )
+
+
+def _prepare_html(request: Request, document: str) -> str:
+    """Add a request-scoped nonce and record hashes for legacy HTML attributes."""
+
+    nonce = getattr(request.state, "csp_nonce", "")
+
+    def add_nonce(match: re.Match[str]) -> str:
+        attrs = match.group("attrs")
+        if re.search(r"\bnonce\s*=", attrs, re.IGNORECASE):
+            return match.group(0)
+        return f'<{match.group("tag")} nonce="{nonce}"{attrs}>'
+
+    rendered = _CSP_INLINE_ELEMENT_RE.sub(add_nonce, document)
+    request.state.csp_script_attr_hashes = _csp_attribute_hashes(rendered, _CSP_ATTRIBUTE_RE)
+    request.state.csp_style_attr_hashes = _csp_attribute_hashes(rendered, _CSP_STYLE_ATTRIBUTE_RE)
+    return rendered
+
+
+def _html_response(request: Request, document: str, *, headers: Optional[dict[str, str]] = None) -> HTMLResponse:
+    """Render an HTML page with CSP nonce metadata attached to the request."""
+
+    return HTMLResponse(_prepare_html(request, document), headers=headers)
+
+
+def _csp_hash_sources(hashes: list[str]) -> str:
+    return " ".join(f"'sha256-{value}'" for value in hashes)
 
 
 @app.middleware("http")
@@ -195,23 +297,39 @@ async def add_request_context(request: Request, call_next):
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    request.state.csp_nonce = secrets.token_urlsafe(18)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    script_attr_hashes = _csp_hash_sources(getattr(request.state, "csp_script_attr_hashes", []))
+    style_attr_hashes = _csp_hash_sources(getattr(request.state, "csp_style_attr_hashes", []))
+    script_attr_policy = f"script-src-attr 'unsafe-hashes' {script_attr_hashes}" if script_attr_hashes else "script-src-attr 'none'"
+    style_attr_policy = f"style-src-attr 'unsafe-inline'" if style_attr_hashes else "style-src-attr 'none'"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; "
+        f"script-src 'self' 'nonce-{request.state.csp_nonce}'; "
+        f"{script_attr_policy}; "
+        f"style-src 'self' 'nonce-{request.state.csp_nonce}'; "
+        f"{style_attr_policy}; "
+        "font-src 'self'; "
         "img-src 'self' data: https:; "
-        "connect-src 'self' https://api.stripe.com; "
-        "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        "connect-src 'self'; "
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; "
+        "manifest-src 'self'; worker-src 'self'; media-src 'none'"
     )
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    response.headers["Origin-Agent-Cluster"] = "?1"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     if STRICT_CONFIG:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    if request.url.path.startswith(("/static/", "/api.js", "/sw.js", "/manifest.json")):
+    if request.url.path == "/sw.js":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    elif request.url.path.startswith(("/static/", "/api.js", "/manifest.json")):
         response.headers["Cache-Control"] = "public, max-age=3600"
     else:
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
@@ -320,9 +438,9 @@ if (frontend_dir / "static").exists():
     app.mount("/static", StaticFiles(directory=str(frontend_dir / "static")), name="static")
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def landing_page():
+async def landing_page(request: Request):
     index = frontend_dir / "index.html"
-    return HTMLResponse(index.read_text(encoding="utf-8")) if index.exists() else HTMLResponse("<h1>KopyKat — Loading...</h1>")
+    return _html_response(request, index.read_text(encoding="utf-8")) if index.exists() else _html_response(request, "<h1>KopyKat — Loading...</h1>")
 
 @app.head("/", include_in_schema=False)
 async def landing_head():
@@ -346,9 +464,16 @@ async def get_sw():
     return FileResponse(frontend_dir / "sw.js")
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
-async def dashboard_page():
+async def dashboard_page(request: Request):
     dash = frontend_dir / "dashboard.html"
-    return HTMLResponse(dash.read_text(encoding="utf-8")) if dash.exists() else HTMLResponse("<h1>Dashboard — Loading...</h1>")
+    return _html_response(request, dash.read_text(encoding="utf-8")) if dash.exists() else _html_response(request, "<h1>Dashboard — Loading...</h1>")
+
+
+@app.get("/dashboard.html", response_class=HTMLResponse, include_in_schema=False)
+async def dashboard_html_page(request: Request):
+    """Keep the historical browser URL working while using the hardened renderer."""
+
+    return await dashboard_page(request)
 
 @app.post("/admin/trigger-seo", include_in_schema=False)
 @limiter.limit("10/minute")
@@ -359,25 +484,36 @@ async def trigger_seo(request: Request, background_tasks: BackgroundTasks, x_adm
     return {"status": "ok", "message": "SEO blog generation started in background."}
 
 @app.get("/blog", response_class=HTMLResponse, include_in_schema=False)
-async def blog_index(db: Session = Depends(get_db)):
+async def blog_index(request: Request, db: Session = Depends(get_db)):
     posts = db.query(BlogPost).filter(BlogPost.published == True).order_by(BlogPost.created_at.desc()).all()
     template_path = frontend_dir / "blog.html"
     if not template_path.exists():
-        return HTMLResponse("<h1>Blog setup pending...</h1>")
+        return _html_response(request, "<h1>Blog setup pending...</h1>")
     template = template_path.read_text(encoding="utf-8")
-    items = "".join(f'<div class="card"><div>{p.created_at.strftime("%B %d, %Y")}</div><h2><a href="/blog/{p.slug}">{bleach.clean(p.title)}</a></h2><p>{bleach.clean(p.meta_desc or "")}</p></div>' for p in posts)
-    return HTMLResponse(template.replace("<!-- POSTS -->", items or "<p>No posts yet. The AI is writing the first one!</p>"))
+    items = "".join(
+        f'<div class="card"><div>{p.created_at.strftime("%B %d, %Y")}</div>'
+        f'<h2><a href="/blog/{quote(str(p.slug), safe="")}">{_clean_text(p.title, 255)}</a></h2>'
+        f'<p>{_clean_text(p.meta_desc, 500)}</p></div>'
+        for p in posts
+    )
+    return _html_response(request, template.replace("<!-- POSTS -->", items or "<p>No posts yet. The AI is writing the first one!</p>"))
 
 @app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
-async def blog_post(slug: str, db: Session = Depends(get_db)):
+async def blog_post(slug: str, request: Request, db: Session = Depends(get_db)):
     post = db.query(BlogPost).filter(BlogPost.slug == slug, BlogPost.published == True).first()
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     path = frontend_dir / "post.html"
     if not path.exists():
-        return HTMLResponse("<h1>Post layout pending...</h1>")
-    html = path.read_text(encoding="utf-8").replace("{{title}}", bleach.clean(post.title)).replace("{{content}}", sanitize_html(post.content)).replace("{{meta_desc}}", bleach.clean(post.meta_desc or "")).replace("{{date}}", post.created_at.strftime("%B %d, %Y"))
-    return HTMLResponse(html)
+        return _html_response(request, "<h1>Post layout pending...</h1>")
+    html = (
+        path.read_text(encoding="utf-8")
+        .replace("{{title}}", _clean_text(post.title, 255))
+        .replace("{{content}}", sanitize_html(post.content))
+        .replace("{{meta_desc}}", _clean_text(post.meta_desc, 500))
+        .replace("{{date}}", post.created_at.strftime("%B %d, %Y"))
+    )
+    return _html_response(request, html)
 
 @app.get("/robots.txt", response_class=HTMLResponse, include_in_schema=False)
 async def get_robots_txt():
@@ -392,7 +528,7 @@ Sitemap: {PUBLIC_BASE_URL}/sitemap.xml
 
 @app.get("/sitemap.xml", response_class=HTMLResponse, include_in_schema=False)
 async def get_sitemap_xml(db: Session = Depends(get_db)):
-    base = PUBLIC_BASE_URL
+    base = html_escape(PUBLIC_BASE_URL, quote=True)
     posts = db.query(BlogPost).filter(BlogPost.published == True).order_by(BlogPost.created_at.desc()).all()
     
     xml_entries = [
@@ -410,8 +546,9 @@ async def get_sitemap_xml(db: Session = Depends(get_db)):
     
     for p in posts:
         mod_date = p.created_at.strftime("%Y-%m-%d")
+        safe_slug = quote(str(p.slug), safe="")
         xml_entries.append(f"""  <url>
-    <loc>{base}/blog/{p.slug}</loc>
+    <loc>{base}/blog/{safe_slug}</loc>
     <lastmod>{mod_date}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -451,7 +588,17 @@ async def readiness_head():
 async def list_plans():
     return {
         "subscriptions": {k: {"name": v["name"], "price_usd": v["price_usd"], "monthly_generations": v["monthly_generations"], "features": v["features"]} for k, v in PLANS.items()},
-        "one_time_generations": {k: {"name": v["name"], "price_usd": v["price_usd"], "generations": v["generations"]} for k, v in ONE_TIME_GENERATIONS.items()}
+        "one_time_generations": {k: {"name": v["name"], "price_usd": v["price_usd"], "generations": v["generations"]} for k, v in ONE_TIME_GENERATIONS.items()},
+        "self_hosted_licenses": {
+            key: {
+                "name": value["name"],
+                "price_usd": value["price_usd"],
+                "billing_type": value["billing_type"],
+                "description": value["description"],
+            }
+            for key, value in SELF_HOSTED_LICENSES.items()
+        },
+        "self_hosted_deployment": SELF_HOSTED_DEPLOYMENT,
     }
 
 
@@ -758,6 +905,128 @@ async def delete_api_key(key_id: str, current_user: User = Depends(get_current_u
 
 _quota_lock = threading.RLock()
 
+# BYOK shifts provider charges to the customer's provider account.  It does
+# not remove the cost of parsing requests, storing results, database work, or
+# serving the dashboard.  Keep that managed workload on an independent,
+# operator-configurable allowance instead of pretending that BYOK is an
+# unlimited use of KopyKat infrastructure.
+BYOK_SERVER_ACTIVITY_LIMIT = env_int(
+    "BYOK_SERVER_ACTIVITY_LIMIT",
+    2500,
+    minimum=1,
+    maximum=1_000_000,
+)
+BYOK_SERVER_ACTIVITY_PERIOD_DAYS = env_int(
+    "BYOK_SERVER_ACTIVITY_PERIOD_DAYS",
+    30,
+    minimum=1,
+    maximum=366,
+)
+
+
+@dataclass(frozen=True)
+class GenerationReservation:
+    """A reversible reservation from either managed credits or BYOK capacity."""
+
+    monthly_used: int = 0
+    purchased_used: int = 0
+    byok_activity_used: int = 0
+
+
+def _byok_activity_snapshot(user: User, now: Optional[datetime] = None) -> dict:
+    """Return effective BYOK capacity without mutating the database."""
+
+    now = now or datetime.utcnow()
+    active = bool(get_user_ai_credentials(user))
+    if not active:
+        return {"used": 0, "limit": 0, "remaining": 0, "reset_at": None}
+    period_start = getattr(user, "byok_activity_period_start", None)
+    used = max(0, int(getattr(user, "byok_activity_used", 0) or 0))
+    limit = BYOK_SERVER_ACTIVITY_LIMIT
+    if not period_start or now - period_start >= timedelta(days=BYOK_SERVER_ACTIVITY_PERIOD_DAYS):
+        used = 0
+        period_start = now
+    reset_at = period_start + timedelta(days=BYOK_SERVER_ACTIVITY_PERIOD_DAYS)
+    return {
+        "used": used,
+        "limit": limit,
+        "remaining": max(0, limit - used),
+        "reset_at": reset_at.isoformat(),
+    }
+
+
+def _reserve_byok_server_activity(user_id: str, cost: int, db: Session) -> GenerationReservation:
+    """Reserve bounded managed-server work for an active BYOK account."""
+
+    with _quota_lock:
+        query = db.query(User).filter(User.id == user_id)
+        if getattr(db.bind, "dialect", None) and db.bind.dialect.name != "sqlite":
+            query = query.with_for_update()
+        db_user = query.first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not get_user_ai_credentials(db_user):
+            raise HTTPException(status_code=409, detail="BYOK is not active for this account.")
+
+        now = datetime.utcnow()
+        snapshot = _byok_activity_snapshot(db_user, now)
+        if cost > snapshot["remaining"]:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "BYOK provider usage is not charged by KopyKat, but this request exceeds "
+                    "the account's managed server-activity allowance. Try again after the "
+                    "activity period resets or use customer-managed deployment."
+                ),
+                headers={"Retry-After": str(max(60, int((datetime.fromisoformat(snapshot["reset_at"]) - now).total_seconds())))},
+            )
+
+        if not db_user.byok_activity_period_start or snapshot["used"] == 0 and (
+            now - (db_user.byok_activity_period_start or now)
+        ) >= timedelta(days=BYOK_SERVER_ACTIVITY_PERIOD_DAYS):
+            db_user.byok_activity_period_start = now
+        elif not db_user.byok_activity_period_start:
+            db_user.byok_activity_period_start = now
+        db_user.byok_activity_used = snapshot["used"] + cost
+        db.commit()
+        return GenerationReservation(byok_activity_used=cost)
+
+
+def reserve_generation_budget(user_id: str, cost: int, db: Session) -> GenerationReservation:
+    """Reserve managed credits or the separate BYOK server-activity budget."""
+
+    if cost < 0:
+        raise HTTPException(status_code=400, detail="Generation cost cannot be negative.")
+    if cost == 0:
+        return GenerationReservation()
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user and get_user_ai_credentials(user):
+        return _reserve_byok_server_activity(user_id, cost, db)
+    monthly_used, purchased_used = reserve_user_generations(user_id, cost, db)
+    return GenerationReservation(monthly_used=monthly_used, purchased_used=purchased_used)
+
+
+def refund_generation_budget(reservation: GenerationReservation, user_id: str, db: Session) -> None:
+    """Refund the exact bucket used by a completed or failed operation."""
+
+    if reservation.byok_activity_used:
+        with _quota_lock:
+            db_user = db.query(User).filter(User.id == user_id).first()
+            if db_user:
+                db_user.byok_activity_used = max(
+                    0,
+                    (db_user.byok_activity_used or 0) - reservation.byok_activity_used,
+                )
+                db.commit()
+        return
+    refund_user_generations(
+        user_id,
+        reservation.monthly_used,
+        reservation.purchased_used,
+        db,
+    )
+
 def reserve_user_generations(user_id: str, cost: int, db: Session) -> tuple[int, int]:
     """
     Atomically reserves generations from user's balance with row locking where supported.
@@ -811,32 +1080,41 @@ def refund_user_generations(user_id: str, monthly_refund: int, purchased_refund:
 @limiter.limit("60/minute")
 async def generate(request: Request, body: GenerateRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
     user, api_key = auth
+    user_id = user.id
     cost = body.variations
 
-    monthly_used, purchased_used = reserve_user_generations(user.id, cost, db)
+    reservation = reserve_generation_budget(user_id, cost, db)
 
     try:
-        result = await generate_copy(
-            copy_type=body.type,
-            context=body.context,
-            tone=body.tone or "professional",
-            variations=body.variations,
-            max_tokens=body.max_words,
-            user_id=user.id,
-            db=db
-        )
+        with user_ai_credentials(user):
+            result = await generate_copy(
+                copy_type=body.type,
+                context=body.context,
+                tone=body.tone or "professional",
+                variations=body.variations,
+                max_tokens=body.max_words,
+                user_id=user_id,
+                db=db
+            )
     except Exception:
-        refund_user_generations(user.id, monthly_used, purchased_used, db)
+        refund_generation_budget(reservation, user_id, db)
         raise HTTPException(status_code=500, detail="AI generation failed. Your credits have been refunded.")
 
     actual = result.get("generations_used", body.variations) if isinstance(result, dict) else body.variations
     if actual < cost:
         refund = cost - actual
-        refund_purchased = min(purchased_used, refund)
-        refund_monthly = refund - refund_purchased
-        refund_user_generations(user.id, refund_monthly, refund_purchased, db)
+        if reservation.byok_activity_used:
+            partial = GenerationReservation(byok_activity_used=min(reservation.byok_activity_used, refund))
+        else:
+            refund_purchased = min(reservation.purchased_used, refund)
+            refund_monthly = refund - refund_purchased
+            partial = GenerationReservation(
+                monthly_used=refund_monthly,
+                purchased_used=refund_purchased,
+            )
+        refund_generation_budget(partial, user_id, db)
 
-    db_user = db.query(User).filter(User.id == user.id).first()
+    db_user = db.query(User).filter(User.id == user_id).first()
     vars_list = result.get("variations") if isinstance(result, dict) else None
     if vars_list is None:
         if isinstance(result, dict) and "output" in result:
@@ -881,11 +1159,16 @@ async def stripe_webhook(request: Request, stripe_signature: Optional[str] = Hea
 async def billing_status(current_user: User = Depends(get_current_user_jwt), db: Session = Depends(get_db)):
     from .database import Subscription
     sub = db.query(Subscription).filter(Subscription.user_id == current_user.id, Subscription.status == "active").order_by(Subscription.created_at.desc()).first()
+    activity = _byok_activity_snapshot(current_user)
     return {
         "plan": current_user.plan,
         "status": sub.status if sub else "free",
         "generations": current_user.generations,
         "monthly_limit": current_user.monthly_limit,
+        "byok_server_activity_used": activity["used"],
+        "byok_server_activity_limit": activity["limit"],
+        "byok_server_activity_remaining": activity["remaining"],
+        "byok_server_activity_reset_at": activity["reset_at"],
         "current_period_end": sub.current_period_end if sub else None
     }
 
@@ -895,6 +1178,7 @@ async def get_usage(current_user: User = Depends(get_current_user_jwt), db: Sess
     from .database import Subscription
     sub = db.query(Subscription).filter(Subscription.user_id == current_user.id, Subscription.status == "active").order_by(Subscription.created_at.desc()).first()
     agg = db.query(func.count(UsageRecord.id).label("total_requests"), func.sum(UsageRecord.generations_used).label("total_generations")).filter(UsageRecord.user_id == current_user.id).first()
+    activity = _byok_activity_snapshot(current_user)
     return UsageSummary(
         total_requests=agg.total_requests or 0,
         total_generations_used=agg.total_generations or 0,
@@ -902,7 +1186,11 @@ async def get_usage(current_user: User = Depends(get_current_user_jwt), db: Sess
         monthly_limit=current_user.monthly_limit,
         plan=current_user.plan,
         period_start=sub.current_period_start.isoformat() if sub and sub.current_period_start else None,
-        period_end=sub.current_period_end.isoformat() if sub and sub.current_period_end else None
+        period_end=sub.current_period_end.isoformat() if sub and sub.current_period_end else None,
+        byok_server_activity_used=activity["used"],
+        byok_server_activity_limit=activity["limit"],
+        byok_server_activity_remaining=activity["remaining"],
+        byok_server_activity_reset_at=activity["reset_at"],
     )
 
 @app.get("/admin/revenue", tags=["Admin"])
@@ -949,11 +1237,12 @@ async def admin_stats(request: Request, x_admin_secret: Optional[str] = Header(N
     }
 
 @app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
-async def admin_page():
+async def admin_page(request: Request):
     path = BASE_DIR / "frontend" / "admin.html"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Admin panel not found")
-    return HTMLResponse(
+    return _html_response(
+        request,
         path.read_text(encoding="utf-8"),
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -1050,23 +1339,24 @@ async def api_public_demo(request: Request, body: CampaignGenerateRequest, db: S
 # ---------------------------------------------------------------------------
 
 @app.get("/dropship-partners", response_class=HTMLResponse, include_in_schema=False)
-async def dropship_partners_page():
+async def dropship_partners_page(request: Request):
     """Serve the public paid-placement directory page."""
     page = BASE_DIR / "frontend" / "dropship-partners.html"
     if not page.exists():
         raise HTTPException(status_code=404, detail="Page not found.")
-    return FileResponse(page)
+    return _html_response(request, page.read_text(encoding="utf-8"))
 
 
 @app.get("/dropship-partners/activate", response_class=HTMLResponse, include_in_schema=False)
-async def dropship_partner_activation_page():
+async def dropship_partner_activation_page(request: Request):
     """Serve the private partner activation page without caching its token."""
 
     page = BASE_DIR / "frontend" / "partner-activation.html"
     if not page.exists():
         raise HTTPException(status_code=404, detail="Page not found.")
-    return FileResponse(
-        page,
+    return _html_response(
+        request,
+        page.read_text(encoding="utf-8"),
         headers={
             "Cache-Control": "no-store",
             "Referrer-Policy": "no-referrer",
@@ -1299,7 +1589,12 @@ async def api_connector_discover(
     }
 
 @app.post("/api/catalog/parse-csv", tags=["Campaigns"])
-async def api_parse_csv(request: Request, file: UploadFile = File(...), auth: tuple = Depends(get_current_user_apikey)):
+async def api_parse_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    auth: tuple = Depends(get_current_user_apikey),
+    db: Session = Depends(get_db),
+):
     import csv
     import io
     from .ai_engine import analyze_csv_mapping
@@ -1317,14 +1612,28 @@ async def api_parse_csv(request: Request, file: UploadFile = File(...), auth: tu
     if len(rows) > 5_001 or len(rows[0]) > 100:
         raise HTTPException(status_code=413, detail="CSV exceeds the supported row or column limit.")
     headers = rows[0]
-    mapping = await analyze_csv_mapping(headers, rows[1])
+    user, _ = auth
+    user_id = user.id
+    reservation = (
+        _reserve_byok_server_activity(user_id, 1, db)
+        if get_user_ai_credentials(user)
+        else GenerationReservation()
+    )
+    try:
+        with user_ai_credentials(user):
+            mapping = await analyze_csv_mapping(headers, rows[1])
+    except Exception:
+        refund_generation_budget(reservation, user_id, db)
+        raise HTTPException(status_code=500, detail="CSV mapping failed. Any reserved server activity was refunded.")
     name_col = mapping.get("name_col", "")
     desc_col = mapping.get("desc_col", "")
     if not name_col:
+        refund_generation_budget(reservation, user_id, db)
         raise HTTPException(status_code=400, detail="AI could not identify a Product Name column.")
     try:
         name_idx = headers.index(name_col)
     except ValueError:
+        refund_generation_budget(reservation, user_id, db)
         raise HTTPException(status_code=400, detail=f"AI returned invalid name column: {name_col}")
     desc_idx = headers.index(desc_col) if desc_col in headers else -1
     results = []
@@ -1342,21 +1651,23 @@ async def api_campaign_generate(request: Request, body: CampaignGenerateRequest,
     import uuid
     import json
     user, _ = auth
+    user_id = user.id
 
-    monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
+    reservation = reserve_generation_budget(user_id, 1, db)
 
     try:
-        data = _sanitize_campaign_assets(generate_omni_campaign(body.keyword, body.product_desc))
+        with user_ai_credentials(user):
+            data = _sanitize_campaign_assets(generate_omni_campaign(body.keyword, body.product_desc))
         cid = str(uuid.uuid4())
         name = f"Campaign: {body.keyword.title()}"
         db.add(Campaign(id=cid, user_id=user.id, name=name, assets=json.dumps(data)))
         db.commit()
         return {"id": cid, "name": name, "assets": data}
     except ValueError as e:
-        refund_user_generations(user.id, monthly_used, purchased_used, db)
+        refund_generation_budget(reservation, user_id, db)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
-        refund_user_generations(user.id, monthly_used, purchased_used, db)
+        refund_generation_budget(reservation, user_id, db)
         raise HTTPException(status_code=500, detail="Generation failed due to an internal error. Your balance was not charged.")
 
 @app.post("/api/campaign/generate-vision", tags=["Campaigns"])
@@ -1375,6 +1686,7 @@ async def api_campaign_generate_vision(
     import binascii
     
     user, _ = auth
+    user_id = user.id
     
     allowed_image_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
     mime_type = (body.mime_type or "image/jpeg").lower().strip()
@@ -1394,15 +1706,16 @@ async def api_campaign_generate_vision(
         raise HTTPException(status_code=413, detail="Image exceeds the 10 MB upload limit.")
 
     # Invariant: Atomic credit deduction before expensive Vision generation.
-    monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
+    reservation = reserve_generation_budget(user_id, 1, db)
 
     try:
-        data = _sanitize_campaign_assets(generate_omni_campaign_from_image(
-            image_bytes=img_bytes,
-            mime_type=mime_type,
-            keyword=body.keyword or "",
-            extra_context=body.extra_context or ""
-        ))
+        with user_ai_credentials(user):
+            data = _sanitize_campaign_assets(generate_omni_campaign_from_image(
+                image_bytes=img_bytes,
+                mime_type=mime_type,
+                keyword=body.keyword or "",
+                extra_context=body.extra_context or ""
+            ))
         
         cid = str(uuid.uuid4())
         prod_title = data.get("detected_product_name", body.keyword or "Product")
@@ -1412,10 +1725,10 @@ async def api_campaign_generate_vision(
         db.commit()
         return {"id": cid, "name": name, "assets": data}
     except ValueError as e:
-        refund_user_generations(user.id, monthly_used, purchased_used, db)
+        refund_generation_budget(reservation, user_id, db)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
-        refund_user_generations(user.id, monthly_used, purchased_used, db)
+        refund_generation_budget(reservation, user_id, db)
         raise HTTPException(status_code=500, detail="Vision generation failed due to an internal error. Your balance was refunded.")
 
 @app.post("/api/campaign/push", tags=["Campaigns"])
@@ -1639,16 +1952,18 @@ async def api_mine_competitor_reviews(
     import json
 
     user, _ = auth
+    user_id = user.id
 
     # Centralized dual-bucket reservation (monthly before purchased)
-    monthly_used, purchased_used = reserve_user_generations(user.id, 1, db)
+    reservation = reserve_generation_budget(user_id, 1, db)
 
     try:
-        data = await mine_competitor_reviews(
-            product_name=body.product_name,
-            competitor_name=body.competitor_name or "Competitor",
-            reviews_text=body.reviews_text
-        )
+        with user_ai_credentials(user):
+            data = await mine_competitor_reviews(
+                product_name=body.product_name,
+                competitor_name=body.competitor_name or "Competitor",
+                reviews_text=body.reviews_text
+            )
 
         audit_id = str(uuid.uuid4())
         audit = CompetitorAudit(
@@ -1672,9 +1987,10 @@ async def api_mine_competitor_reviews(
             ad_hooks=data.get("ad_hooks", [])
         )
     except Exception as e:
-        db.rollback()
-        # Atomic dual-bucket refund on failure
-        refund_user_generations(user.id, monthly_used, purchased_used, db)
+        # The reservation was committed before the provider call.  Refund it
+        # directly so a test or request-scoped transaction is not accidentally
+        # rolled back past the account row itself.
+        refund_generation_budget(reservation, user_id, db)
         logger.error("Competitor review mining failed: %s", e)
         raise HTTPException(
             status_code=500,
@@ -1687,11 +2003,16 @@ async def api_mine_competitor_reviews(
 async def get_custom_ai_key_status(auth: tuple = Depends(get_current_user_apikey)):
     user, _ = auth
     has_key = bool(user.custom_ai_key_encrypted)
-    is_unlimited = (user.plan == "megastore" and has_key)
+    is_unlimited = bool(get_user_ai_credentials(user))
+    activity = _byok_activity_snapshot(user)
     return CustomAIKeyResponse(
         has_custom_key=has_key,
         provider=user.custom_ai_provider,
-        unlimited_active=is_unlimited
+        unlimited_active=is_unlimited,
+        server_activity_used=activity["used"],
+        server_activity_limit=activity["limit"],
+        server_activity_remaining=activity["remaining"],
+        server_activity_reset_at=activity["reset_at"],
     )
 
 @app.post("/api/user/custom-ai-key", tags=["BYOK"])
@@ -1706,12 +2027,20 @@ async def set_custom_ai_key(request: Request, body: CustomAIKeyRequest, auth: tu
     user.custom_ai_key_encrypted = encrypted_key
     user.custom_ai_provider = body.provider
     db.commit()
+    activity = _byok_activity_snapshot(user)
     return {
         "success": True,
         "has_custom_key": True,
         "provider": user.custom_ai_provider,
-        "unlimited_active": True,
-        "message": "Custom AI provider key securely saved. Future generations can use the configured provider."
+        "unlimited_active": bool(get_user_ai_credentials(user)),
+        "server_activity_used": activity["used"],
+        "server_activity_limit": activity["limit"],
+        "server_activity_remaining": activity["remaining"],
+        "server_activity_reset_at": activity["reset_at"],
+        "message": (
+            "Custom AI provider key securely saved. Provider usage is billed to your provider account; "
+            "KopyKat requests remain subject to the displayed server-activity allowance."
+        )
     }
 
 @app.delete("/api/user/custom-ai-key", tags=["BYOK"])
@@ -1720,7 +2049,7 @@ async def delete_custom_ai_key(auth: tuple = Depends(get_current_user_apikey), d
     user.custom_ai_key_encrypted = None
     user.custom_ai_provider = None
     db.commit()
-    return {"success": True, "message": "Custom AI Key removed. Reverted to standard plan quota."}
+    return {"success": True, "message": "Custom AI key removed. Managed KopyKat generation credits now apply."}
 
 
 # --- INVENTORY BALANCER ROUTES ---
@@ -2222,6 +2551,7 @@ async def save_brand_persona(body: BrandPersonaRequest, auth: tuple = Depends(ge
 @app.post("/api/optimizer/marketplace-listing", response_model=MarketplaceOptimizeResponse, tags=["Listing Optimizer"])
 async def optimize_listing_endpoint(body: MarketplaceOptimizeRequest, auth: tuple = Depends(get_current_user_apikey), db: Session = Depends(get_db)):
     user = auth[0]
+    user_id = user.id
     from .billing import user_has_entitlement
     if not user_has_entitlement(user, "marketplace_optimizer_pack", db):
         raise HTTPException(status_code=403, detail="Marketplace Listing Optimizer Pack add-on or Megastore plan required")
@@ -2236,14 +2566,24 @@ async def optimize_listing_endpoint(body: MarketplaceOptimizeRequest, auth: tupl
         }
 
     from .ai_engine import optimize_marketplace_listing
-    res = await optimize_marketplace_listing(
-        product_name=body.product_name,
-        platform=body.platform,
-        raw_details=body.raw_details,
-        keywords=body.keywords,
-        target_audience=body.target_audience,
-        brand_persona=persona_dict
+    reservation = (
+        _reserve_byok_server_activity(user_id, 1, db)
+        if get_user_ai_credentials(user)
+        else GenerationReservation()
     )
+    try:
+        with user_ai_credentials(user):
+            res = await optimize_marketplace_listing(
+                product_name=body.product_name,
+                platform=body.platform,
+                raw_details=body.raw_details,
+                keywords=body.keywords,
+                target_audience=body.target_audience,
+                brand_persona=persona_dict
+            )
+    except Exception:
+        refund_generation_budget(reservation, user_id, db)
+        raise HTTPException(status_code=500, detail="Listing optimization failed. Any reserved server activity was refunded.")
 
     return MarketplaceOptimizeResponse(
         platform=res.get("platform", body.platform),
