@@ -172,7 +172,28 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(scan_reddit_opportunities, CronTrigger(hour="*/4", minute=15), id="opportunity_scout", replace_existing=True)
     scheduler.add_job(_send_partner_activation_invites, CronTrigger(hour=9, minute=0), id="partner_activation_invites", replace_existing=True)
 
-    logger.info("Background scheduler configured with 8 automated tasks (including marketing and partner invitations)")
+    # AI Job — SolPulse signal engine (every 6 hours, mirrors engine/scheduler.js)
+    from .ai_job.signal_engine import run_signal_engine_sync
+    scheduler.add_job(
+        run_signal_engine_sync,
+        CronTrigger(hour="*/6", minute=30),
+        id="solpulse_signal_engine",
+        replace_existing=True,
+    )
+
+    # AI Job — Automagic bounty hunter (every 12 hours, mirrors GitHub Actions cron)
+    from .ai_job.bounty_hunter import run_bounty_hunter_sync
+    scheduler.add_job(
+        run_bounty_hunter_sync,
+        CronTrigger(hour="*/12", minute=0),
+        id="automagic_bounty_hunter",
+        replace_existing=True,
+    )
+
+    logger.info(
+        "Background scheduler configured with 10 automated tasks "
+        "(marketing, partner invitations, SolPulse signal engine, Automagic bounty hunter)"
+    )
     return scheduler
 
 

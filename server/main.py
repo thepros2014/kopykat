@@ -2658,3 +2658,87 @@ async def create_addon_checkout(body: AddOnCheckoutRequest, auth: tuple = Depend
     except Exception as e:
         logger.error("Stripe add-on session creation error: %s", e)
         raise HTTPException(status_code=503, detail="Payment gateway error. Please try again later.")
+
+# ---------------------------------------------------------------------------
+# AI Job — SolPulse Signal Engine + Automagic Bounty Hunter
+# ---------------------------------------------------------------------------
+
+@app.get("/api/ai-job/signals", tags=["AI Job"])
+@limiter.limit("30/minute")
+async def api_ai_job_signals(request: Request):
+    """
+    Return the latest SolPulse Narrative Momentum Signal data.
+
+    Scores are computed from live GitHub commit velocity and Helius on-chain
+    Solana data. The engine runs automatically every 6 hours via APScheduler.
+    Returns null if the engine has not completed its first run yet.
+    """
+    from .ai_job.signal_engine import get_latest_signals
+    data = get_latest_signals()
+    if data is None:
+        return {"status": "not_ready", "message": "Signal engine has not completed a run yet. Check back shortly."}
+    return {"status": "ok", "data": data}
+
+
+@app.get("/api/ai-job/engine-meta", tags=["AI Job"])
+@limiter.limit("30/minute")
+async def api_ai_job_engine_meta(request: Request):
+    """Return engine metadata including last run time, live coverage, and next scheduled run."""
+    from .ai_job.signal_engine import get_engine_meta
+    meta = get_engine_meta()
+    if meta is None:
+        return {"status": "not_ready", "message": "Engine has not run yet."}
+    return {"status": "ok", "meta": meta}
+
+
+@app.get("/api/ai-job/history/{date_str}", tags=["AI Job"])
+@limiter.limit("20/minute")
+async def api_ai_job_history(request: Request, date_str: str):
+    """
+    Return historical signal snapshots for a given date (YYYY-MM-DD format).
+    Each entry is a compact snapshot recorded at each 6-hour engine run.
+    """
+    import re as _re
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_str):
+        raise HTTPException(status_code=400, detail="Date must be in YYYY-MM-DD format.")
+    from .ai_job.signal_engine import get_history
+    history = get_history(date_str)
+    if history is None:
+        return {"status": "not_found", "date": date_str, "snapshots": []}
+    return {"status": "ok", "date": date_str, "snapshots": history}
+
+
+@app.post("/admin/ai-job/run-now", tags=["Admin"])
+@limiter.limit("3/hour")
+async def admin_ai_job_run_now(
+    request: Request,
+    x_admin_secret: str = Header(None, alias="X-Admin-Secret"),
+):
+    """
+    Manually trigger an immediate signal engine run (admin only).
+    The engine normally runs every 6 hours via APScheduler.
+    """
+    if not x_admin_secret or not hmac.compare_digest(x_admin_secret, ADMIN_SECRET):
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    from .ai_job.signal_engine import run_once
+    import asyncio
+    asyncio.ensure_future(run_once())
+    return {"status": "triggered", "message": "Signal engine run queued. Results available via /api/ai-job/signals in ~30 seconds."}
+
+
+@app.post("/admin/ai-job/run-bounties", tags=["Admin"])
+@limiter.limit("2/hour")
+async def admin_ai_job_run_bounties(
+    request: Request,
+    x_admin_secret: str = Header(None, alias="X-Admin-Secret"),
+):
+    """
+    Manually trigger an immediate bounty hunter run (admin only).
+    Auto-submit is controlled by BOUNTY_AUTO_SUBMIT environment variable.
+    """
+    if not x_admin_secret or not hmac.compare_digest(x_admin_secret, ADMIN_SECRET):
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    from .ai_job.bounty_hunter import run_bounty_hunter
+    import asyncio
+    asyncio.ensure_future(run_bounty_hunter())
+    return {"status": "triggered", "message": "Bounty hunter run queued. Check server logs for results."}
