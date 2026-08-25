@@ -1,17 +1,5 @@
 .env
-# AI Job — credentials and generated output must never be committed
-the ai job/credentials.json
-the ai job/data/signals.json
-the ai job/data/engine_meta.json
-the ai job/data/history/
-the ai job/monitor_status.json
-the ai job/__pycache__/
-the ai job/node_modules/
-the ai job/build/
-the ai job/dist/
-# Server AI job output
-server/ai_job/data/
-# The ai job folder is a separate standalone project (nested git repo) — exclude entirely
+# The standalone AI-job repository lives beside this checkout and is not part of KopyKat.
 the ai job/
 .env.*
 !.env.example
