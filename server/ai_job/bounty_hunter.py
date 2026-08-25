@@ -123,15 +123,36 @@ def fetch_bounty_details(slug: str) -> dict | None:
 
 
 def submit_bounty(listing_id: str, proposal_text: str) -> bool:
-    result = _superteam_post(
-        "listings/apply",
-        {
-            "listingId": listing_id,
-            "link": PORTFOLIO_LINK,
-            "applicationText": proposal_text,
+    """Submit a proposal using the exact payload format from submit_bounty.py."""
+    payload = {
+        "listingId": listing_id,
+        "link": PORTFOLIO_LINK,
+        "tweet": "",
+        "otherInfo": proposal_text,
+        "eligibilityAnswers": [],
+        "ask": None,
+        "telegram": None,
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        "https://superteam.fun/api/agents/submissions/create",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {SUPERTEAM_API_KEY}",
+            "Content-Type": "application/json",
         },
+        method="POST",
     )
-    return bool(result)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode())
+            logger.info("Submission response: %s", result)
+            return True
+    except Exception as exc:
+        logger.warning("Submission failed for listing %s: %s", listing_id, exc)
+        return False
+
+
 
 
 # ---------------------------------------------------------------------------

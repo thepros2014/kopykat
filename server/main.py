@@ -2742,3 +2742,33 @@ async def admin_ai_job_run_bounties(
     import asyncio
     asyncio.ensure_future(run_bounty_hunter())
     return {"status": "triggered", "message": "Bounty hunter run queued. Check server logs for results."}
+
+
+@app.get("/api/ai-job/monitor-status", tags=["AI Job"])
+@limiter.limit("60/minute")
+async def api_ai_job_monitor_status(request: Request):
+    """
+    Return the latest bounty monitor status — last check time, open bounty count,
+    and compact listing details. Updated every 30 minutes by the scheduler.
+    """
+    from .ai_job.bounty_monitor import get_monitor_status
+    status = get_monitor_status()
+    if status is None:
+        return {"status": "not_ready", "message": "Bounty monitor has not run yet. First run in up to 30 minutes."}
+    return {"status": "ok", "monitor": status}
+
+
+@app.post("/admin/ai-job/run-monitor", tags=["Admin"])
+@limiter.limit("6/hour")
+async def admin_ai_job_run_monitor(
+    request: Request,
+    x_admin_secret: str = Header(None, alias="X-Admin-Secret"),
+):
+    """Manually trigger an immediate bounty monitor poll (admin only)."""
+    if not x_admin_secret or not hmac.compare_digest(x_admin_secret, ADMIN_SECRET):
+        raise HTTPException(status_code=403, detail="Forbidden.")
+    from .ai_job.bounty_monitor import run_bounty_monitor
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, run_bounty_monitor)
+    return {"status": "triggered", "message": "Bounty monitor poll queued. Results available via /api/ai-job/monitor-status shortly."}

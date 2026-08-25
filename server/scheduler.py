@@ -190,9 +190,19 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
     )
 
+    # AI Job — Fast bounty monitor (every 30 minutes, mirrors bounty-monitor.yml)
+    from .ai_job.bounty_monitor import run_bounty_monitor
+    scheduler.add_job(
+        run_bounty_monitor,
+        CronTrigger(minute="*/30"),
+        id="bounty_monitor",
+        replace_existing=True,
+    )
+
     logger.info(
-        "Background scheduler configured with 10 automated tasks "
-        "(marketing, partner invitations, SolPulse signal engine, Automagic bounty hunter)"
+        "Background scheduler configured with 11 automated tasks "
+        "(marketing, partner invitations, SolPulse signal engine, "
+        "Automagic bounty hunter, 30-min bounty monitor)"
     )
     return scheduler
 
