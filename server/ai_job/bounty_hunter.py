@@ -6,6 +6,11 @@ APScheduler instead of GitHub Actions cron, and posts Telegram notifications
 via the same token already used in config.
 
 Environment variables (add to .env):
+  OPENAI_API_KEY       — OpenAI ensemble engine key
+  GEMINI_API_KEY       — Gemini ensemble engine key
+  GEMINI_MODEL         — Gemini model name (default: gemini-flash-latest)
+  OLLAMA_HOST          — optional Ollama endpoint (default: http://localhost:11434)
+  OLLAMA_MODEL         — optional local model name (default: llama3.1)
   SUPERTEAM_API_KEY      — Superteam Earn agent API key
   TELEGRAM_BOT_TOKEN     — Telegram bot token for push notifications
   TELEGRAM_CHAT_ID       — Telegram chat ID to send notifications to
@@ -156,34 +161,23 @@ def submit_bounty(listing_id: str, proposal_text: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# AI evaluation — uses KopyKat's existing AI engine
+# AI evaluation — 3-engine ensemble (OpenAI + Gemini + Ollama)
 # ---------------------------------------------------------------------------
 
-async def _evaluate_bounty_with_ai(title: str, description: str) -> str:
-    """Call KopyKat's AI engine to evaluate the bounty and produce a proposal."""
+async def _evaluate_bounty_ensemble(title: str, description: str) -> dict:
+    """Run the 3-engine ensemble evaluator. Returns the full ensemble result dict."""
     try:
-        from ..ai_engine import generate_copy
-        prompt = (
-            "You are a world-class software and business consultant. "
-            "Evaluate this bounty opportunity and produce a professional proposal.\n\n"
-            f"Bounty Title: {title}\n\n"
-            f"Description:\n{description[:3000]}\n\n"
-            "Instructions:\n"
-            "1. Rate our fit out of 10. Output EXACTLY: [SCORE: X/10]\n"
-            "2. Draft a compelling 2-paragraph proposal enclosed in <PROPOSAL></PROPOSAL> tags.\n"
-            "Keep the proposal professional, specific to the bounty, and under 300 words."
-        )
-        result = await generate_copy(
-            keyword=title,
-            product_desc=description[:500],
-            channels=["custom"],
-            platform_hint="proposal",
-            extra_instructions=prompt,
-        )
-        return str(result)
+        from .multi_ai_evaluator import evaluate_bounty
+        return await evaluate_bounty(title, description)
     except Exception as exc:
-        logger.error("AI evaluation failed for bounty '%s': %s", title, exc)
-        return ""
+        logger.error("Ensemble evaluation failed for '%s': %s", title, exc)
+        return {
+            "ensemble_score": 0,
+            "engines_responded": 0,
+            "majority_recommends": False,
+            "best_proposal": None,
+            "breakdown": [],
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -192,20 +186,21 @@ async def _evaluate_bounty_with_ai(title: str, description: str) -> str:
 
 async def run_bounty_hunter() -> dict[str, Any]:
     """
-    Fetch open bounties, evaluate each with AI, and optionally auto-submit.
+    Fetch open bounties, evaluate each with the 3-engine AI ensemble,
+    and optionally auto-submit based on majority recommendation.
     Returns a summary dict with counts and results.
     """
     if not SUPERTEAM_API_KEY:
         logger.info("SUPERTEAM_API_KEY not set — bounty hunter skipped.")
         return {"status": "skipped", "reason": "SUPERTEAM_API_KEY not configured"}
 
-    logger.info("[%s] Bounty hunter starting...", datetime.utcnow().isoformat())
+    logger.info("[%s] Bounty hunter (3-engine ensemble) starting...", datetime.utcnow().isoformat())
     bounties = fetch_open_bounties()
     if not bounties:
         logger.info("No open bounties found.")
         return {"status": "ok", "evaluated": 0, "submitted": 0}
 
-    logger.info("Found %d open bounties. Evaluating...", len(bounties))
+    logger.info("Found %d open bounties. Running 3-engine ensemble evaluation...", len(bounties))
     evaluated = 0
     submitted = 0
     results = []
@@ -221,44 +216,71 @@ async def run_bounty_hunter() -> dict[str, Any]:
             continue
 
         description = _clean_html(details.get("description", ""))
-        evaluation = await _evaluate_bounty_with_ai(title, description)
+        ensemble = await _evaluate_bounty_ensemble(title, description)
         evaluated += 1
 
-        score_match = _SCORE_RE.search(evaluation)
-        proposal_match = _PROPOSAL_RE.search(evaluation)
-        score = int(score_match.group(1)) if score_match else 0
+        ensemble_score = ensemble.get("ensemble_score", 0)
+        majority_recommends = ensemble.get("majority_recommends", False)
+        best_proposal = ensemble.get("best_proposal")
+        engines_responded = ensemble.get("engines_responded", 0)
+        breakdown = ensemble.get("breakdown", [])
+
+        # Build score summary string for logging and Telegram
+        score_parts = [
+            f"{e.get('engine', 'unknown')}={e.get('score')}/10"
+            for e in breakdown if e.get("score") is not None
+        ]
+        score_summary = " | ".join(score_parts) if score_parts else "no scores"
 
         result_entry: dict[str, Any] = {
             "title": title,
             "reward": reward,
             "slug": slug,
-            "score": score,
+            "ensemble_score": ensemble_score,
+            "engines_responded": engines_responded,
+            "score_breakdown": score_summary,
+            "majority_recommends": majority_recommends,
             "submitted": False,
         }
 
-        if score >= MIN_FIT_SCORE and proposal_match:
-            proposal_text = proposal_match.group(1).strip()
+        if majority_recommends and best_proposal:
             if AUTO_SUBMIT:
-                ok = submit_bounty(listing_id, proposal_text)
+                ok = submit_bounty(listing_id, best_proposal)
                 if ok:
                     submitted += 1
                     result_entry["submitted"] = True
-                    logger.info("Auto-submitted proposal for: %s (score %d/10)", title, score)
+                    logger.info(
+                        "Auto-submitted '%s' — ensemble %.1f/10 (%s)",
+                        title, ensemble_score, score_summary,
+                    )
                     send_telegram(
-                        f"<b>AUTO-SUBMITTED BOUNTY</b>\n\n"
+                        f"<b>AUTO-SUBMITTED — 3-ENGINE CONSENSUS</b>\n\n"
                         f"<b>Title:</b> {title}\n"
                         f"<b>Reward:</b> {reward}\n"
-                        f"<b>Fit Score:</b> {score}/10",
+                        f"<b>Ensemble Score:</b> {ensemble_score}/10\n"
+                        f"<b>Engines:</b> {score_summary}",
                         buttons=[{"text": "View Bounty", "url": f"https://superteam.fun/bounties/{slug}"}],
                     )
             else:
                 logger.info(
-                    "Bounty '%s' scored %d/10 — auto-submit is OFF. "
-                    "Set BOUNTY_AUTO_SUBMIT=true to enable autonomous submission.",
-                    title, score,
+                    "Bounty '%s' — ensemble %.1f/10 (%s) — majority recommends, "
+                    "but BOUNTY_AUTO_SUBMIT is OFF.",
+                    title, ensemble_score, score_summary,
+                )
+                send_telegram(
+                    f"<b>BOUNTY READY TO SUBMIT</b>\n\n"
+                    f"<b>Title:</b> {title}\n"
+                    f"<b>Reward:</b> {reward}\n"
+                    f"<b>Ensemble Score:</b> {ensemble_score}/10\n"
+                    f"<b>Engines:</b> {score_summary}\n\n"
+                    f"Auto-submit is OFF. Trigger manually via admin endpoint.",
+                    buttons=[{"text": "View Bounty", "url": f"https://superteam.fun/bounties/{slug}"}],
                 )
         else:
-            logger.debug("Bounty '%s' scored %d/10 — below threshold %d.", title, score, MIN_FIT_SCORE)
+            logger.debug(
+                "Bounty '%s' — ensemble %.1f/10 (%s) — majority does NOT recommend.",
+                title, ensemble_score, score_summary,
+            )
 
         results.append(result_entry)
 
@@ -269,11 +291,12 @@ async def run_bounty_hunter() -> dict[str, Any]:
         "submitted": submitted,
         "autoSubmitEnabled": AUTO_SUBMIT,
         "minFitScore": MIN_FIT_SCORE,
+        "engines": ["openai", "gemini", "ollama"],
         "results": results,
     }
     logger.info(
-        "Bounty hunter complete — evaluated: %d | submitted: %d | auto-submit: %s",
-        evaluated, submitted, AUTO_SUBMIT,
+        "3-engine bounty hunter complete — evaluated: %d | submitted: %d",
+        evaluated, submitted,
     )
     return summary
 
