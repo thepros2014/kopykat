@@ -4,7 +4,7 @@
 fastapi==0.141.1
 uvicorn[standard]==0.52.4
 stripe==9.6.0
-openai==2.54.0
+openai==3.6.0
 google-genai==2.19.0
 tenacity==9.1.4
 sqlalchemy==2.0.30
